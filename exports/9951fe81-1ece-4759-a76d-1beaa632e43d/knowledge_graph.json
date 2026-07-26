@@ -1,0 +1,4133 @@
+{
+  "nodes": [
+    {
+      "id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "node_type": "unit",
+      "label": "Reference C: Complete skill examples",
+      "unit_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "course",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0ba73170-6403-40c8-9f1e-9b87953f35cc",
+      "node_type": "unit",
+      "label": "Forbidden:",
+      "unit_id": "0ba73170-6403-40c8-9f1e-9b87953f35cc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e933e4e9-9842-4bde-8ef7-2cd1947efc06",
+      "node_type": "unit",
+      "label": "Allowed:",
+      "unit_id": "e933e4e9-9842-4bde-8ef7-2cd1947efc06",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "07c2b80e-8f7c-4daa-9ef2-6d0371dfb3f3",
+      "node_type": "unit",
+      "label": "Security notes",
+      "unit_id": "07c2b80e-8f7c-4daa-9ef2-6d0371dfb3f3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "981b7c19-9240-4e99-bc35-1f188686782e",
+      "node_type": "unit",
+      "label": "All optional fields",
+      "unit_id": "981b7c19-9240-4e99-bc35-1f188686782e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "35ad0acb-9e86-42e5-9173-60d6c9a932fb",
+      "node_type": "unit",
+      "label": "Required fields",
+      "unit_id": "35ad0acb-9e86-42e5-9173-60d6c9a932fb",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "58ad3b6e-6b9b-4812-9f8a-403956c95819",
+      "node_type": "unit",
+      "label": "Reference B: YAML frontmatter",
+      "unit_id": "58ad3b6e-6b9b-4812-9f8a-403956c95819",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e7d1aa0f-aa29-4bcf-b27d-5399533a5160",
+      "node_type": "unit",
+      "label": "After upload",
+      "unit_id": "e7d1aa0f-aa29-4bcf-b27d-5399533a5160",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0b2bf256-64b5-4ae0-9f31-3762ab53eb1d",
+      "node_type": "unit",
+      "label": "Before upload",
+      "unit_id": "0b2bf256-64b5-4ae0-9f31-3762ab53eb1d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "efd031cd-441f-4b5c-90c6-16a1d5db0de2",
+      "node_type": "unit",
+      "label": "During development",
+      "unit_id": "efd031cd-441f-4b5c-90c6-16a1d5db0de2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "3be9bb1a-0615-405a-8008-230bad5f04ea",
+      "node_type": "unit",
+      "label": "Before you start",
+      "unit_id": "3be9bb1a-0615-405a-8008-230bad5f04ea",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "a049d6dd-7924-47c9-a8dc-32c4fccf3a08",
+      "node_type": "unit",
+      "label": "Reference A: Quick checklist",
+      "unit_id": "a049d6dd-7924-47c9-a8dc-32c4fccf3a08",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "98b41280-3cd3-48a1-94e7-8afa141f46d7",
+      "node_type": "unit",
+      "label": "For Bug Reports:",
+      "unit_id": "98b41280-3cd3-48a1-94e7-8afa141f46d7",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b6a9f432-e46c-4529-b127-ffef78f09652",
+      "node_type": "unit",
+      "label": "For Technical Questions:",
+      "unit_id": "b6a9f432-e46c-4529-b127-ffef78f09652",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "530d303b-3b4c-4ff9-8ccd-9248b62fda43",
+      "node_type": "unit",
+      "label": "Getting Support",
+      "unit_id": "530d303b-3b4c-4ff9-8ccd-9248b62fda43",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "00388914-a71f-471f-9ffc-d9778228ec4f",
+      "node_type": "unit",
+      "label": "Validation:",
+      "unit_id": "00388914-a71f-471f-9ffc-d9778228ec4f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "4d1ab7bf-5259-4345-8c0a-e23dcabf8e83",
+      "node_type": "unit",
+      "label": "skill-creator skill:",
+      "unit_id": "4d1ab7bf-5259-4345-8c0a-e23dcabf8e83",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d66a952c-be93-43c3-9790-0000761170a9",
+      "node_type": "unit",
+      "label": "Tools and Utilities",
+      "unit_id": "d66a952c-be93-43c3-9790-0000761170a9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b5ad9618-e455-49a8-b1db-5280ccd34b7c",
+      "node_type": "unit",
+      "label": "Public skills repository:",
+      "unit_id": "b5ad9618-e455-49a8-b1db-5280ccd34b7c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "2c077d85-5087-4524-adad-8657e3a208d9",
+      "node_type": "unit",
+      "label": "Example skills",
+      "unit_id": "2c077d85-5087-4524-adad-8657e3a208d9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c99f296b-21b2-4385-8d8e-d9663fcb1c5d",
+      "node_type": "unit",
+      "label": "Blog Posts:",
+      "unit_id": "c99f296b-21b2-4385-8d8e-d9663fcb1c5d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "09e688a5-1e87-46fb-b330-52a124cf0f6c",
+      "node_type": "unit",
+      "label": "Anthropic Resources:",
+      "unit_id": "09e688a5-1e87-46fb-b330-52a124cf0f6c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7cb2bfc0-b1d7-4ed9-bec1-5120d52a1edf",
+      "node_type": "unit",
+      "label": "Official Documentation",
+      "unit_id": "7cb2bfc0-b1d7-4ed9-bec1-5120d52a1edf",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f3b64d00-642a-44d8-a2ad-023ec2eecca0",
+      "node_type": "unit",
+      "label": "Resources and references",
+      "unit_id": "f3b64d00-642a-44d8-a2ad-023ec2eecca0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "1ebb5072-6aff-4753-98ae-8dc9c72b08f0",
+      "node_type": "unit",
+      "label": "Resources and references",
+      "unit_id": "1ebb5072-6aff-4753-98ae-8dc9c72b08f0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8187b20f-178b-4466-acd3-040044eb1063",
+      "node_type": "unit",
+      "label": "2.  Reduce enabled skills",
+      "unit_id": "8187b20f-178b-4466-acd3-040044eb1063",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "a9c2efad-965c-4400-960c-d648c7cc2471",
+      "node_type": "unit",
+      "label": "1.  Optimize SKILL.md size",
+      "unit_id": "a9c2efad-965c-4400-960c-d648c7cc2471",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "92c8867f-2526-4c79-8a80-5c233c3fcd1d",
+      "node_type": "unit",
+      "label": "Solutions:",
+      "unit_id": "92c8867f-2526-4c79-8a80-5c233c3fcd1d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "09dc16e6-920a-4e7a-b46c-f6df088349f6",
+      "node_type": "unit",
+      "label": "Causes:",
+      "unit_id": "09dc16e6-920a-4e7a-b46c-f6df088349f6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ea4b16d1-2ee9-4547-8f7b-572b9f47dcd8",
+      "node_type": "unit",
+      "label": "Large context issues",
+      "unit_id": "ea4b16d1-2ee9-4547-8f7b-572b9f47dcd8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1ce631c3-16ce-45b9-bedc-9d787778ebcb",
+      "node_type": "unit",
+      "label": "-# Performance Notes",
+      "unit_id": "1ce631c3-16ce-45b9-bedc-9d787778ebcb",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "3bf135bc-61c8-4f5e-af81-358660569ce5",
+      "node_type": "unit",
+      "label": "# Good",
+      "unit_id": "3bf135bc-61c8-4f5e-af81-358660569ce5",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0b8f8acb-d4dc-4e3a-af34-ff3ff96000c0",
+      "node_type": "unit",
+      "label": "# Bad",
+      "unit_id": "0b8f8acb-d4dc-4e3a-af34-ff3ff96000c0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "35595abb-c3cb-4ef2-b996-4b493d5ef028",
+      "node_type": "unit",
+      "label": "3.  Ambiguous language",
+      "unit_id": "35595abb-c3cb-4ef2-b996-4b493d5ef028",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "03808bb7-aaae-4a75-a798-0e564184066f",
+      "node_type": "unit",
+      "label": "2.  Instructions buried",
+      "unit_id": "03808bb7-aaae-4a75-a798-0e564184066f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8638ae68-605d-4e4d-b5d0-0789d0d401d4",
+      "node_type": "unit",
+      "label": "Common causes:",
+      "unit_id": "8638ae68-605d-4e4d-b5d0-0789d0d401d4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "dbf23e71-d250-49d6-bfef-2cfc9e7a81f4",
+      "node_type": "unit",
+      "label": "Instructions not followed",
+      "unit_id": "dbf23e71-d250-49d6-bfef-2cfc9e7a81f4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "caf0be08-35e6-414c-9c32-9f8b039503fe",
+      "node_type": "unit",
+      "label": "4. Verify tool names",
+      "unit_id": "caf0be08-35e6-414c-9c32-9f8b039503fe",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "975d339e-d5b3-4975-ad33-6b237e9e45bf",
+      "node_type": "unit",
+      "label": "3.  Test MCP independently",
+      "unit_id": "975d339e-d5b3-4975-ad33-6b237e9e45bf",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "aa6925b8-7f30-47ab-85cd-75dbfc06674b",
+      "node_type": "unit",
+      "label": "2.  Check authentication",
+      "unit_id": "aa6925b8-7f30-47ab-85cd-75dbfc06674b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1b1033bf-bfbb-448d-b2d1-d2498e3fdcf8",
+      "node_type": "unit",
+      "label": "Checklist:",
+      "unit_id": "1b1033bf-bfbb-448d-b2d1-d2498e3fdcf8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "799f6747-d6b1-4562-93f0-599e190efeca",
+      "node_type": "unit",
+      "label": "MCP connection issues",
+      "unit_id": "799f6747-d6b1-4562-93f0-599e190efeca",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ffe0cb45-a867-4d6e-912f-d16c9df52ab6",
+      "node_type": "unit",
+      "label": "3.  Clarify scope",
+      "unit_id": "ffe0cb45-a867-4d6e-912f-d16c9df52ab6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "739f06ea-d257-4911-8bd0-0bafecf43a4d",
+      "node_type": "unit",
+      "label": "2.  Be more specific",
+      "unit_id": "739f06ea-d257-4911-8bd0-0bafecf43a4d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b58d25e0-0dc5-459f-b16f-cdfb8229f02d",
+      "node_type": "unit",
+      "label": "Solutions:",
+      "unit_id": "b58d25e0-0dc5-459f-b16f-cdfb8229f02d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d0caddd6-f2a6-42c9-9273-b0c5b6ab3815",
+      "node_type": "unit",
+      "label": "Skill triggers too often",
+      "unit_id": "d0caddd6-f2a6-42c9-9273-b0c5b6ab3815",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "3fb5dbd3-75b0-439b-9c1a-e19be8a7b2d1",
+      "node_type": "unit",
+      "label": "Debugging approach:",
+      "unit_id": "3fb5dbd3-75b0-439b-9c1a-e19be8a7b2d1",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c48c247c-e1a6-4564-a8e3-ed81c9c3519e",
+      "node_type": "unit",
+      "label": "Quick checklist:",
+      "unit_id": "c48c247c-e1a6-4564-a8e3-ed81c9c3519e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "77e79def-51c4-41f2-9cbb-54c1868a1ce6",
+      "node_type": "unit",
+      "label": "Fix:",
+      "unit_id": "77e79def-51c4-41f2-9cbb-54c1868a1ce6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5adf68d0-f957-40cc-b767-cfa903310323",
+      "node_type": "unit",
+      "label": "Skill doesn't trigger",
+      "unit_id": "5adf68d0-f957-40cc-b767-cfa903310323",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "43b1d231-4567-4e4e-a7d5-66671674f493",
+      "node_type": "unit",
+      "label": "Error: \"Invalid skill name\"",
+      "unit_id": "43b1d231-4567-4e4e-a7d5-66671674f493",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5633598d-60ca-4350-9a3f-7e138b8cabd9",
+      "node_type": "unit",
+      "label": "Common mistakes:",
+      "unit_id": "5633598d-60ca-4350-9a3f-7e138b8cabd9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "58525471-cd83-4a51-96fe-ef25d955b688",
+      "node_type": "unit",
+      "label": "Error: \"Invalid frontmatter\"",
+      "unit_id": "58525471-cd83-4a51-96fe-ef25d955b688",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "cc12cc9e-5578-45f3-94b6-170be55d1d21",
+      "node_type": "unit",
+      "label": "Solution:",
+      "unit_id": "cc12cc9e-5578-45f3-94b6-170be55d1d21",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "902c1950-ada5-4437-9282-8db6cb1fd971",
+      "node_type": "unit",
+      "label": "Troubleshooting",
+      "unit_id": "902c1950-ada5-4437-9282-8db6cb1fd971",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "fa824ca1-812e-4854-a115-6518f7836605",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "fa824ca1-812e-4854-a115-6518f7836605",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c3f50ae2-3e59-45aa-bc1c-880655d810e7",
+      "node_type": "unit",
+      "label": "--# Audit Trail",
+      "unit_id": "c3f50ae2-3e59-45aa-bc1c-880655d810e7",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7be69ed0-bed4-4139-ab9f-08367f8f91be",
+      "node_type": "unit",
+      "label": "ELSE:",
+      "unit_id": "7be69ed0-bed4-4139-ab9f-08367f8f91be",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "364cc203-64b3-47b5-8a1f-40fffed748a8",
+      "node_type": "unit",
+      "label": "--# Processing",
+      "unit_id": "364cc203-64b3-47b5-8a1f-40fffed748a8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ae27f6f3-af5d-4d7d-b5b9-f2700a910818",
+      "node_type": "unit",
+      "label": "Example: Financial compliance",
+      "unit_id": "ae27f6f3-af5d-4d7d-b5b9-f2700a910818",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e6a8df39-c8b0-4def-aeb4-b3168bb39f24",
+      "node_type": "unit",
+      "label": "Pattern 5: Domain-specific intelligence",
+      "unit_id": "e6a8df39-c8b0-4def-aeb4-b3168bb39f24",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0c813d33-10c3-414a-b478-235a2261c5f9",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "0c813d33-10c3-414a-b478-235a2261c5f9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "aeb8232d-370c-48c5-a14d-bfb9e8208f06",
+      "node_type": "unit",
+      "label": "--# Execute Storage Based on decision:",
+      "unit_id": "aeb8232d-370c-48c5-a14d-bfb9e8208f06",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ab7306b1-029a-4967-b499-52c82c100fdf",
+      "node_type": "unit",
+      "label": "--# Decision Tree",
+      "unit_id": "ab7306b1-029a-4967-b499-52c82c100fdf",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "afb0d8ae-294e-4755-a81e-fb013c2dd1f2",
+      "node_type": "unit",
+      "label": "Example: File storage",
+      "unit_id": "afb0d8ae-294e-4755-a81e-fb013c2dd1f2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "41e87e59-08fb-4c16-890c-7680223a2074",
+      "node_type": "unit",
+      "label": "Pattern 4: Context-aware tool selection",
+      "unit_id": "41e87e59-08fb-4c16-890c-7680223a2074",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "35640160-6f73-42d0-a74b-6e3acee7e178",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "35640160-6f73-42d0-a74b-6e3acee7e178",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b26a380b-35e0-4047-bf90-4d2a4144d25d",
+      "node_type": "unit",
+      "label": "--# Finalization",
+      "unit_id": "b26a380b-35e0-4047-bf90-4d2a4144d25d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "9b3458c8-6b9e-4884-bf10-4a37a077f4d6",
+      "node_type": "unit",
+      "label": "--# Refinement Loop",
+      "unit_id": "9b3458c8-6b9e-4884-bf10-4a37a077f4d6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ee9eb352-0661-4941-818e-904043e28073",
+      "node_type": "unit",
+      "label": "--# Quality Check",
+      "unit_id": "ee9eb352-0661-4941-818e-904043e28073",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "812490ff-e999-4b40-af5a-e251a30a89ee",
+      "node_type": "unit",
+      "label": "--# Initial Draft",
+      "unit_id": "812490ff-e999-4b40-af5a-e251a30a89ee",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "524122bf-53f6-4634-82c7-ec3f7f6b395d",
+      "node_type": "unit",
+      "label": "Example: Report generation",
+      "unit_id": "524122bf-53f6-4634-82c7-ec3f7f6b395d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c330db9d-23c4-4ec9-a40d-b2dd9eb572ed",
+      "node_type": "unit",
+      "label": "Pattern 3: Iterative refinement",
+      "unit_id": "c330db9d-23c4-4ec9-a40d-b2dd9eb572ed",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7947b707-f9ba-4a1c-a6f6-7b08362670f3",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "7947b707-f9ba-4a1c-a6f6-7b08362670f3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1915cd9d-a41c-4186-bbb5-3449b6fd8928",
+      "node_type": "unit",
+      "label": "Example: Design-to-development handoff",
+      "unit_id": "1915cd9d-a41c-4186-bbb5-3449b6fd8928",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "02431fd8-4c2d-4dad-8f6e-bf62163705cc",
+      "node_type": "unit",
+      "label": "Pattern 2: Multi-MCP coordination",
+      "unit_id": "02431fd8-4c2d-4dad-8f6e-bf62163705cc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "4fa17612-f381-41d5-b337-98b5bbe36fe3",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "4fa17612-f381-41d5-b337-98b5bbe36fe3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5434509a-f220-46d4-812e-472c21aa5ac8",
+      "node_type": "unit",
+      "label": "Example structure:",
+      "unit_id": "5434509a-f220-46d4-812e-472c21aa5ac8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8c0a8fd3-50ac-42c7-98dc-84445b629b32",
+      "node_type": "unit",
+      "label": "Pattern 1: Sequential workflow orchestration",
+      "unit_id": "8c0a8fd3-50ac-42c7-98dc-84445b629b32",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e15c1138-9daa-4a81-ad04-8d5e1034a38e",
+      "node_type": "unit",
+      "label": "Choosing your approach: Problem-first vs. tool-first",
+      "unit_id": "e15c1138-9daa-4a81-ad04-8d5e1034a38e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0aa552aa-d74d-4c62-b452-80f24cbaebaa",
+      "node_type": "unit",
+      "label": "Patterns and troubleshooting",
+      "unit_id": "0aa552aa-d74d-4c62-b452-80f24cbaebaa",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "f8897dff-8c23-431a-9913-075f2f53b9a5",
+      "node_type": "unit",
+      "label": "Patterns and troubleshooting",
+      "unit_id": "f8897dff-8c23-431a-9913-075f2f53b9a5",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "031e5bf6-a190-40b3-be30-6dc5f8ffa2c9",
+      "node_type": "unit",
+      "label": "Highlight the MCP + skills story:",
+      "unit_id": "031e5bf6-a190-40b3-be30-6dc5f8ffa2c9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "899158a8-eca6-4847-8a23-63720f46f31b",
+      "node_type": "unit",
+      "label": "\u274c Bad:",
+      "unit_id": "899158a8-eca6-4847-8a23-63720f46f31b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "9fba1a2c-b2a2-447e-8334-bece214a1841",
+      "node_type": "unit",
+      "label": "Focus on outcomes, not features:",
+      "unit_id": "9fba1a2c-b2a2-447e-8334-bece214a1841",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7bf2fdd0-f552-43d5-81f9-8d82ba31226c",
+      "node_type": "unit",
+      "label": "Positioning your skill",
+      "unit_id": "7bf2fdd0-f552-43d5-81f9-8d82ba31226c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "da32e7f6-eb9e-479c-9472-342dfee5355e",
+      "node_type": "unit",
+      "label": "3. Create an Installation Guide",
+      "unit_id": "da32e7f6-eb9e-479c-9472-342dfee5355e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e7a3ea46-61c4-4478-965b-844721bf302d",
+      "node_type": "unit",
+      "label": "2. Document in Your MCP Repo",
+      "unit_id": "e7a3ea46-61c4-4478-965b-844721bf302d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1d625bea-471e-4c0c-aa2b-243c43473e93",
+      "node_type": "unit",
+      "label": "1. Host on GitHub",
+      "unit_id": "1d625bea-471e-4c0c-aa2b-243c43473e93",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0a0b1d14-f5cd-4371-9002-cd32459e7fa9",
+      "node_type": "unit",
+      "label": "Recommended approach today",
+      "unit_id": "0a0b1d14-f5cd-4371-9002-cd32459e7fa9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "25fefa66-ad69-4aef-8c97-8c02c137bf72",
+      "node_type": "unit",
+      "label": "When to use skills via the API vs. Claude.ai:",
+      "unit_id": "25fefa66-ad69-4aef-8c97-8c02c137bf72",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7f76c0ff-85e1-48c8-8c5a-22fa4824c440",
+      "node_type": "unit",
+      "label": "Key capabilities:",
+      "unit_id": "7f76c0ff-85e1-48c8-8c5a-22fa4824c440",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "2d28a969-6c9c-4b76-8283-ce380ccf057d",
+      "node_type": "unit",
+      "label": "Using skills via API",
+      "unit_id": "2d28a969-6c9c-4b76-8283-ce380ccf057d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7a548a01-9ac7-4706-ae3e-19ad5d46c846",
+      "node_type": "unit",
+      "label": "An open standard",
+      "unit_id": "7a548a01-9ac7-4706-ae3e-19ad5d46c846",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "cf72bbec-a60b-4d85-821b-1e821fab2ae4",
+      "node_type": "unit",
+      "label": "Organization-level skills:",
+      "unit_id": "cf72bbec-a60b-4d85-821b-1e821fab2ae4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "6a5cc699-9585-4fb9-a1ab-a13e64906d0e",
+      "node_type": "unit",
+      "label": "How individual users get skills:",
+      "unit_id": "6a5cc699-9585-4fb9-a1ab-a13e64906d0e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "315912eb-1616-45db-be6f-cf5c2448ef55",
+      "node_type": "unit",
+      "label": "Current distribution model (January 2026)",
+      "unit_id": "315912eb-1616-45db-be6f-cf5c2448ef55",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "96aaaf27-77fe-44a1-9e51-5317b4fa1050",
+      "node_type": "unit",
+      "label": "Distribution and sharing",
+      "unit_id": "96aaaf27-77fe-44a1-9e51-5317b4fa1050",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "ecfdb383-08f9-4020-b5fa-ffc37e3e294a",
+      "node_type": "unit",
+      "label": "Execution issues:",
+      "unit_id": "ecfdb383-08f9-4020-b5fa-ffc37e3e294a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5e5ade45-7d67-4613-a81b-ae9529d63f4a",
+      "node_type": "unit",
+      "label": "Overtriggering signals:",
+      "unit_id": "5e5ade45-7d67-4613-a81b-ae9529d63f4a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c01deed3-e869-4aa2-9017-812cb9cc8f24",
+      "node_type": "unit",
+      "label": "Undertriggering signals:",
+      "unit_id": "c01deed3-e869-4aa2-9017-812cb9cc8f24",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d5db63cd-2106-4656-ad2e-496c4acd20fc",
+      "node_type": "unit",
+      "label": "Iteration based on feedback",
+      "unit_id": "d5db63cd-2106-4656-ad2e-496c4acd20fc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "9502bfe7-e979-48e6-86fc-60bad5a7d60e",
+      "node_type": "unit",
+      "label": "To use:",
+      "unit_id": "9502bfe7-e979-48e6-86fc-60bad5a7d60e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "a138dd6d-0bdd-456b-8b6d-4cc693638017",
+      "node_type": "unit",
+      "label": "Iterative improvement:",
+      "unit_id": "a138dd6d-0bdd-456b-8b6d-4cc693638017",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "37d72ef5-f51c-4309-92fc-a988bf145dcc",
+      "node_type": "unit",
+      "label": "Reviewing skills:",
+      "unit_id": "37d72ef5-f51c-4309-92fc-a988bf145dcc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b30caad1-6ead-4a15-bf91-a893bd89d49d",
+      "node_type": "unit",
+      "label": "Creating skills:",
+      "unit_id": "b30caad1-6ead-4a15-bf91-a893bd89d49d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "361d4068-7d3b-449a-88b1-02df992d7d30",
+      "node_type": "unit",
+      "label": "Using the skill-creator skill",
+      "unit_id": "361d4068-7d3b-449a-88b1-02df992d7d30",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7ece2522-7a31-4d4d-a6e6-68cc736d7552",
+      "node_type": "unit",
+      "label": "With skill:",
+      "unit_id": "7ece2522-7a31-4d4d-a6e6-68cc736d7552",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "bbc77fa2-7e9a-4aa9-8a5f-9441ab599fd9",
+      "node_type": "unit",
+      "label": "Without skill:",
+      "unit_id": "bbc77fa2-7e9a-4aa9-8a5f-9441ab599fd9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e38030c5-5727-44bb-acd4-e3497de14adc",
+      "node_type": "unit",
+      "label": "Baseline comparison:",
+      "unit_id": "e38030c5-5727-44bb-acd4-e3497de14adc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "df79a41b-0984-44a7-a448-ec38ca133930",
+      "node_type": "unit",
+      "label": "3. Performance comparison",
+      "unit_id": "df79a41b-0984-44a7-a448-ec38ca133930",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "abc24f36-022c-4f91-b3ac-6faf583cc9a8",
+      "node_type": "unit",
+      "label": "Then:",
+      "unit_id": "abc24f36-022c-4f91-b3ac-6faf583cc9a8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b22f95d7-9b71-4f4d-b86a-0028b83cdeb9",
+      "node_type": "unit",
+      "label": "Example:",
+      "unit_id": "b22f95d7-9b71-4f4d-b86a-0028b83cdeb9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "59fb1873-86a5-4087-9699-5d0dc5afeb1d",
+      "node_type": "unit",
+      "label": "Test cases:",
+      "unit_id": "59fb1873-86a5-4087-9699-5d0dc5afeb1d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "bb45c510-1e98-44a6-b42a-101429647ef4",
+      "node_type": "unit",
+      "label": "2. Functional tests",
+      "unit_id": "bb45c510-1e98-44a6-b42a-101429647ef4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "9f8b1b7d-7ba2-4969-95fd-974132527322",
+      "node_type": "unit",
+      "label": "Should NOT trigger:",
+      "unit_id": "9f8b1b7d-7ba2-4969-95fd-974132527322",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "585e180a-4654-4865-b055-a840776b1236",
+      "node_type": "unit",
+      "label": "Should trigger:",
+      "unit_id": "585e180a-4654-4865-b055-a840776b1236",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ce420919-9fcc-4e08-9e8e-8dee609494df",
+      "node_type": "unit",
+      "label": "Example test suite:",
+      "unit_id": "ce420919-9fcc-4e08-9e8e-8dee609494df",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ec6f94bd-94ae-467e-bb3c-eb377c576c6c",
+      "node_type": "unit",
+      "label": "Test cases:",
+      "unit_id": "ec6f94bd-94ae-467e-bb3c-eb377c576c6c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c1c3a2aa-897c-4a9f-b830-0f547549719e",
+      "node_type": "unit",
+      "label": "1. Triggering tests",
+      "unit_id": "c1c3a2aa-897c-4a9f-b830-0f547549719e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8bf5b51b-9e42-4342-a0eb-1e1354caa6e4",
+      "node_type": "unit",
+      "label": "Recommended Testing Approach",
+      "unit_id": "8bf5b51b-9e42-4342-a0eb-1e1354caa6e4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b0a92fca-c004-4d22-8165-3ff5c4439317",
+      "node_type": "unit",
+      "label": "Testing and iteration",
+      "unit_id": "b0a92fca-c004-4d22-8165-3ff5c4439317",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "6ecc11f4-35b2-42fa-a068-1294ca0ebfc9",
+      "node_type": "unit",
+      "label": "Testing and iteration",
+      "unit_id": "6ecc11f4-35b2-42fa-a068-1294ca0ebfc9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c8608620-e3a6-41cd-a3b3-47dc9ae79224",
+      "node_type": "unit",
+      "label": "Use progressive disclosure",
+      "unit_id": "c8608620-e3a6-41cd-a3b3-47dc9ae79224",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8f2da581-9ddc-4fbd-9dbf-f8c90e06075d",
+      "node_type": "unit",
+      "label": "Reference bundled resources clearly",
+      "unit_id": "8f2da581-9ddc-4fbd-9dbf-f8c90e06075d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "5454409b-743b-4fe7-9f61-acd6633dfdba",
+      "node_type": "unit",
+      "label": "Include error handling",
+      "unit_id": "5454409b-743b-4fe7-9f61-acd6633dfdba",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ef4ca846-20b0-49ec-8a65-a4b6b678da27",
+      "node_type": "unit",
+      "label": "Bad:",
+      "unit_id": "ef4ca846-20b0-49ec-8a65-a4b6b678da27",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "337b4e3a-9d5c-4b6b-bcca-8fd95b132d0d",
+      "node_type": "unit",
+      "label": "Good:",
+      "unit_id": "337b4e3a-9d5c-4b6b-bcca-8fd95b132d0d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "5c2aaee3-0ebb-455e-b16c-413540cf9c97",
+      "node_type": "unit",
+      "label": "Best Practices for Instructions",
+      "unit_id": "5c2aaee3-0ebb-455e-b16c-413540cf9c97",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "88f797ae-c7d6-4afb-86ef-5fbb8d2d4826",
+      "node_type": "unit",
+      "label": "Troubleshooting",
+      "unit_id": "88f797ae-c7d6-4afb-86ef-5fbb8d2d4826",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "24b9d44c-1d7e-4875-b0de-bc235636d607",
+      "node_type": "unit",
+      "label": "Example 1: [common scenario]",
+      "unit_id": "24b9d44c-1d7e-4875-b0de-bc235636d607",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1e44533f-6fea-48ca-a6de-a91e051649ae",
+      "node_type": "unit",
+      "label": "Examples",
+      "unit_id": "1e44533f-6fea-48ca-a6de-a91e051649ae",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d1ed805e-13ef-436b-a68b-2ff07b9dbd81",
+      "node_type": "unit",
+      "label": "Recommended structure:",
+      "unit_id": "d1ed805e-13ef-436b-a68b-2ff07b9dbd81",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "6f9f11da-b98e-433b-bfd3-aa6f77c0f0b9",
+      "node_type": "unit",
+      "label": "Writing the main instructions",
+      "unit_id": "6f9f11da-b98e-433b-bfd3-aa6f77c0f0b9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5b3b5d9f-ef4f-4d80-bb12-d195312504ea",
+      "node_type": "unit",
+      "label": "Examples of bad descriptions:",
+      "unit_id": "5b3b5d9f-ef4f-4d80-bb12-d195312504ea",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "167221e3-9740-4528-b724-3fcfa845dd52",
+      "node_type": "unit",
+      "label": "Examples of good descriptions:",
+      "unit_id": "167221e3-9740-4528-b724-3fcfa845dd52",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f86990bf-ec3a-4e3c-b194-151d4e97d6a0",
+      "node_type": "unit",
+      "label": "Structure:",
+      "unit_id": "f86990bf-ec3a-4e3c-b194-151d4e97d6a0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "35c8fa9a-258c-4794-a508-458ca578e98c",
+      "node_type": "unit",
+      "label": "The description field",
+      "unit_id": "35c8fa9a-258c-4794-a508-458ca578e98c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "3cac1896-7250-49ee-a7f9-90f7c65a55ab",
+      "node_type": "unit",
+      "label": "Writing effective skills",
+      "unit_id": "3cac1896-7250-49ee-a7f9-90f7c65a55ab",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "56f3f1c3-8d07-491c-9522-cd2924ce574f",
+      "node_type": "unit",
+      "label": "Forbidden in frontmatter:",
+      "unit_id": "56f3f1c3-8d07-491c-9522-cd2924ce574f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "acb6855d-f582-4d28-b92a-2d849af0005f",
+      "node_type": "unit",
+      "label": "Security restrictions",
+      "unit_id": "acb6855d-f582-4d28-b92a-2d849af0005f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "18c0fb75-d5a8-4527-85aa-f20554693233",
+      "node_type": "unit",
+      "label": "metadata (optional):",
+      "unit_id": "18c0fb75-d5a8-4527-85aa-f20554693233",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b0017dac-20a5-4c07-a7ef-35a96b6236ac",
+      "node_type": "unit",
+      "label": "compatibility (optional)",
+      "unit_id": "b0017dac-20a5-4c07-a7ef-35a96b6236ac",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "12aa3bc8-e85f-43b0-b9dc-b31c8c8437eb",
+      "node_type": "unit",
+      "label": "license (optional):",
+      "unit_id": "12aa3bc8-e85f-43b0-b9dc-b31c8c8437eb",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "99b861e7-f5e0-4f5f-b07d-b8ce2b7e0ff5",
+      "node_type": "unit",
+      "label": "description (required):",
+      "unit_id": "99b861e7-f5e0-4f5f-b07d-b8ce2b7e0ff5",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e2cc6516-1f9e-46f0-8f89-575be541b9f8",
+      "node_type": "unit",
+      "label": "name (required):",
+      "unit_id": "e2cc6516-1f9e-46f0-8f89-575be541b9f8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ac71065a-54ba-47c4-ab57-4da48e7010a2",
+      "node_type": "unit",
+      "label": "Field requirements",
+      "unit_id": "ac71065a-54ba-47c4-ab57-4da48e7010a2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "fda5fe90-e328-48ec-94ff-f9bce0585037",
+      "node_type": "unit",
+      "label": "Minimal required format",
+      "unit_id": "fda5fe90-e328-48ec-94ff-f9bce0585037",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "223325ba-7e08-4351-9979-508f4850957f",
+      "node_type": "unit",
+      "label": "YAML frontmatter: The most important part",
+      "unit_id": "223325ba-7e08-4351-9979-508f4850957f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1f103594-8d95-46af-b906-4440b148e4c1",
+      "node_type": "unit",
+      "label": "No README.md:",
+      "unit_id": "1f103594-8d95-46af-b906-4440b148e4c1",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f688c67e-1bd1-440c-9845-a1990a9dcde4",
+      "node_type": "unit",
+      "label": "Skill folder naming:",
+      "unit_id": "f688c67e-1bd1-440c-9845-a1990a9dcde4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "bffa453b-31ba-49a2-97e1-d32195a790c8",
+      "node_type": "unit",
+      "label": "SKILL.md naming:",
+      "unit_id": "bffa453b-31ba-49a2-97e1-d32195a790c8",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e3052d87-03bf-4029-be9e-d583b9e4fb6e",
+      "node_type": "unit",
+      "label": "Critical rules",
+      "unit_id": "e3052d87-03bf-4029-be9e-d583b9e4fb6e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7e7db848-dbe6-42ea-a142-f6249b9d0f01",
+      "node_type": "unit",
+      "label": "File structure",
+      "unit_id": "7e7db848-dbe6-42ea-a142-f6249b9d0f01",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f3c3dfe8-0c07-4c12-bf4b-e936840db98f",
+      "node_type": "unit",
+      "label": "Technical requirements",
+      "unit_id": "f3c3dfe8-0c07-4c12-bf4b-e936840db98f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "ec23da12-3343-4070-a7df-950eae61045a",
+      "node_type": "unit",
+      "label": "Qualitative metrics:",
+      "unit_id": "ec23da12-3343-4070-a7df-950eae61045a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "6c397c64-e2f4-4195-8a1c-fe7e876baded",
+      "node_type": "unit",
+      "label": "Quantitative metrics:",
+      "unit_id": "6c397c64-e2f4-4195-8a1c-fe7e876baded",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "6b45b7f7-5c2e-4061-b362-0983673d8b5a",
+      "node_type": "unit",
+      "label": "How will you know your skill is working?",
+      "unit_id": "6b45b7f7-5c2e-4061-b362-0983673d8b5a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "2be25fc0-c279-4448-a2d1-f886b5e8d013",
+      "node_type": "unit",
+      "label": "Define success criteria",
+      "unit_id": "2be25fc0-c279-4448-a2d1-f886b5e8d013",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b9985d3b-4433-4249-afbc-a0f50fd1f9c6",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "b9985d3b-4433-4249-afbc-a0f50fd1f9c6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "31185a7d-7b05-4dd4-8d98-fbb3889794c9",
+      "node_type": "unit",
+      "label": "Category 3: MCP Enhancement",
+      "unit_id": "31185a7d-7b05-4dd4-8d98-fbb3889794c9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d272e0d7-1ee4-4c11-83ac-c521d6290e79",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "d272e0d7-1ee4-4c11-83ac-c521d6290e79",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "d4c2369c-fa06-42de-83d2-9277ee2f8e6b",
+      "node_type": "unit",
+      "label": "Category 2: Workflow Automation",
+      "unit_id": "d4c2369c-fa06-42de-83d2-9277ee2f8e6b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "a5c67215-763a-4728-801f-cb0d0d3c8c2c",
+      "node_type": "unit",
+      "label": "Key techniques:",
+      "unit_id": "a5c67215-763a-4728-801f-cb0d0d3c8c2c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "848205e8-02ac-4eb3-97ad-684841ea2d2a",
+      "node_type": "unit",
+      "label": "Category 1: Document & Asset Creation",
+      "unit_id": "848205e8-02ac-4eb3-97ad-684841ea2d2a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e8d76070-8d73-4846-9560-9665fa2fbaa6",
+      "node_type": "unit",
+      "label": "Common skill use case categories",
+      "unit_id": "e8d76070-8d73-4846-9560-9665fa2fbaa6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "3f6bfd11-237e-4469-99c3-4ca6d90af370",
+      "node_type": "unit",
+      "label": "Ask yourself:",
+      "unit_id": "3f6bfd11-237e-4469-99c3-4ca6d90af370",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "816a36aa-b5a4-48a9-a6a4-c375a4bb7fa0",
+      "node_type": "unit",
+      "label": "Steps:",
+      "unit_id": "816a36aa-b5a4-48a9-a6a4-c375a4bb7fa0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "bb601dba-673f-40d8-9dd3-c46d7789ecbe",
+      "node_type": "unit",
+      "label": "Good use case definition:",
+      "unit_id": "bb601dba-673f-40d8-9dd3-c46d7789ecbe",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "85ff5324-ffd3-44f6-a837-68a1fc25ca5d",
+      "node_type": "unit",
+      "label": "Start with use cases",
+      "unit_id": "85ff5324-ffd3-44f6-a837-68a1fc25ca5d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "afa6f73e-78b3-4606-bb26-6eb5e75066c2",
+      "node_type": "unit",
+      "label": "Planning and design",
+      "unit_id": "afa6f73e-78b3-4606-bb26-6eb5e75066c2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "d0247a8d-8525-4a5b-b45a-0a2620ff8fb4",
+      "node_type": "unit",
+      "label": "With skills:",
+      "unit_id": "d0247a8d-8525-4a5b-b45a-0a2620ff8fb4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "22a725f4-5705-4d83-a390-2a1b1e3c5c5f",
+      "node_type": "unit",
+      "label": "Without skills:",
+      "unit_id": "22a725f4-5705-4d83-a390-2a1b1e3c5c5f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "188cf909-8868-4768-9197-507d2d4b14e9",
+      "node_type": "unit",
+      "label": "Why this matters for your MCP users",
+      "unit_id": "188cf909-8868-4768-9197-507d2d4b14e9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "d69e7b2e-6817-4ead-b7ef-8cee3fd36af3",
+      "node_type": "unit",
+      "label": "The kitchen analogy",
+      "unit_id": "d69e7b2e-6817-4ead-b7ef-8cee3fd36af3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c5679fa3-7bac-4c70-97b7-6ec3f7d0befc",
+      "node_type": "unit",
+      "label": "For MCP Builders: Skills + Connectors",
+      "unit_id": "c5679fa3-7bac-4c70-97b7-6ec3f7d0befc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e53a473d-fbf5-4132-85a9-e8068aec10da",
+      "node_type": "unit",
+      "label": "Portability",
+      "unit_id": "e53a473d-fbf5-4132-85a9-e8068aec10da",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "9421ace9-1a8c-4e04-bff3-bbc5e0963f53",
+      "node_type": "unit",
+      "label": "Composability",
+      "unit_id": "9421ace9-1a8c-4e04-bff3-bbc5e0963f53",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "70e06d2e-72ac-401e-89c8-d0e25cd59d5b",
+      "node_type": "unit",
+      "label": "Progressive Disclosure",
+      "unit_id": "70e06d2e-72ac-401e-89c8-d0e25cd59d5b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "4855e5a0-78e7-42d7-87e3-dbb20ae199c0",
+      "node_type": "unit",
+      "label": "Core design principles",
+      "unit_id": "4855e5a0-78e7-42d7-87e3-dbb20ae199c0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5dda8446-c756-4836-85d7-bcfd539e7dc4",
+      "node_type": "unit",
+      "label": "What is a skill?",
+      "unit_id": "5dda8446-c756-4836-85d7-bcfd539e7dc4",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "1c48d04b-cf1e-4ba2-b308-3ca7ee7a12cf",
+      "node_type": "unit",
+      "label": "Fundamentals",
+      "unit_id": "1c48d04b-cf1e-4ba2-b308-3ca7ee7a12cf",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "8c93c881-582a-486d-964e-7fb272192196",
+      "node_type": "unit",
+      "label": "Two Paths Through This Guide",
+      "unit_id": "8c93c881-582a-486d-964e-7fb272192196",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "0dafbbe6-c7dd-4105-8577-a655929991f7",
+      "node_type": "unit",
+      "label": "Who this is for:",
+      "unit_id": "0dafbbe6-c7dd-4105-8577-a655929991f7",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "104c8ea2-bbc8-4536-9d4f-2fd243fe5ad6",
+      "node_type": "unit",
+      "label": "What you'll learn:",
+      "unit_id": "104c8ea2-bbc8-4536-9d4f-2fd243fe5ad6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "67360b54-4d7e-40ae-8ca6-8d9cfa402b14",
+      "node_type": "unit",
+      "label": "Introduction",
+      "unit_id": "67360b54-4d7e-40ae-8ca6-8d9cfa402b14",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "ba6a8ad5-aadf-4435-9349-f3243541bd45",
+      "node_type": "unit",
+      "label": "Contents",
+      "unit_id": "ba6a8ad5-aadf-4435-9349-f3243541bd45",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "4c97f678-c648-4e6b-a905-9f48895b932f",
+      "node_type": "unit",
+      "label": "The Complete Guide to Building Skills for Claude",
+      "unit_id": "4c97f678-c648-4e6b-a905-9f48895b932f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0ba73170-6403-40c8-9f1e-9b87953f35cc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e933e4e9-9842-4bde-8ef7-2cd1947efc06",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "07c2b80e-8f7c-4daa-9ef2-6d0371dfb3f3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "981b7c19-9240-4e99-bc35-1f188686782e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "35ad0acb-9e86-42e5-9173-60d6c9a932fb",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "58ad3b6e-6b9b-4812-9f8a-403956c95819",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e7d1aa0f-aa29-4bcf-b27d-5399533a5160",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0b2bf256-64b5-4ae0-9f31-3762ab53eb1d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "efd031cd-441f-4b5c-90c6-16a1d5db0de2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "3be9bb1a-0615-405a-8008-230bad5f04ea",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "a049d6dd-7924-47c9-a8dc-32c4fccf3a08",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "98b41280-3cd3-48a1-94e7-8afa141f46d7",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b6a9f432-e46c-4529-b127-ffef78f09652",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "530d303b-3b4c-4ff9-8ccd-9248b62fda43",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "00388914-a71f-471f-9ffc-d9778228ec4f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "4d1ab7bf-5259-4345-8c0a-e23dcabf8e83",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d66a952c-be93-43c3-9790-0000761170a9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b5ad9618-e455-49a8-b1db-5280ccd34b7c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "2c077d85-5087-4524-adad-8657e3a208d9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c99f296b-21b2-4385-8d8e-d9663fcb1c5d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "09e688a5-1e87-46fb-b330-52a124cf0f6c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7cb2bfc0-b1d7-4ed9-bec1-5120d52a1edf",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "f3b64d00-642a-44d8-a2ad-023ec2eecca0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1ebb5072-6aff-4753-98ae-8dc9c72b08f0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8187b20f-178b-4466-acd3-040044eb1063",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "a9c2efad-965c-4400-960c-d648c7cc2471",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "92c8867f-2526-4c79-8a80-5c233c3fcd1d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "09dc16e6-920a-4e7a-b46c-f6df088349f6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ea4b16d1-2ee9-4547-8f7b-572b9f47dcd8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1ce631c3-16ce-45b9-bedc-9d787778ebcb",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "3bf135bc-61c8-4f5e-af81-358660569ce5",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0b8f8acb-d4dc-4e3a-af34-ff3ff96000c0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "35595abb-c3cb-4ef2-b996-4b493d5ef028",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "03808bb7-aaae-4a75-a798-0e564184066f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8638ae68-605d-4e4d-b5d0-0789d0d401d4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "dbf23e71-d250-49d6-bfef-2cfc9e7a81f4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "caf0be08-35e6-414c-9c32-9f8b039503fe",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "975d339e-d5b3-4975-ad33-6b237e9e45bf",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "aa6925b8-7f30-47ab-85cd-75dbfc06674b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1b1033bf-bfbb-448d-b2d1-d2498e3fdcf8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "799f6747-d6b1-4562-93f0-599e190efeca",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ffe0cb45-a867-4d6e-912f-d16c9df52ab6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "739f06ea-d257-4911-8bd0-0bafecf43a4d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b58d25e0-0dc5-459f-b16f-cdfb8229f02d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d0caddd6-f2a6-42c9-9273-b0c5b6ab3815",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "3fb5dbd3-75b0-439b-9c1a-e19be8a7b2d1",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c48c247c-e1a6-4564-a8e3-ed81c9c3519e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "77e79def-51c4-41f2-9cbb-54c1868a1ce6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5adf68d0-f957-40cc-b767-cfa903310323",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "43b1d231-4567-4e4e-a7d5-66671674f493",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5633598d-60ca-4350-9a3f-7e138b8cabd9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "58525471-cd83-4a51-96fe-ef25d955b688",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "cc12cc9e-5578-45f3-94b6-170be55d1d21",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "902c1950-ada5-4437-9282-8db6cb1fd971",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "fa824ca1-812e-4854-a115-6518f7836605",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c3f50ae2-3e59-45aa-bc1c-880655d810e7",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7be69ed0-bed4-4139-ab9f-08367f8f91be",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "364cc203-64b3-47b5-8a1f-40fffed748a8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ae27f6f3-af5d-4d7d-b5b9-f2700a910818",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e6a8df39-c8b0-4def-aeb4-b3168bb39f24",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0c813d33-10c3-414a-b478-235a2261c5f9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "aeb8232d-370c-48c5-a14d-bfb9e8208f06",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ab7306b1-029a-4967-b499-52c82c100fdf",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "afb0d8ae-294e-4755-a81e-fb013c2dd1f2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "41e87e59-08fb-4c16-890c-7680223a2074",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "35640160-6f73-42d0-a74b-6e3acee7e178",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b26a380b-35e0-4047-bf90-4d2a4144d25d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "9b3458c8-6b9e-4884-bf10-4a37a077f4d6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ee9eb352-0661-4941-818e-904043e28073",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "812490ff-e999-4b40-af5a-e251a30a89ee",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "524122bf-53f6-4634-82c7-ec3f7f6b395d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c330db9d-23c4-4ec9-a40d-b2dd9eb572ed",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7947b707-f9ba-4a1c-a6f6-7b08362670f3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1915cd9d-a41c-4186-bbb5-3449b6fd8928",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "02431fd8-4c2d-4dad-8f6e-bf62163705cc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "4fa17612-f381-41d5-b337-98b5bbe36fe3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5434509a-f220-46d4-812e-472c21aa5ac8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8c0a8fd3-50ac-42c7-98dc-84445b629b32",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e15c1138-9daa-4a81-ad04-8d5e1034a38e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0aa552aa-d74d-4c62-b452-80f24cbaebaa",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "f8897dff-8c23-431a-9913-075f2f53b9a5",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "031e5bf6-a190-40b3-be30-6dc5f8ffa2c9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "899158a8-eca6-4847-8a23-63720f46f31b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "9fba1a2c-b2a2-447e-8334-bece214a1841",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7bf2fdd0-f552-43d5-81f9-8d82ba31226c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "da32e7f6-eb9e-479c-9472-342dfee5355e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e7a3ea46-61c4-4478-965b-844721bf302d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1d625bea-471e-4c0c-aa2b-243c43473e93",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0a0b1d14-f5cd-4371-9002-cd32459e7fa9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "25fefa66-ad69-4aef-8c97-8c02c137bf72",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7f76c0ff-85e1-48c8-8c5a-22fa4824c440",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "2d28a969-6c9c-4b76-8283-ce380ccf057d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7a548a01-9ac7-4706-ae3e-19ad5d46c846",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "cf72bbec-a60b-4d85-821b-1e821fab2ae4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "6a5cc699-9585-4fb9-a1ab-a13e64906d0e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "315912eb-1616-45db-be6f-cf5c2448ef55",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "96aaaf27-77fe-44a1-9e51-5317b4fa1050",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ecfdb383-08f9-4020-b5fa-ffc37e3e294a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5e5ade45-7d67-4613-a81b-ae9529d63f4a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c01deed3-e869-4aa2-9017-812cb9cc8f24",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d5db63cd-2106-4656-ad2e-496c4acd20fc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "9502bfe7-e979-48e6-86fc-60bad5a7d60e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "a138dd6d-0bdd-456b-8b6d-4cc693638017",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "37d72ef5-f51c-4309-92fc-a988bf145dcc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b30caad1-6ead-4a15-bf91-a893bd89d49d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "361d4068-7d3b-449a-88b1-02df992d7d30",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7ece2522-7a31-4d4d-a6e6-68cc736d7552",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "bbc77fa2-7e9a-4aa9-8a5f-9441ab599fd9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e38030c5-5727-44bb-acd4-e3497de14adc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "df79a41b-0984-44a7-a448-ec38ca133930",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "abc24f36-022c-4f91-b3ac-6faf583cc9a8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b22f95d7-9b71-4f4d-b86a-0028b83cdeb9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "59fb1873-86a5-4087-9699-5d0dc5afeb1d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "bb45c510-1e98-44a6-b42a-101429647ef4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "9f8b1b7d-7ba2-4969-95fd-974132527322",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "585e180a-4654-4865-b055-a840776b1236",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ce420919-9fcc-4e08-9e8e-8dee609494df",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ec6f94bd-94ae-467e-bb3c-eb377c576c6c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c1c3a2aa-897c-4a9f-b830-0f547549719e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8bf5b51b-9e42-4342-a0eb-1e1354caa6e4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b0a92fca-c004-4d22-8165-3ff5c4439317",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "6ecc11f4-35b2-42fa-a068-1294ca0ebfc9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c8608620-e3a6-41cd-a3b3-47dc9ae79224",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8f2da581-9ddc-4fbd-9dbf-f8c90e06075d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5454409b-743b-4fe7-9f61-acd6633dfdba",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ef4ca846-20b0-49ec-8a65-a4b6b678da27",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "337b4e3a-9d5c-4b6b-bcca-8fd95b132d0d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5c2aaee3-0ebb-455e-b16c-413540cf9c97",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "88f797ae-c7d6-4afb-86ef-5fbb8d2d4826",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "24b9d44c-1d7e-4875-b0de-bc235636d607",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1e44533f-6fea-48ca-a6de-a91e051649ae",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d1ed805e-13ef-436b-a68b-2ff07b9dbd81",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "6f9f11da-b98e-433b-bfd3-aa6f77c0f0b9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5b3b5d9f-ef4f-4d80-bb12-d195312504ea",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "167221e3-9740-4528-b724-3fcfa845dd52",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "f86990bf-ec3a-4e3c-b194-151d4e97d6a0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "35c8fa9a-258c-4794-a508-458ca578e98c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "3cac1896-7250-49ee-a7f9-90f7c65a55ab",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "56f3f1c3-8d07-491c-9522-cd2924ce574f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "acb6855d-f582-4d28-b92a-2d849af0005f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "18c0fb75-d5a8-4527-85aa-f20554693233",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b0017dac-20a5-4c07-a7ef-35a96b6236ac",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "12aa3bc8-e85f-43b0-b9dc-b31c8c8437eb",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "99b861e7-f5e0-4f5f-b07d-b8ce2b7e0ff5",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e2cc6516-1f9e-46f0-8f89-575be541b9f8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ac71065a-54ba-47c4-ab57-4da48e7010a2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "fda5fe90-e328-48ec-94ff-f9bce0585037",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "223325ba-7e08-4351-9979-508f4850957f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1f103594-8d95-46af-b906-4440b148e4c1",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "f688c67e-1bd1-440c-9845-a1990a9dcde4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "bffa453b-31ba-49a2-97e1-d32195a790c8",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e3052d87-03bf-4029-be9e-d583b9e4fb6e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "7e7db848-dbe6-42ea-a142-f6249b9d0f01",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "f3c3dfe8-0c07-4c12-bf4b-e936840db98f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ec23da12-3343-4070-a7df-950eae61045a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "6c397c64-e2f4-4195-8a1c-fe7e876baded",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "6b45b7f7-5c2e-4061-b362-0983673d8b5a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "2be25fc0-c279-4448-a2d1-f886b5e8d013",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "b9985d3b-4433-4249-afbc-a0f50fd1f9c6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "31185a7d-7b05-4dd4-8d98-fbb3889794c9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d272e0d7-1ee4-4c11-83ac-c521d6290e79",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d4c2369c-fa06-42de-83d2-9277ee2f8e6b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "a5c67215-763a-4728-801f-cb0d0d3c8c2c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "848205e8-02ac-4eb3-97ad-684841ea2d2a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e8d76070-8d73-4846-9560-9665fa2fbaa6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "3f6bfd11-237e-4469-99c3-4ca6d90af370",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "816a36aa-b5a4-48a9-a6a4-c375a4bb7fa0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "bb601dba-673f-40d8-9dd3-c46d7789ecbe",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "85ff5324-ffd3-44f6-a837-68a1fc25ca5d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "afa6f73e-78b3-4606-bb26-6eb5e75066c2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d0247a8d-8525-4a5b-b45a-0a2620ff8fb4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "22a725f4-5705-4d83-a390-2a1b1e3c5c5f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "188cf909-8868-4768-9197-507d2d4b14e9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "d69e7b2e-6817-4ead-b7ef-8cee3fd36af3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "c5679fa3-7bac-4c70-97b7-6ec3f7d0befc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "e53a473d-fbf5-4132-85a9-e8068aec10da",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "9421ace9-1a8c-4e04-bff3-bbc5e0963f53",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "70e06d2e-72ac-401e-89c8-d0e25cd59d5b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "4855e5a0-78e7-42d7-87e3-dbb20ae199c0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "5dda8446-c756-4836-85d7-bcfd539e7dc4",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "1c48d04b-cf1e-4ba2-b308-3ca7ee7a12cf",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "8c93c881-582a-486d-964e-7fb272192196",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "0dafbbe6-c7dd-4105-8577-a655929991f7",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "104c8ea2-bbc8-4536-9d4f-2fd243fe5ad6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "67360b54-4d7e-40ae-8ca6-8d9cfa402b14",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "ba6a8ad5-aadf-4435-9349-f3243541bd45",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "165cad0b-45a8-4a43-99bb-cc13f0caae45",
+      "target_id": "4c97f678-c648-4e6b-a905-9f48895b932f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    }
+  ],
+  "metadata": {}
+}

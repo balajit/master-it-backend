@@ -1,0 +1,284 @@
+from __future__ import annotations
+
+import enum
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+from sqlalchemy import (
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    Uuid,
+)
+from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.orm import Mapped, mapped_column
+
+from database.base import Base
+
+
+class UserModel(Base):
+    __tablename__ = "users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    google_id: Mapped[Optional[str]] = mapped_column(String, unique=True, nullable=True)
+    email: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False, default="")
+    picture_url: Mapped[str] = mapped_column(String, nullable=False, default="")
+    password_hash: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    phone: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class SessionModel(Base):
+    __tablename__ = "sessions"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    expires_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class CourseModel(Base):
+    __tablename__ = "courses"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    number_of_credits: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    difficulty: Mapped[str] = mapped_column(String, nullable=False, default="beginner")
+    status: Mapped[str] = mapped_column(String, nullable=False, default="COMING_SOON")
+    owner_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class RoleModel(Base):
+    __tablename__ = "roles"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+
+
+class UserRoleModel(Base):
+    __tablename__ = "user_roles"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    role_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("roles.id"), primary_key=True
+    )
+
+
+class PermissionModel(Base):
+    __tablename__ = "permissions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, unique=True, nullable=False)
+
+
+class RolePermissionModel(Base):
+    __tablename__ = "role_permissions"
+
+    role_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("roles.id"), primary_key=True
+    )
+    permission_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("permissions.id"), primary_key=True
+    )
+
+
+class DocumentModel(Base):
+    __tablename__ = "documents"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True)
+    filename: Mapped[str] = mapped_column(String, nullable=False)
+    storage_path: Mapped[str] = mapped_column(String, nullable=False)
+    content_type: Mapped[str] = mapped_column(String, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class CourseDocumentModel(Base):
+    __tablename__ = "course_documents"
+
+    course_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("courses.id"), primary_key=True
+    )
+    document_id: Mapped[str] = mapped_column(
+        String, ForeignKey("documents.id"), primary_key=True
+    )
+
+
+class ProgressStatus(str, enum.Enum):
+    LOCKED = "LOCKED"
+    MCQ_PHASE = "MCQ_PHASE"
+    FRQ_PHASE = "FRQ_PHASE"
+    MASTERED = "MASTERED"
+
+
+class CourseTemplateModel(Base):
+    __tablename__ = "course_templates"
+
+    course_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    file_id: Mapped[str] = mapped_column(
+        String, ForeignKey("documents.id"), nullable=False
+    )
+    structure: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=False)
+
+
+class StudentProgressModel(Base):
+    __tablename__ = "student_progress"
+
+    student_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    node_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default=ProgressStatus.LOCKED.value
+    )
+    continuous_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+
+
+class FlashcardModel(Base):
+    __tablename__ = "flashcards"
+
+    card_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
+    student_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    node_id: Mapped[str] = mapped_column(Uuid, nullable=False)
+    front: Mapped[str] = mapped_column(Text, nullable=False)
+    back: Mapped[str] = mapped_column(Text, nullable=False)
+    state: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    stability: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    difficulty: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    elapsed_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    scheduled_days: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    due: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+# ── Learning Domain ─────────────────────────────────────────────────────────
+
+
+class UnitModel(Base):
+    __tablename__ = "units"
+    __table_args__ = (Index("idx_units_course_id", "course_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    course_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("courses.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class SectionModel(Base):
+    __tablename__ = "sections"
+    __table_args__ = (Index("idx_sections_unit_id", "unit_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    unit_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("units.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    estimated_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class LessonModel(Base):
+    __tablename__ = "lessons"
+    __table_args__ = (Index("idx_lessons_section_id", "section_id", "display_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    section_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sections.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class PracticeModel(Base):
+    __tablename__ = "practices"
+    __table_args__ = (Index("idx_practices_section_id", "section_id", "display_order"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    section_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sections.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    required_correct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class QuizModel(Base):
+    __tablename__ = "quizzes"
+    __table_args__ = (Index("idx_quizzes_section_id", "section_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    section_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sections.id"), nullable=False
+    )
+    title: Mapped[str] = mapped_column(String, nullable=False)
+    created_at: Mapped[str] = mapped_column(String, nullable=False)
+    updated_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
+class UserLessonProgressModel(Base):
+    __tablename__ = "user_lesson_progress"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    lesson_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("lessons.id"), primary_key=True
+    )
+    status: Mapped[str] = mapped_column(String, nullable=False, default="NOT_STARTED")
+    completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+class UserPracticeProgressModel(Base):
+    __tablename__ = "user_practice_progress"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    practice_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("practices.id"), primary_key=True
+    )
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    best_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="NOT_STARTED")
+
+
+class UserQuizProgressModel(Base):
+    __tablename__ = "user_quiz_progress"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    quiz_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("quizzes.id"), primary_key=True
+    )
+    score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)

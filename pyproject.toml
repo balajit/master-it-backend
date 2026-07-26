@@ -1,0 +1,53 @@
+[project]
+name = "master-it-backend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.18.5",
+    "asyncpg>=0.31.0",
+    "bcrypt>=5.0.0",
+    "cryptography>=49.0.0",
+    "docling>=2.114.0",
+    "fastapi[standard]>=0.139.2",
+    "google-auth>=2.56.0",
+    "httpx>=0.28.1",
+    "langchain-ollama>=1.1.0",
+    "learning-platform",
+    "opentelemetry-api>=1.44.0",
+    "opentelemetry-exporter-otlp>=1.44.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.44.0",
+    "opentelemetry-instrumentation-fastapi>=0.65b0",
+    "opentelemetry-sdk>=1.44.0",
+    "pydantic>=2.13.4",
+    "pyjwt>=2.13.0",
+    "requests>=2.34.2",
+    "sqlalchemy[asyncio]>=2.0.51",
+]
+
+[dependency-groups]
+dev = [
+    "fpdf2>=2.8.7",
+    "httpx>=0.28.1",
+    "pymupdf>=1.28.0",
+    "pytest>=9.1.1",
+    "reportlab>=5.0.0",
+    "ruff>=0.15.22",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"src/main.py" = ["E402"]
+"src/tests/**" = ["E402"]
+"init_system.py" = ["E402"]
+"migrate_sqlite_to_pg.py" = ["E402"]
+"promote_data.py" = ["E402"]
+"seed.py" = ["E402"]
+
+[tool.uv.workspace]
+members = [
+    "learning_platform",
+]
+
+[tool.uv.sources]
+learning-platform = { workspace = true, editable = true }

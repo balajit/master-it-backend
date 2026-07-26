@@ -1,0 +1,1581 @@
+{
+  "nodes": [
+    {
+      "id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "node_type": "unit",
+      "label": "1.8 Quick Check FRQ 1.8 Quick Check FRQ",
+      "unit_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "course",
+        "difficulty": "basic",
+        "estimated_minutes": 6
+      }
+    },
+    {
+      "id": "b9afc090-97ae-45bf-8da4-5aee386c181b",
+      "node_type": "unit",
+      "label": "1.8 Practice Problems",
+      "unit_id": "b9afc090-97ae-45bf-8da4-5aee386c181b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 10
+      }
+    },
+    {
+      "id": "22d9edee-27c2-478c-b4b7-614669455204",
+      "node_type": "unit",
+      "label": "Type of Bond",
+      "unit_id": "22d9edee-27c2-478c-b4b7-614669455204",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "7366974a-1b07-4163-9cbc-94813444b18c",
+      "node_type": "unit",
+      "label": "1.8.A.3",
+      "unit_id": "7366974a-1b07-4163-9cbc-94813444b18c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b068e321-859c-4f26-925f-2f7698ead73b",
+      "node_type": "unit",
+      "label": "1.8.A.2",
+      "unit_id": "b068e321-859c-4f26-925f-2f7698ead73b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "43ad80d6-95c4-49c4-90b2-c7c5caf85b42",
+      "node_type": "unit",
+      "label": "1.8.A.1",
+      "unit_id": "43ad80d6-95c4-49c4-90b2-c7c5caf85b42",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "4505add8-e285-4c30-8aa5-023331247b4f",
+      "node_type": "unit",
+      "label": "ESSENTIAL KNOWLEDGE",
+      "unit_id": "4505add8-e285-4c30-8aa5-023331247b4f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "5a8406a9-dba1-433c-89f1-fec403e35910",
+      "node_type": "unit",
+      "label": "Bonding & Energy",
+      "unit_id": "5a8406a9-dba1-433c-89f1-fec403e35910",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "3e90ba86-b421-4118-8031-a208b0185489",
+      "node_type": "unit",
+      "label": "LEARNING OBJECTIVE",
+      "unit_id": "3e90ba86-b421-4118-8031-a208b0185489",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "9f712034-d3a9-4463-9f67-68391926c728",
+      "node_type": "unit",
+      "label": "1.8 Valence Electrons & Ionic Compounds",
+      "unit_id": "9f712034-d3a9-4463-9f67-68391926c728",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "0922178d-6953-4427-af51-8fd0c917b8f1",
+      "node_type": "unit",
+      "label": "1.7 Quick Check FRQ 1.7 Quick Check FRQ",
+      "unit_id": "0922178d-6953-4427-af51-8fd0c917b8f1",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 11
+      }
+    },
+    {
+      "id": "99217893-8208-4bd6-85fa-3321ef5db7f1",
+      "node_type": "unit",
+      "label": "1.7 Practice Problems",
+      "unit_id": "99217893-8208-4bd6-85fa-3321ef5db7f1",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 7
+      }
+    },
+    {
+      "id": "fbbedd70-b271-4b73-a06b-eb9717cf810b",
+      "node_type": "unit",
+      "label": "Atomic & Ionic Radii:-",
+      "unit_id": "fbbedd70-b271-4b73-a06b-eb9717cf810b",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "6eed5cde-4a4c-42ea-bdf7-ee4bdc5beda2",
+      "node_type": "unit",
+      "label": "Periodic Trends",
+      "unit_id": "6eed5cde-4a4c-42ea-bdf7-ee4bdc5beda2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 7
+      }
+    },
+    {
+      "id": "d66aaf3c-41a4-4767-b8fc-5f0d7083e42d",
+      "node_type": "unit",
+      "label": "1.6 Quick Check FRQ 1.6 Quick Check FRQ",
+      "unit_id": "d66aaf3c-41a4-4767-b8fc-5f0d7083e42d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 11
+      }
+    },
+    {
+      "id": "b5bc7597-734a-496c-a13a-07a74bc7ce6f",
+      "node_type": "unit",
+      "label": "1.6 Practice Problems",
+      "unit_id": "b5bc7597-734a-496c-a13a-07a74bc7ce6f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "d32f7668-01b4-426e-a19d-25d875428eba",
+      "node_type": "unit",
+      "label": "Explaining Relationships",
+      "unit_id": "d32f7668-01b4-426e-a19d-25d875428eba",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "0e8928b7-63e4-4ed3-92cb-2cee1d183602",
+      "node_type": "unit",
+      "label": "1.6.A.1",
+      "unit_id": "0e8928b7-63e4-4ed3-92cb-2cee1d183602",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c5865ea4-7442-4f60-92c9-f788e11e30e9",
+      "node_type": "unit",
+      "label": "ESSENTIAL KNOWLEDGE",
+      "unit_id": "c5865ea4-7442-4f60-92c9-f788e11e30e9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "42732730-ab6e-46fd-87a8-fc087b56bbc3",
+      "node_type": "unit",
+      "label": "Photoelectron spectroscopy (PES)",
+      "unit_id": "42732730-ab6e-46fd-87a8-fc087b56bbc3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5b77cdc5-b8cd-4519-b839-e2fb612d866e",
+      "node_type": "unit",
+      "label": "1.6.A",
+      "unit_id": "5b77cdc5-b8cd-4519-b839-e2fb612d866e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "4c03d8ab-7d6e-44b6-afe1-14fde55d2f0a",
+      "node_type": "unit",
+      "label": "LEARNING OBJECTIVE",
+      "unit_id": "4c03d8ab-7d6e-44b6-afe1-14fde55d2f0a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f1f46bc6-6a1e-49a0-8bb1-f36dd27b1630",
+      "node_type": "unit",
+      "label": "Photoelectron Spectroscopy",
+      "unit_id": "f1f46bc6-6a1e-49a0-8bb1-f36dd27b1630",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "49b2a9b1-c848-4ce8-b732-bd967cfc4fbc",
+      "node_type": "unit",
+      "label": "1.6",
+      "unit_id": "49b2a9b1-c848-4ce8-b732-bd967cfc4fbc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "d0c56b4a-825b-45ee-9c13-0bafd2fec2c9",
+      "node_type": "unit",
+      "label": "1.5 Quick Check FRQ 1.5 Quick Check FRQ",
+      "unit_id": "d0c56b4a-825b-45ee-9c13-0bafd2fec2c9",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "212e3b7d-47c7-483a-abd1-87f6f40e0417",
+      "node_type": "unit",
+      "label": "12. Which of the following shows the correct number of protons, neutrons, and electrons in a neutral cesium-134 atom?",
+      "unit_id": "212e3b7d-47c7-483a-abd1-87f6f40e0417",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "2a17a182-b012-4619-800b-cd91801c8cbd",
+      "node_type": "unit",
+      "label": "11. Which of the following represents the ground state electron configuration for the Mn 3+ ion? (Atomic number Mn = 25)",
+      "unit_id": "2a17a182-b012-4619-800b-cd91801c8cbd",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "13fa5463-a800-4693-9c83-8d76d4d334bd",
+      "node_type": "unit",
+      "label": "1.5 Practice Problems",
+      "unit_id": "13fa5463-a800-4693-9c83-8d76d4d334bd",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 9
+      }
+    },
+    {
+      "id": "1de408dc-d946-4e8a-843a-94d67f25df7e",
+      "node_type": "unit",
+      "label": "Magnetism",
+      "unit_id": "1de408dc-d946-4e8a-843a-94d67f25df7e",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 9
+      }
+    },
+    {
+      "id": "65e36655-a4a7-4fa0-bfb6-3d1da0327fbb",
+      "node_type": "unit",
+      "label": "Coulombs Law , F \u221d (q 1 x q 2 ) / r 2",
+      "unit_id": "65e36655-a4a7-4fa0-bfb6-3d1da0327fbb",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "fc1c5c4f-2d72-48f3-8aed-164e789ce20a",
+      "node_type": "unit",
+      "label": "Effective Nuclear Charge",
+      "unit_id": "fc1c5c4f-2d72-48f3-8aed-164e789ce20a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 16
+      }
+    },
+    {
+      "id": "f6fc20db-d966-493a-9864-b1df419b9289",
+      "node_type": "unit",
+      "label": "Electron Configurations",
+      "unit_id": "f6fc20db-d966-493a-9864-b1df419b9289",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "47554e44-4461-40e9-beda-e2ea30998f8d",
+      "node_type": "unit",
+      "label": "Electromagnetic Forces",
+      "unit_id": "47554e44-4461-40e9-beda-e2ea30998f8d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "940134c9-9ae4-4ce1-bab8-eb33aaab405d",
+      "node_type": "unit",
+      "label": "1.5.A.4",
+      "unit_id": "940134c9-9ae4-4ce1-bab8-eb33aaab405d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "db8eb917-8bae-4dc1-8bfc-154d41639a2c",
+      "node_type": "unit",
+      "label": "1.5.A.1",
+      "unit_id": "db8eb917-8bae-4dc1-8bfc-154d41639a2c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e7608ef6-b9d7-462b-9f71-46bfb8da4b7d",
+      "node_type": "unit",
+      "label": "ESSENTIAL KNOWLEDGE",
+      "unit_id": "e7608ef6-b9d7-462b-9f71-46bfb8da4b7d",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "79cdc396-90de-4066-b339-ff87cf251493",
+      "node_type": "unit",
+      "label": "LEARNING OBJECTIVE",
+      "unit_id": "79cdc396-90de-4066-b339-ff87cf251493",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c20db8ec-6b83-47a3-af70-701feba60a25",
+      "node_type": "unit",
+      "label": "Atomic Structure & Electron Configuration",
+      "unit_id": "c20db8ec-6b83-47a3-af70-701feba60a25",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 6
+      }
+    },
+    {
+      "id": "b66b08f5-bcb7-4cb5-bd5b-648ffd4c7d88",
+      "node_type": "unit",
+      "label": "1.4  Quick Check FRQ same question was used earlier 1.4  Quick Check FRQ same question was used earlier",
+      "unit_id": "b66b08f5-bcb7-4cb5-bd5b-648ffd4c7d88",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "017d7afe-50ec-42ce-b659-e33b0385a0c5",
+      "node_type": "unit",
+      "label": "1.4 Practice Problems",
+      "unit_id": "017d7afe-50ec-42ce-b659-e33b0385a0c5",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 5
+      }
+    },
+    {
+      "id": "b6e46688-204a-4a11-ba68-8ca55c2efb52",
+      "node_type": "unit",
+      "label": "Separating Mixtures",
+      "unit_id": "b6e46688-204a-4a11-ba68-8ca55c2efb52",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "c6007c39-d6cb-4d8e-b3cc-ef9a4064868a",
+      "node_type": "unit",
+      "label": "Working with Mixtures",
+      "unit_id": "c6007c39-d6cb-4d8e-b3cc-ef9a4064868a",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "09b175cb-c470-4baf-a96a-064be166f2f1",
+      "node_type": "unit",
+      "label": "1.4.A.2",
+      "unit_id": "09b175cb-c470-4baf-a96a-064be166f2f1",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "f33d346f-7cb5-42d6-b8d8-a88e5db1721f",
+      "node_type": "unit",
+      "label": "1.4.A.1",
+      "unit_id": "f33d346f-7cb5-42d6-b8d8-a88e5db1721f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b5cc1c54-a3b9-440c-b23e-d44923a4d4e2",
+      "node_type": "unit",
+      "label": "ESSENTIAL KNOWLEDGE",
+      "unit_id": "b5cc1c54-a3b9-440c-b23e-d44923a4d4e2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "e2ba5c4e-537e-473d-b507-2ccba170ef77",
+      "node_type": "unit",
+      "label": "1.4.A",
+      "unit_id": "e2ba5c4e-537e-473d-b507-2ccba170ef77",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "8f51bd87-56b3-48cb-be8c-7ab3020ee054",
+      "node_type": "unit",
+      "label": "LEARNING OBJECTIVE",
+      "unit_id": "8f51bd87-56b3-48cb-be8c-7ab3020ee054",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "988f0656-5a4b-41f0-9e50-8d7839b1616c",
+      "node_type": "unit",
+      "label": "1.4 Composition of Mixtures",
+      "unit_id": "988f0656-5a4b-41f0-9e50-8d7839b1616c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "831f92f6-7f5e-4dfb-a2c8-81437f447979",
+      "node_type": "unit",
+      "label": "Q1 contd. Q1 contd.",
+      "unit_id": "831f92f6-7f5e-4dfb-a2c8-81437f447979",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "3a53e7e1-2c17-46c7-ac7f-ee58783597bf",
+      "node_type": "unit",
+      "label": "1.3 Quick Check FRQ 1.3 Quick Check FRQ",
+      "unit_id": "3a53e7e1-2c17-46c7-ac7f-ee58783597bf",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 7
+      }
+    },
+    {
+      "id": "9ebb14c5-e64d-4dd9-8e98-5e98017b73a3",
+      "node_type": "unit",
+      "label": "1.3 Practice Problems",
+      "unit_id": "9ebb14c5-e64d-4dd9-8e98-5e98017b73a3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "0974ecea-e109-4332-9324-9a0e1fcf58fe",
+      "node_type": "unit",
+      "label": "Calculating Empirical Formulae for Non Molecular Substances",
+      "unit_id": "0974ecea-e109-4332-9324-9a0e1fcf58fe",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 11
+      }
+    },
+    {
+      "id": "cb9fc12d-674c-4d1e-b9f1-b82969771262",
+      "node_type": "unit",
+      "label": "Calculating Empirical Formulae",
+      "unit_id": "cb9fc12d-674c-4d1e-b9f1-b82969771262",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "f5e7423c-7e2a-49e7-9d54-b54e643f322f",
+      "node_type": "unit",
+      "label": "Molecular and Empirical Formulae",
+      "unit_id": "f5e7423c-7e2a-49e7-9d54-b54e643f322f",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "55688819-dbd4-4f03-a1f0-83d1c2e6e838",
+      "node_type": "unit",
+      "label": "1.2 Quick Check FRQ 1.2 Quick Check FRQ",
+      "unit_id": "55688819-dbd4-4f03-a1f0-83d1c2e6e838",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 12
+      }
+    },
+    {
+      "id": "a509c4bf-64e4-4bea-a886-7971dafbaae3",
+      "node_type": "unit",
+      "label": "1.2 Practice Problems",
+      "unit_id": "a509c4bf-64e4-4bea-a886-7971dafbaae3",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "26464b0d-5506-462f-b01f-e088271f4894",
+      "node_type": "unit",
+      "label": "Mass Spectroscopy",
+      "unit_id": "26464b0d-5506-462f-b01f-e088271f4894",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "intermediate",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "b51db782-9751-426c-92ba-8754562f7e86",
+      "node_type": "unit",
+      "label": "Mass Spectrometer and Mass Spectroscopy ?",
+      "unit_id": "b51db782-9751-426c-92ba-8754562f7e86",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "5526505d-2b70-4126-b8d3-69ac4fb7d809",
+      "node_type": "unit",
+      "label": "Mass Number",
+      "unit_id": "5526505d-2b70-4126-b8d3-69ac4fb7d809",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "136f5a8e-d511-4399-843d-f26541cd2431",
+      "node_type": "unit",
+      "label": "1.2 Mass Spectra of Elements",
+      "unit_id": "136f5a8e-d511-4399-843d-f26541cd2431",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 5
+      }
+    },
+    {
+      "id": "ade0b60a-a9f6-4ded-84b3-cf610244ad22",
+      "node_type": "unit",
+      "label": "1.1 Quick Check FRQ 1.1 Quick Check FRQ",
+      "unit_id": "ade0b60a-a9f6-4ded-84b3-cf610244ad22",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 3
+      }
+    },
+    {
+      "id": "8fce7b74-9dc5-4da6-bb3d-c9f40a961e93",
+      "node_type": "unit",
+      "label": "7. Which of the following numerical expressions gives the number of particles in 2.0g of Ne ? 7. Which of the following numerical expressions gives the number of particles in 2.0g of Ne ?",
+      "unit_id": "8fce7b74-9dc5-4da6-bb3d-c9f40a961e93",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    },
+    {
+      "id": "775d6cfb-844c-4feb-96e5-cf4d9fa59efe",
+      "node_type": "unit",
+      "label": "1.1 Practice Problems",
+      "unit_id": "775d6cfb-844c-4feb-96e5-cf4d9fa59efe",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "c2dca30c-6265-43cf-a663-6f05483d864c",
+      "node_type": "unit",
+      "label": "Molar Number - Avogadro's Number",
+      "unit_id": "c2dca30c-6265-43cf-a663-6f05483d864c",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "a56f4d58-fac6-4ce1-af4d-b95e2d13edb6",
+      "node_type": "unit",
+      "label": "Molar Mass, M",
+      "unit_id": "a56f4d58-fac6-4ce1-af4d-b95e2d13edb6",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "d6dbbf6e-7655-4cb0-8b09-65855039bef2",
+      "node_type": "unit",
+      "label": "Formula and Molecular Weights",
+      "unit_id": "d6dbbf6e-7655-4cb0-8b09-65855039bef2",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "c8380d1c-57cb-4d05-adf1-249a267fbfe0",
+      "node_type": "unit",
+      "label": "Formulae ?",
+      "unit_id": "c8380d1c-57cb-4d05-adf1-249a267fbfe0",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "6acd01db-ef53-4b94-adb1-f0c2bb544060",
+      "node_type": "unit",
+      "label": "1.1 Moles & Molar Mass",
+      "unit_id": "6acd01db-ef53-4b94-adb1-f0c2bb544060",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "be206d2a-9406-496d-a4e0-d735081ac234",
+      "node_type": "unit",
+      "label": "Science Practices",
+      "unit_id": "be206d2a-9406-496d-a4e0-d735081ac234",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 2
+      }
+    },
+    {
+      "id": "6589c76a-6a1a-4ebd-a807-9c734e8dcdec",
+      "node_type": "unit",
+      "label": "Topic",
+      "unit_id": "6589c76a-6a1a-4ebd-a807-9c734e8dcdec",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 8
+      }
+    },
+    {
+      "id": "4f9bbdf2-bc3d-47d4-b42c-2a60c9aaf388",
+      "node_type": "unit",
+      "label": "Suggested Skill",
+      "unit_id": "4f9bbdf2-bc3d-47d4-b42c-2a60c9aaf388",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 4
+      }
+    },
+    {
+      "id": "11641e44-1508-4ad5-9efa-f01750f700bc",
+      "node_type": "unit",
+      "label": "Unit 1 - Atomic Structure & Properties",
+      "unit_id": "11641e44-1508-4ad5-9efa-f01750f700bc",
+      "concept_id": null,
+      "metadata": {
+        "unit_type": "module",
+        "difficulty": "basic",
+        "estimated_minutes": 1
+      }
+    }
+  ],
+  "edges": [
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b9afc090-97ae-45bf-8da4-5aee386c181b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "22d9edee-27c2-478c-b4b7-614669455204",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "7366974a-1b07-4163-9cbc-94813444b18c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b068e321-859c-4f26-925f-2f7698ead73b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "43ad80d6-95c4-49c4-90b2-c7c5caf85b42",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "4505add8-e285-4c30-8aa5-023331247b4f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "5a8406a9-dba1-433c-89f1-fec403e35910",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "3e90ba86-b421-4118-8031-a208b0185489",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "9f712034-d3a9-4463-9f67-68391926c728",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "0922178d-6953-4427-af51-8fd0c917b8f1",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "99217893-8208-4bd6-85fa-3321ef5db7f1",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "fbbedd70-b271-4b73-a06b-eb9717cf810b",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "6eed5cde-4a4c-42ea-bdf7-ee4bdc5beda2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "d66aaf3c-41a4-4767-b8fc-5f0d7083e42d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b5bc7597-734a-496c-a13a-07a74bc7ce6f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "d32f7668-01b4-426e-a19d-25d875428eba",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "0e8928b7-63e4-4ed3-92cb-2cee1d183602",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "c5865ea4-7442-4f60-92c9-f788e11e30e9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "42732730-ab6e-46fd-87a8-fc087b56bbc3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "5b77cdc5-b8cd-4519-b839-e2fb612d866e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "4c03d8ab-7d6e-44b6-afe1-14fde55d2f0a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "f1f46bc6-6a1e-49a0-8bb1-f36dd27b1630",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "49b2a9b1-c848-4ce8-b732-bd967cfc4fbc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "d0c56b4a-825b-45ee-9c13-0bafd2fec2c9",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "212e3b7d-47c7-483a-abd1-87f6f40e0417",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "2a17a182-b012-4619-800b-cd91801c8cbd",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "13fa5463-a800-4693-9c83-8d76d4d334bd",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "1de408dc-d946-4e8a-843a-94d67f25df7e",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "65e36655-a4a7-4fa0-bfb6-3d1da0327fbb",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "fc1c5c4f-2d72-48f3-8aed-164e789ce20a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "f6fc20db-d966-493a-9864-b1df419b9289",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "47554e44-4461-40e9-beda-e2ea30998f8d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "940134c9-9ae4-4ce1-bab8-eb33aaab405d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "db8eb917-8bae-4dc1-8bfc-154d41639a2c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "e7608ef6-b9d7-462b-9f71-46bfb8da4b7d",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "79cdc396-90de-4066-b339-ff87cf251493",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "c20db8ec-6b83-47a3-af70-701feba60a25",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b66b08f5-bcb7-4cb5-bd5b-648ffd4c7d88",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "017d7afe-50ec-42ce-b659-e33b0385a0c5",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b6e46688-204a-4a11-ba68-8ca55c2efb52",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "c6007c39-d6cb-4d8e-b3cc-ef9a4064868a",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "09b175cb-c470-4baf-a96a-064be166f2f1",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "f33d346f-7cb5-42d6-b8d8-a88e5db1721f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b5cc1c54-a3b9-440c-b23e-d44923a4d4e2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "e2ba5c4e-537e-473d-b507-2ccba170ef77",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "8f51bd87-56b3-48cb-be8c-7ab3020ee054",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "988f0656-5a4b-41f0-9e50-8d7839b1616c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "831f92f6-7f5e-4dfb-a2c8-81437f447979",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "3a53e7e1-2c17-46c7-ac7f-ee58783597bf",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "9ebb14c5-e64d-4dd9-8e98-5e98017b73a3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "0974ecea-e109-4332-9324-9a0e1fcf58fe",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "cb9fc12d-674c-4d1e-b9f1-b82969771262",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "f5e7423c-7e2a-49e7-9d54-b54e643f322f",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "55688819-dbd4-4f03-a1f0-83d1c2e6e838",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "a509c4bf-64e4-4bea-a886-7971dafbaae3",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "26464b0d-5506-462f-b01f-e088271f4894",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "b51db782-9751-426c-92ba-8754562f7e86",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "5526505d-2b70-4126-b8d3-69ac4fb7d809",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "136f5a8e-d511-4399-843d-f26541cd2431",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "ade0b60a-a9f6-4ded-84b3-cf610244ad22",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "8fce7b74-9dc5-4da6-bb3d-c9f40a961e93",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "775d6cfb-844c-4feb-96e5-cf4d9fa59efe",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "c2dca30c-6265-43cf-a663-6f05483d864c",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "a56f4d58-fac6-4ce1-af4d-b95e2d13edb6",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "d6dbbf6e-7655-4cb0-8b09-65855039bef2",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "c8380d1c-57cb-4d05-adf1-249a267fbfe0",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "6acd01db-ef53-4b94-adb1-f0c2bb544060",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "be206d2a-9406-496d-a4e0-d735081ac234",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "6589c76a-6a1a-4ebd-a807-9c734e8dcdec",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "4f9bbdf2-bc3d-47d4-b42c-2a60c9aaf388",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    },
+    {
+      "source_id": "0b293157-bbe0-416f-97e1-1f0c3f07237f",
+      "target_id": "11641e44-1508-4ad5-9efa-f01750f700bc",
+      "edge_type": "contains",
+      "weight": 1.0,
+      "metadata": {
+        "source": "NetworkxGraphBuilder",
+        "relationship": "parent_child"
+      }
+    }
+  ],
+  "metadata": {}
+}

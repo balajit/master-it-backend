@@ -1,0 +1,150 @@
+"""FastAPI dependency injection — wires concrete implementations to Protocols."""
+
+from __future__ import annotations
+
+import logging
+from collections.abc import AsyncGenerator
+from pathlib import Path
+from typing import Any
+
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+from learning_platform.config import Settings, get_settings
+from learning_platform.infrastructure.persistence.engine import create_engine
+from learning_platform.infrastructure.persistence.repositories.annotation import (
+    AnnotationRepository,
+)
+from learning_platform.infrastructure.persistence.repositories.concept import ConceptRepository
+from learning_platform.infrastructure.persistence.repositories.document import DocumentRepository
+from learning_platform.infrastructure.persistence.repositories.knowledge_graph import (
+    KnowledgeGraphRepository,
+)
+from learning_platform.infrastructure.persistence.repositories.learning_unit import (
+    LearningUnitRepository,
+)
+from learning_platform.infrastructure.persistence.repositories.sequence import StudyPlanRepository
+from learning_platform.pipeline.event_bus import SimpleEventBus
+from learning_platform.pipeline.orchestrator import PipelineOrchestrator
+from learning_platform.pipeline.plugins import PluginRegistry
+from learning_platform.stages.concept_extractor import ConceptExtractor
+from learning_platform.stages.enricher.semantic import SemanticEnricher
+from learning_platform.stages.graph_builder.graph import NetworkxGraphBuilder
+from learning_platform.stages.normalizer.structural import StructuralNormalizer
+from learning_platform.stages.parser.docling_adapter import DoclingAdapter
+from learning_platform.stages.sequence_builder.sequencer import TopologicalSequenceBuilder
+from learning_platform.stages.unit_builder.builder import LearningUnitBuilder
+
+_LOG = logging.getLogger(__name__)
+
+# ── Module-level singletons ─────────────────────────────────────────────────
+
+_engine: Any = None
+_session_factory: async_sessionmaker[AsyncSession] | None = None
+_upload_dir: Path | None = None
+
+
+def _ensure_upload_dir(settings: Settings) -> Path:
+    """Return the upload directory, creating it if needed."""
+    global _upload_dir
+    if _upload_dir is None:
+        _upload_dir = Path(settings.s3_bucket) / "uploads"
+        _upload_dir.mkdir(parents=True, exist_ok=True)
+    return _upload_dir
+
+
+# ── Settings ────────────────────────────────────────────────────────────────
+
+
+def get_settings_dependency() -> Settings:
+    """FastAPI dependency for application settings."""
+    return get_settings()
+
+
+# ── Database ────────────────────────────────────────────────────────────────
+
+
+def get_engine(settings: Settings | None = None) -> Any:
+    """Return the async engine (created once)."""
+    global _engine
+    if _engine is None:
+        settings = settings or get_settings()
+        _engine = create_engine(settings)
+    return _engine
+
+
+def get_session_factory(settings: Settings | None = None) -> async_sessionmaker[AsyncSession]:
+    """Return the session factory (created once)."""
+    global _session_factory
+    if _session_factory is None:
+        from learning_platform.infrastructure.persistence.session import create_session_factory
+
+        engine = get_engine(settings)
+        _session_factory = create_session_factory(engine)
+    return _session_factory
+
+
+async def get_session() -> AsyncGenerator[AsyncSession, None]:
+    """Provide an async session per request."""
+    factory = get_session_factory()
+    async with factory() as session:
+        yield session
+
+
+# ── Pipeline ────────────────────────────────────────────────────────────────
+
+
+def get_pipeline_orchestrator() -> PipelineOrchestrator:
+    """Build the pipeline with concrete stage implementations."""
+    return PipelineOrchestrator(
+        parser=DoclingAdapter(),
+        normalizer=StructuralNormalizer(),
+        enricher=SemanticEnricher(),
+        unit_builder=LearningUnitBuilder(),
+        concept_extractor=ConceptExtractor(),
+        graph_builder=NetworkxGraphBuilder(),
+        sequence_builder=TopologicalSequenceBuilder(),
+        event_bus=SimpleEventBus(),
+        plugin_registry=PluginRegistry(),
+    )
+
+
+# ── Repositories ────────────────────────────────────────────────────────────
+
+
+def get_document_repository(session: AsyncSession = Any) -> DocumentRepository:
+    """Provide a DocumentRepository."""
+    return DocumentRepository(session)
+
+
+def get_learning_unit_repository(session: AsyncSession = Any) -> LearningUnitRepository:
+    """Provide a LearningUnitRepository."""
+    return LearningUnitRepository(session)
+
+
+def get_annotation_repository(session: AsyncSession = Any) -> AnnotationRepository:
+    """Provide an AnnotationRepository."""
+    return AnnotationRepository(session)
+
+
+def get_concept_repository(session: AsyncSession = Any) -> ConceptRepository:
+    """Provide a ConceptRepository."""
+    return ConceptRepository(session)
+
+
+def get_knowledge_graph_repository(session: AsyncSession = Any) -> KnowledgeGraphRepository:
+    """Provide a KnowledgeGraphRepository."""
+    return KnowledgeGraphRepository(session)
+
+
+def get_study_plan_repository(session: AsyncSession = Any) -> StudyPlanRepository:
+    """Provide a StudyPlanRepository."""
+    return StudyPlanRepository(session)
+
+
+# ── Upload directory ────────────────────────────────────────────────────────
+
+
+def get_upload_dir(settings: Settings | None = None) -> Path:
+    """Return the upload directory path."""
+    settings = settings or get_settings()
+    return _ensure_upload_dir(settings)

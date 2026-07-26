@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "provider": {
+    "litellm": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "LiteLLM Gateway",
+      "options": {
+        "baseURL": "http://localhost:4000/v1",
+        "apiKey": "sk-local-agent-key-123"
+      },
+      "models": {
+        "qwen3.6:35b-mlx": {
+          "name": "Qwen 3.6 35B (MLX)",
+          "tools": true
+        }
+      }
+    }
+  }
+}
