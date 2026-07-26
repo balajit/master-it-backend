@@ -1,0 +1,71 @@
+The study page (StudyPage.tsx) is 100% hardcoded placeholder data — no API calls are made. The most critical backend endpoint (GET /api/v1/units/{unit_id}) and all v1 study routes exist in the backend but are absent from the OpenAPI spec, so v1.d.ts has no knowledge of them.
+Component Data Requirements vs. API Reality
+Sidebar (SidebarGroup / SidebarItem)
+Field needed	Backend source	Status
+Milestone title, description	StudyPlanMilestone.title/description	Available in study plan, not v1
+Lesson label, order	StudyPlanLesson.title, SectionResponse.lessons[].order	Available but not wired
+Item status (3-state: completed/in_progress/not_started)	Backend uses 6-state ProgressStatus (SCREAMING_CASE)	Mismatch
+lessonCount, totalMinutes	StudyPlanDetail.total_lessons/total_estimated_minutes	Available
+Checkpoint meta badge ("Quiz", "Project")	StudyPlanCheckpoint.checkpoint_type	Available, needs mapping
+ProgressCard
+Field needed	Backend source	Status
+status per lesson (5-state LessonStatus)	ProgressStatus (6-state, SCREAMING_CASE)	Mismatch — missing LOCKED treatment
+breadcrumbSegments (course name + milestone + lesson)	course_title, milestone, lesson	Exists, not wired
+InfoCard
+Field needed	Backend source	Status
+title, body description text	UnitResponse.about / LessonResponse.description	Ambiguous — about = description currently
+LearningCard / LessonItem
+Field needed	Backend source	Status
+title, description	SectionResponse.lessons[].title/description	Available
+state (3-state)	LessonResponse.status (6-state SCREAMING_CASE)	Mismatch
+duration as string (e.g. "5 min")	duration_minutes: int	Needs formatting
+Rich content (lesson body)	Not present anywhere	Missing
+PracticeCard
+Field needed	Backend source	Status
+description	GoalResponse has none	Missing
+progressLabel (e.g. "Score 80% or higher")	required_correct + total_questions ints	Not formatted, needs derivation
+badge type string ("Quiz", "Exercise")	No activity_type field	Missing
+status (3-state)	PracticeResponse.status (6-state SCREAMING_CASE)	Mismatch
+disabled / locked state	LOCKED in ProgressStatus but not on response	Missing
+actionLabel ("Start Quiz", "Continue")	Derivable from status+type	Missing
+GoalCard (motivational prompt)
+Field needed	Backend source	Status
+title, description, actionLabel	No backend equivalent	Missing — client-derived only
+Bottom Nav (Previous/Next)
+Field needed	Backend source	Status
+Ordered flat list of navigable items	SectionResponse.lessons[].order	Not assembled — no state for it
+Recommended Backend Changes
+Critical (blocking any integration)
+R1 — Register v1 routes in the OpenAPI spec.
+All /api/v1/* routes exist but don't appear in the spec. Run npx openapi-typescript after fixing this; it will expose UnitResponse, SectionResponse, LessonResponse, PracticeResponse, and GoalResponse to the frontend.
+R2 — Add GET /api/courses/{course_id}/units to the spec.
+The study page navigates from course_id (URL param) → unit_id → unit detail. This bridging endpoint exists but is invisible to the frontend.
+Schema Additions
+R3 — Add status: ProgressStatus to GoalResponse.
+Currently GoalResponse has score and completed_at only. A computed status is needed for PracticeCard.
+R4 — Add description: str to GoalResponse.
+PracticeCard needs a description string for quiz/checkpoint items. Currently absent.
+R5 — Add activity_type: str to PracticeResponse and GoalResponse.
+Values like "quiz", "practice", "project", "self_test" are needed for the badge prop on PracticeCard.
+R6 — Add locked: bool to PracticeResponse and GoalResponse.
+The backend LOCKED state exists but isn't surfaced on these response models. Drives PracticeCard.disabled.
+R7 — Differentiate about from description in UnitResponse.
+Both fields currently return the same string. InfoCard needs a richer body copy distinct from the short description used in listings.
+Standardization
+R8 — Normalize ProgressStatus casing.
+The v1 routes return MASTERED, PRACTICED, etc. (uppercase). The frontend statusConfig.ts uses lowercase. Pick one convention. Lowercase is preferred since the frontend already uses it and JSON conventions favor it.
+R9 — Add progress_label: str to PracticeResponse.
+Compute server-side from required_correct and total_questions (e.g. "Score 12/15 to pass"). Avoids duplicating formatting logic in the client.
+R10 — Add action_label: str to PracticeResponse and GoalResponse.
+Derive from (status, activity_type) server-side (e.g. "Start Quiz", "Continue", "Review"). Centralizes UX copy logic.
+Summary Priority Order
+Priority	Item
+P0	R1 — Expose v1 routes in OpenAPI spec (everything else depends on this)
+P0	R2 — Expose courses/{id}/units endpoint
+P1	R3, R4 — GoalResponse: add status, description
+P1	R5 — Add activity_type to Practice/Goal responses
+P1	R6 — Add locked to Practice/Goal responses
+P2	R8 — Normalize status casing to lowercase
+P2	R9, R10 — Add computed progress_label and action_label
+P3	R7 — Differentiate about vs description in UnitResponse
+P3	GoalCard motivational copy — purely client-derived, no backend change needed
