@@ -15,11 +15,14 @@ from routers.learning import router as learning_router
 from routers.mapping import router as mapping_router
 from routers.users import router as users_router
 from routers.v1 import router as v1_router
-from learning_platform.api.app import create_app
+from learning_platform.api.app import get_lp_app
 
 app = FastAPI(title="Master It API")
-lp_app = create_app()
-app.mount("/lp", lp_app)
+
+# Mount the LP sub-app at /lp so clients can reach LP endpoints through this
+# host.  get_lp_app() always returns the same singleton instance, ensuring
+# the shared pipeline_cache is never split across two app objects.
+app.mount("/lp", get_lp_app())
 
 logging.basicConfig(level=logging.INFO)
 logger: logging.Logger = logging.getLogger(__name__)

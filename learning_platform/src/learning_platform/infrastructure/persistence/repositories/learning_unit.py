@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,6 +16,8 @@ from learning_platform.models.learning_unit import (
     NodeRef,
     UnitType,
 )
+
+_NODE_REF_LIST_ADAPTER: TypeAdapter[list[NodeRef]] = TypeAdapter(list[NodeRef])
 
 
 class LearningUnitRepository(BaseRepository[LearningUnitRow]):
@@ -117,15 +120,15 @@ class LearningUnitRepository(BaseRepository[LearningUnitRow]):
             estimated_study_time_minutes=row.estimated_study_time_minutes,
             parent_id=row.parent_id,
             learning_objectives=row.learning_objectives_json or [],
-            content_references=[
-                NodeRef.model_validate(r) for r in (row.content_references_json or [])
-            ],
-            definitions=[NodeRef.model_validate(r) for r in (row.definitions_json or [])],
-            examples=[NodeRef.model_validate(r) for r in (row.examples_json or [])],
-            figures=[NodeRef.model_validate(r) for r in (row.figures_json or [])],
-            tables=[NodeRef.model_validate(r) for r in (row.tables_json or [])],
-            equations=[NodeRef.model_validate(r) for r in (row.equations_json or [])],
-            exercises=[NodeRef.model_validate(r) for r in (row.exercises_json or [])],
+            content_references=_NODE_REF_LIST_ADAPTER.validate_python(
+                row.content_references_json or []
+            ),
+            definitions=_NODE_REF_LIST_ADAPTER.validate_python(row.definitions_json or []),
+            examples=_NODE_REF_LIST_ADAPTER.validate_python(row.examples_json or []),
+            figures=_NODE_REF_LIST_ADAPTER.validate_python(row.figures_json or []),
+            tables=_NODE_REF_LIST_ADAPTER.validate_python(row.tables_json or []),
+            equations=_NODE_REF_LIST_ADAPTER.validate_python(row.equations_json or []),
+            exercises=_NODE_REF_LIST_ADAPTER.validate_python(row.exercises_json or []),
             source_node_ids=[UUID(uid) for uid in (row.source_node_ids_json or [])],
             children_ids=[UUID(uid) for uid in (row.children_ids_json or [])],
             prerequisite_ids=[UUID(uid) for uid in (row.prerequisite_ids_json or [])],

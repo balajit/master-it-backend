@@ -13,35 +13,28 @@ from collections.abc import Sequence
 
 from learning_platform.models.document import CanonicalDocument
 
-from .passes import (
-    CaptionAssociationPass,
-    HeadingNormalizationPass,
-    HeadingSectionPass,
-    ListNormalizationPass,
-    NormalizationPass,
-    PageGroupingPass,
-    ParagraphMergePass,
-    ParentChildRepairPass,
-    ReadingOrderPass,
-    TableNormalizationPass,
-)
+from .passes import NormalizationPass
 from .passes._helpers import flat_to_tree, tree_to_flat
+from .passes.visitor_batch import BatchOnePass, BatchThreePass, BatchTwoPass
 
 _LOG = logging.getLogger(__name__)
 
 
 def _default_passes() -> list[NormalizationPass]:
-    """Return the standard normalization pipeline in execution order."""
+    """Return the standard normalization pipeline in execution order.
+
+    The original nine sequential passes are consolidated into three batch
+    visitor passes, each performing a single forward scan over the node list:
+
+    - ``BatchOnePass``   — heading fix, paragraph merge, caption association.
+    - ``BatchTwoPass``   — list merge, table normalisation.
+    - ``BatchThreePass`` — section hierarchy, page grouping, parent-child
+                           repair, reading-order sort.
+    """
     return [
-        HeadingNormalizationPass(),
-        ParagraphMergePass(),
-        CaptionAssociationPass(),
-        ListNormalizationPass(),
-        TableNormalizationPass(),
-        HeadingSectionPass(),
-        PageGroupingPass(),
-        ParentChildRepairPass(),
-        ReadingOrderPass(),
+        BatchOnePass(),
+        BatchTwoPass(),
+        BatchThreePass(),
     ]
 
 

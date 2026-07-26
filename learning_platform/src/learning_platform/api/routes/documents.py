@@ -13,6 +13,7 @@ The owning application (``src/``) is responsible for:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from pathlib import Path
 from typing import Any
@@ -104,6 +105,18 @@ def _build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
     )
 
 
+def _stable_doc_id(file_path: str) -> str:
+    """Derive a stable, deterministic document ID from the file path.
+
+    Uses a SHA-256 hash of the *resolved absolute path* so the same file
+    always produces the same ID regardless of how the path was supplied
+    (relative vs. absolute).  This ID is used as the cache key and as the
+    primary key for all persistence calls, so host-app and LP are aligned.
+    """
+    resolved = str(Path(file_path).resolve())
+    return hashlib.sha256(resolved.encode()).hexdigest()
+
+
 def _resolve_file_path(file_path: str) -> str:
     """Resolve a file path to an absolute path.
 
@@ -157,11 +170,13 @@ async def process_document(
             detail=f"Pipeline failed: {exc}",
         ) from exc
 
-    # Use root node id as the canonical doc id
-    root_id = result.document.nodes[0].id if result.document.nodes else None
-    doc_id_str = str(root_id) if root_id is not None else "unknown"
+    # Stable doc ID derived from the resolved file path — consistent across
+    # re-runs and shared with the host app's document ID via _stable_doc_id().
+    doc_id_str = _stable_doc_id(source)
+    doc_id_uuid = UUID(doc_id_str[:32])  # first 32 hex chars = valid UUID
 
-    pipeline_cache.set(doc_id_str, result)
+    # Store under the UUID string — the same key all read endpoints use.
+    pipeline_cache.set(str(doc_id_uuid), result)
 
     doc_repo = DocumentRepository(session)
     unit_repo = LearningUnitRepository(session)
@@ -171,16 +186,15 @@ async def process_document(
     plan_repo = StudyPlanRepository(session)
 
     await doc_repo.save_document(result.document)
-    if root_id is not None:
-        await unit_repo.save_all_units(result.units, root_id)
-        await ann_repo.save_all_annotations(result.annotations, root_id)
-        await concept_repo.save_concept_map(result.concepts, root_id)
-        await graph_repo.save_graph(result.graph, root_id)
-        await plan_repo.save_plan(result.study_plan, root_id)
+    await unit_repo.save_all_units(result.units, doc_id_uuid)
+    await ann_repo.save_all_annotations(result.annotations, doc_id_uuid)
+    await concept_repo.save_concept_map(result.concepts, doc_id_uuid)
+    await graph_repo.save_graph(result.graph, doc_id_uuid)
+    await plan_repo.save_plan(result.study_plan, doc_id_uuid)
     await session.commit()
 
     return DocumentProcessResponse(
-        doc_id=root_id or UUID(int=0),
+        doc_id=doc_id_uuid,
         title=result.document.title,
         units_count=len(result.units),
         concepts_count=len(result.concepts.concepts),

@@ -5,11 +5,14 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import UUID
 
+from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
 from learning_platform.infrastructure.persistence.repositories.base import BaseRepository
 from learning_platform.models.document import CanonicalDocument, DocumentMetadata, DocumentNode
+
+_NODE_LIST_ADAPTER: TypeAdapter[list[DocumentNode]] = TypeAdapter(list[DocumentNode])
 
 
 class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
@@ -63,8 +66,7 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
     @staticmethod
     def _to_domain(row: CanonicalDocumentRow) -> CanonicalDocument:
         """Reconstruct a ``CanonicalDocument`` from a persisted row."""
-        nodes_data = row.nodes_json or []
-        nodes = [DocumentNode.model_validate(n) for n in nodes_data]
+        nodes = _NODE_LIST_ADAPTER.validate_python(row.nodes_json or [])
         meta = DocumentMetadata.model_validate(row.metadata_json or {})
         doc = CanonicalDocument(
             source=row.source,

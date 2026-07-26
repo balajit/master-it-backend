@@ -41,6 +41,7 @@ _LOG = logging.getLogger(__name__)
 _engine: Any = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 _upload_dir: Path | None = None
+_orchestrator: PipelineOrchestrator | None = None
 
 
 def _ensure_upload_dir(settings: Settings) -> Path:
@@ -94,18 +95,29 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 
 
 def get_pipeline_orchestrator() -> PipelineOrchestrator:
-    """Build the pipeline with concrete stage implementations."""
-    return PipelineOrchestrator(
-        parser=DoclingAdapter(),
-        normalizer=StructuralNormalizer(),
-        enricher=SemanticEnricher(),
-        unit_builder=LearningUnitBuilder(),
-        concept_extractor=ConceptExtractor(),
-        graph_builder=NetworkxGraphBuilder(),
-        sequence_builder=TopologicalSequenceBuilder(),
-        event_bus=SimpleEventBus(),
-        plugin_registry=PluginRegistry(),
-    )
+    """Return the pipeline orchestrator singleton (built once per process).
+
+    Constructing the orchestrator is expensive: ``DoclingAdapter`` initialises
+    the Docling document converter, all stage objects are created, and the
+    plugin registry is built.  Creating a new instance per request wastes
+    time and memory.  The singleton is process-local and therefore safe for
+    single-worker deployments.
+    """
+    global _orchestrator
+    if _orchestrator is None:
+        _orchestrator = PipelineOrchestrator(
+            parser=DoclingAdapter(),
+            normalizer=StructuralNormalizer(),
+            enricher=SemanticEnricher(),
+            unit_builder=LearningUnitBuilder(),
+            concept_extractor=ConceptExtractor(),
+            graph_builder=NetworkxGraphBuilder(),
+            sequence_builder=TopologicalSequenceBuilder(),
+            event_bus=SimpleEventBus(),
+            plugin_registry=PluginRegistry(),
+        )
+        _LOG.info("PipelineOrchestrator singleton created")
+    return _orchestrator
 
 
 # ── Repositories ────────────────────────────────────────────────────────────

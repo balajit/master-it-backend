@@ -9,6 +9,8 @@ load_dotenv()
 
 from learning_platform.config import Settings, get_settings
 
+_app_instance: FastAPI | None = None
+
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Create and configure the FastAPI application."""
@@ -37,4 +39,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     return app
 
-app = create_app()
+
+def get_lp_app() -> FastAPI:
+    """Return the LP FastAPI app singleton.
+
+    Always returns the same instance so that the shared ``pipeline_cache``
+    is never split across multiple app objects — regardless of whether the
+    caller is ``src/main.py`` (mounting) or any other integration point.
+    """
+    global _app_instance
+    if _app_instance is None:
+        _app_instance = create_app()
+    return _app_instance
+
+
+app = get_lp_app()

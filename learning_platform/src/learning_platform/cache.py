@@ -4,6 +4,23 @@ Provides a typed, TTL-aware, max-size-limited cache shared between the
 learning-platform document routes and the main-app mapping service.
 Both import the module-level ``pipeline_cache`` singleton, which lives
 in the same process because the LP is mounted as a sub-app.
+
+.. warning:: **Single-process constraint**
+
+    This cache is an in-process ``OrderedDict``.  It is **not** shared
+    across OS processes.  Under any multi-worker deployment (Gunicorn with
+    ``--workers > 1``, multiple container replicas, etc.) each worker holds
+    its own isolated cache instance.  Documents processed by one worker are
+    invisible to others, causing silent 404 / empty-result responses.
+
+    To support multi-worker deployments, replace the ``OrderedDict`` backend
+    with a Redis / Valkey client.  The ``PipelineCache`` class itself is
+    backend-agnostic — only ``__init__`` and the ``_store`` attribute need to
+    change.  The ``pipeline_cache`` singleton and all call-sites remain
+    unchanged.
+
+    For now, enforce single-worker operation by setting ``WEB_CONCURRENCY=1``
+    (or ``--workers 1``) in your process manager.
 """
 
 from __future__ import annotations
@@ -75,10 +92,7 @@ class PipelineCache[T]:
         now = time.monotonic()
         if self._ttl is None:
             return list(self._store.keys())
-        return [
-            k for k, (_, exp) in self._store.items()
-            if now <= exp
-        ]
+        return [k for k, (_, exp) in self._store.items() if now <= exp]
 
     def __len__(self) -> int:
         now = time.monotonic()

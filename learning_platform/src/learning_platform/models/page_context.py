@@ -63,6 +63,24 @@ def _plain_text(node: DocumentNode) -> str:
     return ""
 
 
+def _tree_to_flat(node: DocumentNode) -> list[DocumentNode]:
+    """Pre-order traversal of a node tree, excluding synthetic root nodes.
+
+    Duplicates the traversal logic from the normalizer helpers so that the
+    models layer has no dependency on the stages layer.
+    """
+    result: list[DocumentNode] = []
+    _collect_nodes(node, result)
+    return result
+
+
+def _collect_nodes(node: DocumentNode, acc: list[DocumentNode]) -> None:
+    if node.metadata.get("role") not in {"normalizer_root", "document_root"}:
+        acc.append(node)
+    for child in node.children:
+        _collect_nodes(child, acc)
+
+
 _SKIP_KINDS: frozenset[str] = frozenset(
     {"PageBreak", "PageHeader", "PageFooter", "TableOfContents", "MetadataBlock"}
 )
@@ -98,11 +116,10 @@ def build_page_contexts(document: CanonicalDocument) -> list[PageContext]:
     - ``heading``: the first heading on the page (used as page title)
     """
     from learning_platform.models.document import Heading
-    from learning_platform.stages.normalizer.passes._helpers import tree_to_flat
 
     all_nodes: list[DocumentNode] = []
     for node in document.nodes:
-        all_nodes.extend(tree_to_flat(node))
+        all_nodes.extend(_tree_to_flat(node))
 
     buckets: dict[int, list[DocumentNode]] = defaultdict(list)
 

@@ -1,4 +1,4 @@
-"""Document routes — CRUD, course association, and proxy to LP processing.
+"""Document routes — CRUD, course association, and LP pipeline integration.
 
 The main app owns:
 - File storage (uploads/{course_id}/{filename})
@@ -9,8 +9,13 @@ The learning platform (LP) owns:
 - Canonical document processing (pipeline)
 - Canonical document, learning units, concepts, study plan
 
-This router proxies processing and view requests to the LP sub-app
-via in-process ASGI transport (no network round-trip).
+Previously, LP endpoints were reached via an in-process ASGI proxy
+(``httpx.ASGITransport``), which created a second LP FastAPI instance with its
+own isolated ``pipeline_cache``, causing cache misses on every lookup.
+
+This router now calls ``LearningPlatformService`` directly — a Python-level
+facade over the same orchestrator and cache that the LP sub-app uses.  Both
+paths share the same ``pipeline_cache`` singleton.
 """
 
 from __future__ import annotations
@@ -22,9 +27,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
-from httpx import ASGITransport, AsyncClient
 
 from auth import get_current_user
 from database import (
@@ -34,6 +38,11 @@ from database import (
     get_course,
     get_course_documents,
     get_document,
+)
+from learning_platform.service import (
+    LearningPlatformService,
+    get_service,
+    stable_doc_id,
 )
 
 router: APIRouter = APIRouter(prefix="/api", tags=["documents"])
@@ -45,19 +54,6 @@ MAX_UPLOAD_BYTES: int = int(
 )  # 50 MB
 
 _SAFE_FILENAME_RE: re.Pattern[str] = re.compile(r"[^a-zA-Z0-9._-]")
-
-# Lazy singleton for the LP sub-app (avoids creating a new FastAPI per request)
-_lp_app: Any = None
-
-
-def _get_lp_app() -> Any:
-    """Return the LP FastAPI app, creating it once on first use."""
-    global _lp_app
-    if _lp_app is None:
-        from learning_platform.api.app import create_app
-
-        _lp_app = create_app()
-    return _lp_app
 
 
 def _sanitize_filename(name: str) -> str:
@@ -153,131 +149,226 @@ async def delete_document_endpoint(
     logger.info("Document %s deleted by user %s", document_id, user["id"])
 
 
-# ── Proxied LP endpoints ────────────────────────────────────────────────────
+# ── LP pipeline integration ──────────────────────────────────────────────────
 
 
 @router.post("/documents/{document_id}/process")
 async def process_document(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
     """Trigger LP pipeline processing for an uploaded document.
 
-    Reads the storage path from the DocumentModel and forwards it to the
-    LP ``POST /api/documents/process`` endpoint.
+    Resolves the storage path from the DocumentModel and calls the LP
+    service directly — no HTTP round-trip, no duplicate app instance.
+    The pipeline result is stored in the shared ``pipeline_cache`` under
+    ``stable_doc_id(storage_path)`` so all subsequent reads hit the same key.
     """
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
-    return await _lp_proxy(
-        request,
-        "/api/documents/process",
-        method="POST",
-        json={"file_path": doc["storage_path"]},
+    storage_path: str = doc["storage_path"]
+    if not Path(storage_path).exists():
+        raise HTTPException(status_code=400, detail=f"File not found: {storage_path}")
+
+    try:
+        result = await lp.process(storage_path)
+    except Exception as exc:
+        logger.error("Pipeline failed for document %s: %s", document_id, exc)
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
+
+    lp_doc_id = stable_doc_id(storage_path)
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "title": result.document.title,
+            "units_count": len(result.units),
+            "concepts_count": len(result.concepts.concepts),
+            "graph_nodes": len(result.graph.nodes),
+            "graph_edges": len(result.graph.edges),
+            "lessons": result.study_plan.total_lessons,
+            "milestones": len(result.study_plan.milestones),
+        },
+        status_code=200,
     )
 
 
 @router.get("/documents/{document_id}/tree")
 async def get_document_tree(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
-    """Proxy to LP tree endpoint."""
+    """Return the canonical document tree for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return await _lp_proxy(request, f"/api/documents/{document_id}/tree")
+
+    lp_doc_id = stable_doc_id(doc["storage_path"])
+    result = lp.get_cached(lp_doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
+        )
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "title": result.document.title,
+            "total_nodes": len(result.document.nodes),
+        }
+    )
 
 
 @router.get("/documents/{document_id}/units")
 async def get_document_units(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
-    """Proxy to LP learning units endpoint."""
+    """Return all learning units for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return await _lp_proxy(request, f"/api/documents/{document_id}/units")
+
+    lp_doc_id = stable_doc_id(doc["storage_path"])
+    result = lp.get_cached(lp_doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
+        )
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "units": [
+                {
+                    "id": str(u.id),
+                    "title": u.title,
+                    "unit_type": u.unit_type.value,
+                    "difficulty": u.difficulty.value,
+                    "estimated_study_time_minutes": u.estimated_study_time_minutes,
+                }
+                for u in result.units
+            ],
+            "count": len(result.units),
+        }
+    )
 
 
 @router.get("/documents/{document_id}/concepts")
 async def get_document_concepts(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
-    """Proxy to LP concepts endpoint."""
+    """Return all concepts for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return await _lp_proxy(request, f"/api/documents/{document_id}/concepts")
+
+    lp_doc_id = stable_doc_id(doc["storage_path"])
+    result = lp.get_cached(lp_doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
+        )
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "concepts": [
+                {
+                    "id": str(c.id),
+                    "name": c.name,
+                    "category": c.category.value,
+                    "importance": c.importance,
+                }
+                for c in result.concepts.concepts
+            ],
+            "total_concepts": len(result.concepts.concepts),
+            "total_relationships": len(result.concepts.relationships),
+        }
+    )
 
 
 @router.get("/documents/{document_id}/study-plan")
 async def get_document_study_plan(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
-    """Proxy to LP study plan endpoint."""
+    """Return the study plan for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return await _lp_proxy(request, f"/api/documents/{document_id}/study-plan")
+
+    lp_doc_id = stable_doc_id(doc["storage_path"])
+    result = lp.get_cached(lp_doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
+        )
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "title": result.study_plan.title,
+            "total_lessons": result.study_plan.total_lessons,
+            "total_estimated_minutes": result.study_plan.total_estimated_minutes,
+            "milestones": len(result.study_plan.milestones),
+        }
+    )
 
 
 @router.get("/documents/{document_id}/export/json")
 async def export_document_json(
     document_id: str,
-    request: Request,
     user: Dict[str, Any] = Depends(get_current_user),
+    lp: LearningPlatformService = Depends(get_service),
 ) -> JSONResponse:
-    """Proxy to LP JSON export endpoint."""
+    """Export all pipeline results as JSON for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
-    return await _lp_proxy(request, f"/api/documents/{document_id}/export/json")
 
-
-# ── Internal helpers ─────────────────────────────────────────────────────────
-
-
-async def _lp_proxy(
-    request: Request,
-    path: str,
-    method: str = "GET",
-    json: dict[str, Any] | None = None,
-) -> JSONResponse:
-    """Forward a request to the LP sub-app via in-process ASGI transport.
-
-    Calls the LP app directly (not through the ``/lp`` mount prefix).
-    Auth header is forwarded from the original request so the LP's own
-    ``get_current_user`` dependency can validate the token.
-    """
-    auth_header: str = request.headers.get("authorization", "")
-
-    headers: dict[str, str] = {}
-    if auth_header:
-        headers["Authorization"] = auth_header
-
-    transport = ASGITransport(app=_get_lp_app())
-
-    async with AsyncClient(transport=transport, base_url="http://internal") as client:
-        resp = await client.request(
-            method=method,
-            url=path,
-            json=json,
-            headers=headers,
+    lp_doc_id = stable_doc_id(doc["storage_path"])
+    result = lp.get_cached(lp_doc_id)
+    if result is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
         )
 
-    try:
-        content = resp.json()
-    except Exception:
-        content = {"detail": resp.text}
+    from learning_platform.infrastructure.persistence.exporters.json_exporter import (
+        JsonExporter,
+    )
 
-    return JSONResponse(content=content, status_code=resp.status_code)
+    export_dir = Path("exports") / lp_doc_id
+    export_dir.mkdir(parents=True, exist_ok=True)
+    exporter = JsonExporter(export_dir)
+    exporter.export_all(
+        document=result.document,
+        units=result.units,
+        annotations=result.annotations,
+        concepts=result.concepts,
+        graph=result.graph,
+        plan=result.study_plan,
+    )
+
+    return JSONResponse(
+        content={
+            "doc_id": lp_doc_id,
+            "export_dir": str(export_dir),
+            "files": [
+                "document.json",
+                "learning_units.json",
+                "annotations.json",
+                "concepts.json",
+                "knowledge_graph.json",
+                "study_plan.json",
+            ],
+        }
+    )

@@ -10,8 +10,18 @@ from learning_platform.stages.normalizer.passes.paragraph import ParagraphMergeP
 from learning_platform.stages.normalizer.passes.parent_child import ParentChildRepairPass
 from learning_platform.stages.normalizer.passes.reading_order import ReadingOrderPass
 from learning_platform.stages.normalizer.passes.table import TableNormalizationPass
+from learning_platform.stages.normalizer.passes.visitor_batch import (
+    BatchOnePass,
+    BatchThreePass,
+    BatchTwoPass,
+)
 
 __all__ = [
+    # Batch visitors (default pipeline)
+    "BatchOnePass",
+    "BatchTwoPass",
+    "BatchThreePass",
+    # Individual passes (available for custom pipelines / testing)
     "CaptionAssociationPass",
     "HeadingNormalizationPass",
     "HeadingSectionPass",
