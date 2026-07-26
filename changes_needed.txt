@@ -69,3 +69,84 @@ P2	R8 — Normalize status casing to lowercase
 P2	R9, R10 — Add computed progress_label and action_label
 P3	R7 — Differentiate about vs description in UnitResponse
 P3	GoalCard motivational copy — purely client-derived, no backend change needed
+
+Now I have the exact field shapes. Here's the SidebarGroup-specific gap analysis and backend prompt addition.
+SidebarGroup — Gap Analysis
+The sidebar renders one SidebarGroup per milestone/section, with items being lessons and checkpoints. Here's what each field needs vs. what the backend currently provides:
+Field	Needed	Backend now	Gap
+SidebarGroupProps.title	Milestone/section title	SectionResponse.title ✓	None — title exists
+SidebarItemData.id	Stable string ID per item	LessonResponse.id: int, PracticeResponse.id: int	Type mismatch — UI expects string, backend returns int
+SidebarItemData.label	Lesson/checkpoint title	LessonResponse.title, PracticeResponse.title ✓	None
+SidebarItemData.status (3-state)	"completed" | "in_progress" | "not_started"	ProgressStatus (6-state, uppercase)	Two gaps: casing + collapsing 6→3 states
+SidebarItemData.meta	"Quiz", "Project" badge	Nothing on PracticeResponse	Missing — activity_type doesn't exist yet
+SidebarItemData.children	Sub-lesson nesting	SectionResponse has no lesson hierarchy	Missing — no nested lesson structure in schema
+lessonCount (header)	Total lesson count	StudyPlanDetail.total_lessons or COUNT(lessons)	Available via study plan, not on UnitResponse
+totalMinutes (header)	Sum of lesson durations	StudyPlanDetail.total_estimated_minutes or SUM(duration_minutes)	Available via study plan, not on UnitResponse
+Prompt Section — SidebarGroup
+Add this to STUDY_SCREEN_API_CHANGES.md (or run it in the backend directly):
+Change 7 — Add sidebar aggregates to UnitResponse
+File: src/schemas.py
+Add two aggregate fields to UnitResponse for the sidebar header:
+class UnitResponse(BaseModel):
+    id: int
+    title: str
+    description: str
+    course_id: int
+    progress: ProgressResponse
+    about: str
+    total_lessons: int = 0       # ADD — total lesson count across all sections
+    total_minutes: int = 0       # ADD — sum of all lesson duration_minutes
+    sections: List[SectionResponse] = []
+In src/services/learning.py, compute these in get_unit_details() after assembling sections:
+total_lessons = sum(len(s.lessons) for s in sections)
+total_minutes  = sum(
+    lesson.duration_minutes
+    for s in sections
+    for lesson in s.lessons
+)
+Change 8 — Add sidebar_status (3-state) to LessonResponse and PracticeResponse
+File: src/schemas.py
+The sidebar's ItemStatus is a 3-state enum: "completed" | "in_progress" | "not_started".
+The existing ProgressStatus is 6-state. Add a computed sidebar_status field to both response
+models that collapses the 6-state mastery status into the 3-state sidebar vocabulary:
+class LessonResponse(BaseModel):
+    ...
+    sidebar_status: str = "not_started"   # ADD — "completed" | "in_progress" | "not_started"
+
+class PracticeResponse(BaseModel):
+    ...
+    sidebar_status: str = "not_started"   # ADD
+Add a helper in src/services/progress.py:
+def to_sidebar_status(status: ProgressStatus) -> str:
+    """Collapse 6-state ProgressStatus to the 3-state sidebar ItemStatus."""
+    if status == ProgressStatus.MASTERED:
+        return "completed"
+    if status in (ProgressStatus.PRACTICED, ProgressStatus.FAMILIAR, ProgressStatus.ATTEMPTED):
+        return "in_progress"
+    return "not_started"   # covers NOT_STARTED and LOCKED
+Populate sidebar_status wherever LessonResponse and PracticeResponse are constructed
+(in services/learning.py and routers/v1.py).
+Change 9 — Add activity_type to PracticeResponse for sidebar meta badge
+(This overlaps with Change 2 above — if already added, just verify it's populated.)
+The sidebar SidebarItemData.meta field renders the badge text ("Quiz", "Project").
+This is driven by PracticeResponse.activity_type. The frontend maps values like:
+- "quiz" → "Quiz"
+- "practice" → "Practice"  
+- "project" → "Project"
+No database column exists yet. Add a practice_type column to the practices table with values
+"quiz" | "practice" | "project" | "self_test":
+1. Create an Alembic migration: uv run alembic revision --autogenerate -m "add_practice_type_column"
+2. Migration should add: op.add_column('practices', sa.Column('practice_type', sa.String(), nullable=True, server_default='practice'))
+3. Apply: uv run alembic upgrade head
+4. Surface as activity_type in PracticeResponse — read from practice["practice_type"] in the service, default "practice" if null.
+Change 10 — Clarify: sidebar children (nested lessons) not needed from backend
+The SidebarItemData.children nesting in the placeholder data is a UI-only concern. The
+backend has no nested lesson hierarchy and should not add one. The frontend should flatten
+SectionResponse.lessons into top-level sidebar items (no children). Remove the nested children
+from the placeholder and do not implement a nested lesson API.
+Summary of SidebarGroup-specific changes
+Change	File	What
+7	schemas.py, services/learning.py	Add total_lessons + total_minutes to UnitResponse
+8	schemas.py, services/progress.py, services/learning.py, routers/v1.py	Add sidebar_status (3-state collapsed) to LessonResponse + PracticeResponse
+9	Alembic + schemas.py + services/learning.py	Add practice_type DB column → activity_type in response for sidebar meta badge
+10	Frontend only	Drop nested children from sidebar; flatten lessons per section

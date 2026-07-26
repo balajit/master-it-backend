@@ -269,6 +269,132 @@ Populate `duration_label` from `format_duration(lesson["duration_minutes"])` whe
 
 ---
 
+## Change 7 — Add `total_lessons` and `total_minutes` to `UnitResponse`
+
+**File:** `src/schemas.py` and `src/services/learning.py`
+
+The sidebar header displays the total lesson count and total estimated time for the unit. Neither
+field is currently on `UnitResponse`. Add both as computed aggregates.
+
+```python
+class UnitResponse(BaseModel):
+    """Top-level unit study page response — clean serializer for frontend."""
+
+    id: int
+    title: str
+    description: str
+    course_id: int
+    progress: ProgressResponse
+    about: str
+    total_lessons: int = 0    # ADD — count of all lessons across all sections
+    total_minutes: int = 0    # ADD — sum of all lesson duration_minutes
+    sections: List[SectionResponse] = []
+```
+
+**In `src/services/learning.py`**, compute these after assembling sections in `get_unit_details()`:
+
+```python
+total_lessons: int = sum(len(s.lessons) for s in sections)
+total_minutes: int = sum(
+    lesson.duration_minutes
+    for s in sections
+    for lesson in s.lessons
+)
+```
+
+Pass `total_lessons` and `total_minutes` into the `UnitResponse(...)` constructor.
+
+---
+
+## Change 8 — Add `sidebar_status` (3-state) to `LessonResponse` and `PracticeResponse`
+
+**File:** `src/schemas.py` and `src/services/progress.py`
+
+The sidebar `SidebarItemData.status` field uses a 3-state vocabulary:
+`"completed" | "in_progress" | "not_started"`. The existing `ProgressStatus` is 6-state.
+Rather than forcing the frontend to map between them, expose a pre-collapsed `sidebar_status`
+field on both lesson and practice responses.
+
+```python
+class LessonResponse(BaseModel):
+    ...
+    sidebar_status: str = "not_started"   # ADD — "completed" | "in_progress" | "not_started"
+
+class PracticeResponse(BaseModel):
+    ...
+    sidebar_status: str = "not_started"   # ADD
+```
+
+Add this helper to `src/services/progress.py`:
+
+```python
+def to_sidebar_status(status: ProgressStatus) -> str:
+    """Collapse 6-state ProgressStatus into the 3-state sidebar ItemStatus."""
+    if status == ProgressStatus.MASTERED:
+        return "completed"
+    if status in (
+        ProgressStatus.PRACTICED,
+        ProgressStatus.FAMILIAR,
+        ProgressStatus.ATTEMPTED,
+    ):
+        return "in_progress"
+    return "not_started"  # covers NOT_STARTED and LOCKED
+```
+
+Populate `sidebar_status` using `to_sidebar_status(status)` wherever `LessonResponse` and
+`PracticeResponse` are constructed — in both `src/services/learning.py` and `src/routers/v1.py`.
+
+---
+
+## Change 9 — Add `practice_type` DB column → `activity_type` in `PracticeResponse`
+
+**Files:** Alembic migration, `src/schemas.py`, `src/services/learning.py`
+
+The sidebar renders a badge (`meta` prop) showing the activity type: `"Quiz"`, `"Project"`,
+`"Practice"`. This requires a `practice_type` column in the database surfaced as `activity_type`
+in `PracticeResponse` (already added in Change 2 — this change provides the database backing).
+
+**Migration steps:**
+
+1. Create migration: `uv run alembic revision --autogenerate -m "add_practice_type_column"`
+2. If autogenerate does not detect the column (SQLite quirks), write it manually:
+   ```python
+   op.add_column(
+       'practices',
+       sa.Column('practice_type', sa.String(), nullable=True, server_default='practice')
+   )
+   ```
+3. Apply: `uv run alembic upgrade head`
+
+**In `src/services/learning.py`**, read the column when constructing `PracticeResponse`:
+
+```python
+activity_type=practice.get("practice_type") or "practice",
+```
+
+Remove the `# TODO` placeholder comment added in Change 2 once this migration is applied.
+
+**Frontend badge mapping** (for reference — frontend implements this, not backend):
+
+| `activity_type` value | Sidebar `meta` badge |
+|---|---|
+| `"quiz"` | `"Quiz"` |
+| `"practice"` | `"Practice"` |
+| `"project"` | `"Project"` |
+| `"self_test"` | `"Self Test"` |
+
+---
+
+## Note — Sidebar `children` (nested lessons)
+
+The hardcoded `PLACEHOLDER_GROUPS` in `StudyPage.tsx` uses `SidebarItemData.children` to show
+sub-lessons nested under a parent. **Do not implement a nested lesson hierarchy in the backend.**
+The backend has no such structure and adding one is out of scope. The frontend should flatten
+`SectionResponse.lessons` into top-level sidebar items per section. This is a frontend-only
+refactor.
+
+---
+
 ## Verification
 
 After all changes:
@@ -282,8 +408,13 @@ After all changes:
    - `ProgressStatus` values are lowercase in the schema
 5. Run existing tests: `uv run pytest` — must pass.
 6. Manually test one unit: `curl -H "Authorization: Bearer <token>" http://localhost:5000/api/v1/units/1`
-   and confirm `lessons[].status` values are lowercase, `practices[]` include `progress_label`,
-   `action_label`, `locked`, and `goals[]` include `status`, `action_label`, `locked`.
+   and confirm:
+   - `lessons[].status` values are lowercase
+   - `lessons[].sidebar_status` is one of `"completed"`, `"in_progress"`, `"not_started"`
+   - `lessons[].duration_label` is a formatted string (e.g. `"10 min"`)
+   - `practices[]` include `progress_label`, `action_label`, `locked`, `sidebar_status`, `activity_type`
+   - `goals[]` include `status`, `action_label`, `locked`
+   - `total_lessons` and `total_minutes` are present at the unit level
 
 ---
 
@@ -291,8 +422,8 @@ After all changes:
 
 | File | Changes |
 |---|---|
-| `src/schemas.py` | Update `ProgressStatus` to lowercase; add fields to `PracticeResponse`, `GoalResponse`, `LessonResponse`; add new `UnitSummary` schema |
-| `src/services/learning.py` | Add `format_duration()`; populate new fields in `PracticeResponse`, `GoalResponse`, `LessonResponse` construction; update `about` field resolution |
+| `src/schemas.py` | Update `ProgressStatus` to lowercase; add fields to `PracticeResponse`, `GoalResponse`, `LessonResponse`; add `total_lessons`/`total_minutes` to `UnitResponse`; add `sidebar_status` to `LessonResponse` + `PracticeResponse`; add new `UnitSummary` schema |
+| `src/services/learning.py` | Add `format_duration()`; compute `total_lessons`/`total_minutes`; populate all new fields in `PracticeResponse`, `GoalResponse`, `LessonResponse` construction; update `about` field resolution |
+| `src/services/progress.py` | Add `to_sidebar_status()`; verify all `ProgressStatus` comparisons use enum members after casing change |
 | `src/routers/v1.py` | Add `GET /api/v1/courses/{course_id}/units`; update `get_practice_v1` and `get_quiz_v1` to populate new fields |
-| `src/services/progress.py` | Verify all `ProgressStatus` comparisons use enum members (not raw strings) after casing change |
-| Alembic migration | Add `about` column to `units` table |
+| Alembic migrations | Add `about` column to `units` table (Change 5); add `practice_type` column to `practices` table (Change 9) |
