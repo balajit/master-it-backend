@@ -11,15 +11,12 @@ from learning_platform.models.document import (
     CanonicalDocument,
     DocumentNode,
     Exercise,
-    Heading,
-    HeadingLevel,
     Paragraph,
-    SourceLocation,
     StyledText,
     TextRun,
 )
 from learning_platform.models.knowledge_graph import KnowledgeGraph
-from learning_platform.models.learning_unit import Difficulty, LearningUnit, NodeRef, UnitType
+from learning_platform.models.learning_unit import LearningUnit, NodeRef, UnitType
 from learning_platform.models.page_context import PageContext
 from learning_platform.models.sequence import Lesson, StudyPlan
 from learning_platform.presentation.mappers.configuration import create_default_config

@@ -8,11 +8,13 @@ from database.models import (
     RoleModel,
     RolePermissionModel,
 )
+from learning_platform.infrastructure.persistence.models import Base as LpBase
 
 
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(LpBase.metadata.create_all)
 
         # Seed roles
         for role_name in (

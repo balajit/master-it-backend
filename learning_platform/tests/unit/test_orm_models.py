@@ -36,6 +36,7 @@ class TestBase:
             "lp_checkpoints",
             "lp_concept_relationships",
             "lp_concepts",
+            "lp_document_process",
             "lp_documents",
             "lp_graph_edges",
             "lp_graph_nodes",
@@ -43,12 +44,13 @@ class TestBase:
             "lp_learning_units",
             "lp_lessons",
             "lp_milestones",
+            "lp_pipeline_logs",
             "lp_study_plans",
         ]
         assert table_names == expected
 
     def test_total_table_count(self) -> None:
-        assert len(Base.metadata.tables) == 12
+        assert len(Base.metadata.tables) == 14
 
 
 class TestCanonicalDocumentRow:

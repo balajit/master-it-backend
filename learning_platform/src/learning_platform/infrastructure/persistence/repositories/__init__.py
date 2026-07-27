@@ -5,19 +5,27 @@ from learning_platform.infrastructure.persistence.repositories.annotation import
 )
 from learning_platform.infrastructure.persistence.repositories.concept import ConceptRepository
 from learning_platform.infrastructure.persistence.repositories.document import DocumentRepository
+from learning_platform.infrastructure.persistence.repositories.document_process import (
+    DocumentProcessRepository,
+)
 from learning_platform.infrastructure.persistence.repositories.knowledge_graph import (
     KnowledgeGraphRepository,
 )
 from learning_platform.infrastructure.persistence.repositories.learning_unit import (
     LearningUnitRepository,
 )
+from learning_platform.infrastructure.persistence.repositories.pipeline_log import (
+    PipelineLogRepository,
+)
 from learning_platform.infrastructure.persistence.repositories.sequence import StudyPlanRepository
 
 __all__ = [
     "AnnotationRepository",
     "ConceptRepository",
+    "DocumentProcessRepository",
     "DocumentRepository",
     "KnowledgeGraphRepository",
     "LearningUnitRepository",
+    "PipelineLogRepository",
     "StudyPlanRepository",
 ]

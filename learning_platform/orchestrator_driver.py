@@ -1,9 +1,7 @@
+import json
 import logging
 from pathlib import Path
-import json
-from typing import List, Any
-
-from fastapi import Depends
+from typing import Any
 
 from learning_platform.api.deps import get_pipeline_orchestrator
 from learning_platform.pipeline.orchestrator import PipelineOrchestrator, PipelineResult

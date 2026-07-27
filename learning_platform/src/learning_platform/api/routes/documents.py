@@ -15,6 +15,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import os
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -126,7 +127,6 @@ def _resolve_file_path(file_path: str) -> str:
     p = Path(file_path)
     if p.is_absolute():
         return str(p)
-    import os
 
     upload_dir = Path(os.getenv("UPLOAD_PATH", "uploads"))
     return str(upload_dir / p)
@@ -185,7 +185,7 @@ async def process_document(
     graph_repo = KnowledgeGraphRepository(session)
     plan_repo = StudyPlanRepository(session)
 
-    await doc_repo.save_document(result.document)
+    await doc_repo.save_document(result.document, doc_id=doc_id_uuid)
     await unit_repo.save_all_units(result.units, doc_id_uuid)
     await ann_repo.save_all_annotations(result.annotations, doc_id_uuid)
     await concept_repo.save_concept_map(result.concepts, doc_id_uuid)
@@ -479,7 +479,7 @@ async def export_json(
             detail=f"Document {doc_id} not found or not processed",
         )
 
-    export_dir = Path("exports") / str(doc_id)
+    export_dir = Path(os.getenv("EXPORT_PATH", "exports")) / str(doc_id)
     export_dir.mkdir(parents=True, exist_ok=True)
 
     exporter = JsonExporter(export_dir)

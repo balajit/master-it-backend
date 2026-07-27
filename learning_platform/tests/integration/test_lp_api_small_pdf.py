@@ -29,7 +29,6 @@ All DB I/O is captured by mocking the repository classes.
 
 from __future__ import annotations
 
-import hashlib
 from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any

@@ -7,12 +7,14 @@ from learning_platform.infrastructure.persistence.models.concept import (
     ConceptRow,
 )
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
+from learning_platform.infrastructure.persistence.models.document_process import DocumentProcessRow
 from learning_platform.infrastructure.persistence.models.knowledge_graph import (
     GraphEdgeRow,
     GraphNodeRow,
     KnowledgeGraphRow,
 )
 from learning_platform.infrastructure.persistence.models.learning_unit import LearningUnitRow
+from learning_platform.infrastructure.persistence.models.pipeline_log import PipelineLogRow
 from learning_platform.infrastructure.persistence.models.sequence import (
     CheckpointRow,
     LessonRow,
@@ -27,11 +29,13 @@ __all__ = [
     "CheckpointRow",
     "ConceptRelationshipRow",
     "ConceptRow",
+    "DocumentProcessRow",
     "GraphEdgeRow",
     "GraphNodeRow",
     "KnowledgeGraphRow",
     "LearningUnitRow",
     "LessonRow",
     "MilestoneRow",
+    "PipelineLogRow",
     "StudyPlanRow",
 ]

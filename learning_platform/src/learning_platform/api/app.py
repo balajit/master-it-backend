@@ -5,11 +5,39 @@ from __future__ import annotations
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from learning_platform.config import Settings, get_settings
+from learning_platform.poller import FilePoller
+
 load_dotenv()
 
-from learning_platform.config import Settings, get_settings
-
 _app_instance: FastAPI | None = None
+_poller: FilePoller | None = None
+
+
+async def start_poller() -> None:
+    """Start the file poller if not already running."""
+    global _poller
+    if _poller is not None:
+        return
+    from learning_platform.api.deps import get_session_factory
+
+    settings = get_settings()
+    factory = get_session_factory()
+    _poller = FilePoller(upload_path=settings.upload_path, session_factory=factory)
+    await _poller.start()
+
+
+async def stop_poller() -> None:
+    """Stop the file poller if running."""
+    global _poller
+    if _poller is not None:
+        await _poller.stop()
+        _poller = None
+
+
+def get_poller_instance() -> FilePoller | None:
+    """Return the poller singleton, or ``None`` if not started."""
+    return _poller
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

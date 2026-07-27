@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import logging
 import os
+import portalocker
 import re
 import uuid
 from pathlib import Path
@@ -49,6 +50,7 @@ router: APIRouter = APIRouter(prefix="/api", tags=["documents"])
 logger: logging.Logger = logging.getLogger(__name__)
 
 UPLOAD_PATH: str = os.getenv("UPLOAD_PATH", "uploads")
+REGISTRY_FILE_NAME: str = "registry.txt"
 MAX_UPLOAD_BYTES: int = int(
     os.getenv("MAX_UPLOAD_BYTES", str(50 * 1024 * 1024))
 )  # 50 MB
@@ -64,6 +66,21 @@ def _sanitize_filename(name: str) -> str:
 
 
 # ── Document CRUD ────────────────────────────────────────────────────────────
+def register_document(uploaded_file: str) -> None:
+    file_path = os.path.join(UPLOAD_PATH, REGISTRY_FILE_NAME)
+    if not os.path.exists(file_path):
+        with open(file_path, "a", encoding="utf-8"):
+            pass  # Just opening in 'a' mode creates it safely
+
+    with open(file_path, "a", encoding="utf-8") as file:
+        try:
+            portalocker.lock(file, portalocker.LOCK_EX)
+            if not uploaded_file.endswith("\n"):
+                uploaded_file += "\n"
+            file.write(uploaded_file)
+            file.flush()
+        finally:
+            portalocker.unlock(file)
 
 
 @router.post("/courses/{course_id}/documents", status_code=201)
@@ -105,6 +122,8 @@ async def upload_document(
         size_bytes=len(content),
     )
     await attach_document_to_course(course_id, doc_id)
+
+    register_document(f"{course_id}/{safe_name}")
 
     logger.info(
         "Document '%s' uploaded to course %d by user %s",

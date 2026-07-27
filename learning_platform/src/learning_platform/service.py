@@ -29,6 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.api.deps import get_pipeline_orchestrator
 from learning_platform.cache import pipeline_cache
+from learning_platform.pipeline.events import EventType, PipelineEvent
 from learning_platform.pipeline.orchestrator import PipelineResult
 
 _LOG = logging.getLogger(__name__)
@@ -58,6 +59,7 @@ class LearningPlatformService:
         self,
         file_path: str,
         session: AsyncSession | None = None,
+        document_process_id: int | None = None,
     ) -> PipelineResult:
         """Run the full pipeline on *file_path* and cache the result.
 
@@ -68,6 +70,8 @@ class LearningPlatformService:
         session:
             Optional async DB session.  When provided, the pipeline result is
             persisted immediately.  When ``None``, only the cache is populated.
+        document_process_id:
+            Optional ``lp_document_process`` ID to link pipeline logs to.
 
         Returns
         -------
@@ -92,12 +96,52 @@ class LearningPlatformService:
         from learning_platform.infrastructure.persistence.repositories.learning_unit import (
             LearningUnitRepository,
         )
+        from learning_platform.infrastructure.persistence.repositories.pipeline_log import (
+            PipelineLogRepository,
+        )
         from learning_platform.infrastructure.persistence.repositories.sequence import (
             StudyPlanRepository,
         )
 
         orchestrator = get_pipeline_orchestrator()
-        result: PipelineResult = await asyncio.to_thread(orchestrator.run, file_path)
+
+        # ── Duplicate check ──────────────────────────────────────────────
+        if session is not None:
+            source_name = Path(file_path).name
+            log_repo = PipelineLogRepository(session)
+            already_done = await log_repo.has_success_by_source(source_name)
+            if already_done:
+                doc_id_str = stable_doc_id(file_path)
+                doc_id_uuid = UUID(doc_id_str[:32])
+                cached = pipeline_cache.get(str(doc_id_uuid))
+                if cached is not None:
+                    _LOG.info("Skipping already-processed file (cache hit): %s", file_path)
+                    return cached
+                _LOG.info("Skipping already-processed file, re-caching: %s", file_path)
+                result = await asyncio.to_thread(orchestrator.run, file_path)
+                pipeline_cache.set(str(doc_id_uuid), result)
+                return result
+
+        collected: list[PipelineEvent] = []
+
+        def collector(event: PipelineEvent) -> None:
+            collected.append(event)
+
+        orchestrator._event_bus.subscribe(collector)
+        try:
+            result: PipelineResult = await asyncio.to_thread(orchestrator.run, file_path)
+        except Exception:
+            if session is not None and collected:
+                await self._persist_pipeline_logs(
+                    collected,
+                    session,
+                    file_path,
+                    document_process_id=document_process_id,
+                )
+                await session.commit()
+            raise
+        finally:
+            orchestrator._event_bus.unsubscribe(collector)
 
         doc_id_str = stable_doc_id(file_path)
         doc_id_uuid = UUID(doc_id_str[:32])
@@ -113,16 +157,89 @@ class LearningPlatformService:
             graph_repo = KnowledgeGraphRepository(session)
             plan_repo = StudyPlanRepository(session)
 
-            await doc_repo.save_document(result.document)
+            await doc_repo.save_document(result.document, doc_id=doc_id_uuid)
             await unit_repo.save_all_units(result.units, doc_id_uuid)
             await ann_repo.save_all_annotations(result.annotations, doc_id_uuid)
             await concept_repo.save_concept_map(result.concepts, doc_id_uuid)
             await graph_repo.save_graph(result.graph, doc_id_uuid)
             await plan_repo.save_plan(result.study_plan, doc_id_uuid)
+
+            if collected:
+                await self._persist_pipeline_logs(
+                    collected,
+                    session,
+                    file_path,
+                    document_process_id=document_process_id,
+                )
+
             await session.commit()
             _LOG.info("Pipeline result persisted for doc_id=%s", doc_id_str)
 
         return result
+
+    async def _persist_pipeline_logs(
+        self,
+        events: list[PipelineEvent],
+        session: AsyncSession,
+        file_path: str,
+        document_process_id: int | None = None,
+    ) -> None:
+        from learning_platform.infrastructure.persistence.models.pipeline_log import (
+            PipelineLogRow,
+        )
+        from learning_platform.infrastructure.persistence.repositories.pipeline_log import (
+            PipelineLogRepository,
+        )
+
+        repo = PipelineLogRepository(session)
+        source: str = Path(file_path).name
+        rows: list[PipelineLogRow] = []
+
+        for event in events:
+            if event.event_type == EventType.STAGE_COMPLETED:
+                rows.append(
+                    PipelineLogRow(
+                        source=source,
+                        stage=event.stage,
+                        output=str(event.data.get("elapsed_seconds", "")),
+                        result="success",
+                        document_process_id=document_process_id,
+                    )
+                )
+            elif event.event_type == EventType.STAGE_FAILED:
+                rows.append(
+                    PipelineLogRow(
+                        source=source,
+                        stage=event.stage,
+                        output=str(event.data.get("error", "")),
+                        result="error",
+                        document_process_id=document_process_id,
+                    )
+                )
+            elif event.event_type == EventType.PIPELINE_COMPLETED:
+                rows.append(
+                    PipelineLogRow(
+                        source=source,
+                        stage="pipeline",
+                        output=str(event.data.get("elapsed_seconds", "")),
+                        result="success",
+                        document_process_id=document_process_id,
+                    )
+                )
+            elif event.event_type == EventType.PIPELINE_FAILED:
+                rows.append(
+                    PipelineLogRow(
+                        source=source,
+                        stage="pipeline",
+                        output=str(event.data.get("error", "")),
+                        result="error",
+                        document_process_id=document_process_id,
+                    )
+                )
+
+        if rows:
+            await repo.save_all(rows)
+            _LOG.info("Persisted %d pipeline log rows for source=%s", len(rows), source)
 
     def get_cached(self, doc_id: str) -> PipelineResult | None:
         """Return the cached ``PipelineResult`` for *doc_id*, or ``None``."""

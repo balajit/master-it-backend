@@ -26,6 +26,7 @@ from learning_platform.infrastructure.persistence.repositories.sequence import S
 from learning_platform.pipeline.event_bus import SimpleEventBus
 from learning_platform.pipeline.orchestrator import PipelineOrchestrator
 from learning_platform.pipeline.plugins import PluginRegistry
+from learning_platform.poller import FilePoller
 from learning_platform.stages.concept_extractor import ConceptExtractor
 from learning_platform.stages.enricher.semantic import SemanticEnricher
 from learning_platform.stages.graph_builder.graph import NetworkxGraphBuilder
@@ -160,3 +161,13 @@ def get_upload_dir(settings: Settings | None = None) -> Path:
     """Return the upload directory path."""
     settings = settings or get_settings()
     return _ensure_upload_dir(settings)
+
+
+# ── Poller ──────────────────────────────────────────────────────────────────
+
+
+def get_poller() -> FilePoller | None:
+    """Return the FilePoller instance if one is running, or ``None``."""
+    from learning_platform.api.app import get_poller_instance
+
+    return get_poller_instance()

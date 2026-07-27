@@ -12,8 +12,6 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from fastapi.testclient import TestClient
 from httpx import ASGITransport, AsyncClient
 
 _src_dir: str = str(Path(__file__).resolve().parent.parent)

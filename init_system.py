@@ -1,3 +1,4 @@
+import argparse
 import asyncio
 import sys
 from pathlib import Path
@@ -6,7 +7,17 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from dotenv import load_dotenv
 
-load_dotenv()
+parser = argparse.ArgumentParser(description="System init: roles, permissions, superusers.")
+parser.add_argument(
+    "--env",
+    choices=["test", "prod"],
+    default="test",
+    help="Target environment (default: test — loads .env; prod — loads .env.production)",
+)
+args = parser.parse_args()
+
+env_file = ".env.production" if args.env == "prod" else ".env"
+load_dotenv(Path(__file__).parent / env_file)
 
 from database import (
     PermissionModel,
@@ -31,10 +42,12 @@ async def init_roles(session: AsyncSession) -> None:
         "SuperUser",
     )
     for role_name in roles:
-        result = await session.execute(
-            select(RoleModel).where(RoleModel.name == role_name)
+        existing = (
+            (await session.execute(select(RoleModel).where(RoleModel.name == role_name)))
+            .scalars()
+            .first()
         )
-        if not result.fetchone():
+        if not existing:
             session.add(RoleModel(name=role_name))
     await session.flush()
     print(f"Roles ensured: {', '.join(roles)}")
@@ -51,10 +64,12 @@ async def init_permissions(session: AsyncSession) -> None:
         "*",
     )
     for perm_name in permissions:
-        result = await session.execute(
-            select(PermissionModel).where(PermissionModel.name == perm_name)
+        existing = (
+            (await session.execute(select(PermissionModel).where(PermissionModel.name == perm_name)))
+            .scalars()
+            .first()
         )
-        if not result.fetchone():
+        if not existing:
             session.add(PermissionModel(name=perm_name))
     await session.flush()
     print(f"Permissions ensured: {', '.join(permissions)}")
@@ -66,64 +81,82 @@ async def init_role_permissions(session: AsyncSession) -> None:
         "Administrator": ["permission:create"],
     }
     for role_name, perms in assignments.items():
-        role_result = await session.execute(
-            select(RoleModel).where(RoleModel.name == role_name)
+        role = (
+            (await session.execute(select(RoleModel).where(RoleModel.name == role_name)))
+            .scalars()
+            .first()
         )
-        role_row = role_result.fetchone()
-        if not role_row:
+        if not role:
             continue
         for perm_name in perms:
-            perm_result = await session.execute(
-                select(PermissionModel).where(PermissionModel.name == perm_name)
+            perm = (
+                (await session.execute(select(PermissionModel).where(PermissionModel.name == perm_name)))
+                .scalars()
+                .first()
             )
-            perm_row = perm_result.fetchone()
-            if perm_row:
-                existing = await session.execute(
-                    select(RolePermissionModel).where(
-                        RolePermissionModel.role_id == role_row.id,
-                        RolePermissionModel.permission_id == perm_row.id,
-                    )
-                )
-                if not existing.fetchone():
-                    session.add(
-                        RolePermissionModel(
-                            role_id=role_row.id, permission_id=perm_row.id
+            if not perm:
+                continue
+            existing = (
+                (
+                    await session.execute(
+                        select(RolePermissionModel).where(
+                            RolePermissionModel.role_id == role.id,
+                            RolePermissionModel.permission_id == perm.id,
                         )
                     )
+                )
+                .scalars()
+                .first()
+            )
+            if not existing:
+                session.add(
+                    RolePermissionModel(
+                        role_id=role.id, permission_id=perm.id
+                    )
+                )
     await session.flush()
     print("Role-permission assignments ensured")
 
 
 async def init_superusers(session: AsyncSession) -> None:
-    role_result = await session.execute(
-        select(RoleModel).where(RoleModel.name == "SuperUser")
+    role = (
+        (await session.execute(select(RoleModel).where(RoleModel.name == "SuperUser")))
+        .scalars()
+        .first()
     )
-    role_row = role_result.fetchone()
-    if not role_row:
+    if not role:
         print("SuperUser role not found, skipping user assignment")
         return
     for email in SUPERUSERS:
-        user_result = await session.execute(
-            select(UserModel).where(UserModel.email == email)
+        user = (
+            (await session.execute(select(UserModel).where(UserModel.email == email)))
+            .scalars()
+            .first()
         )
-        user_row = user_result.fetchone()
-        if not user_row:
+        if not user:
             print(f"  User {email} not found, skipping")
             continue
-        existing = await session.execute(
-            select(UserRoleModel).where(
-                UserRoleModel.user_id == user_row.id,
-                UserRoleModel.role_id == role_row.id,
+        existing = (
+            (
+                await session.execute(
+                    select(UserRoleModel).where(
+                        UserRoleModel.user_id == user.id,
+                        UserRoleModel.role_id == role.id,
+                    )
+                )
             )
+            .scalars()
+            .first()
         )
-        if not existing.fetchone():
-            session.add(UserRoleModel(user_id=user_row.id, role_id=role_row.id))
+        if not existing:
+            session.add(UserRoleModel(user_id=user.id, role_id=role.id))
         print(f"  SuperUser assigned to {email}")
     await session.flush()
     print("SuperUser assignments ensured")
 
 
 async def main() -> None:
+    print(f"Target env: {args.env} (using {env_file})")
     async with AsyncSession(engine) as session:
         try:
             await init_roles(session)

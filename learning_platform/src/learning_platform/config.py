@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     # --- Database ---
     database_url: str = "postgresql+asyncpg://postgres_user:secure_password_here@localhost:5433/learning_platform_testing"
 
+    # --- File paths ---
+    upload_path: str = "uploads"
+
     # --- LLM ---
     llm_provider: str = "ollama"  # ollama | openai | anthropic
     llm_model: str = "llama3.1"
@@ -33,7 +36,12 @@ class Settings(BaseSettings):
     # --- Auth ---
     jwt_secret: str = ""
 
-    model_config = {"env_prefix": "", "env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}
+    model_config = {
+        "env_prefix": "",
+        "env_file": ".env",
+        "env_file_encoding": "utf-8",
+        "extra": "ignore",
+    }
 
 
 def get_settings() -> Settings:

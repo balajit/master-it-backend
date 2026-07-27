@@ -1,7 +1,5 @@
 from pathlib import Path
 
-import sys
-
 from learning_platform.models.document import CanonicalDocument
 from learning_platform.stages.parser.docling_adapter import DoclingAdapter
 

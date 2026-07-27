@@ -23,9 +23,14 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
 
-    async def save_document(self, doc: CanonicalDocument) -> UUID:
-        """Serialize and persist a ``CanonicalDocument``.  Returns its ID."""
-        doc_id = doc.nodes[0].id if doc.nodes else UUID(int=0)
+    async def save_document(self, doc: CanonicalDocument, doc_id: UUID | None = None) -> UUID:
+        """Serialize and persist a ``CanonicalDocument``.  Returns its ID.
+
+        When *doc_id* is provided it is used as the primary key; otherwise
+        the first document node's ID is used.
+        """
+        if doc_id is None:
+            doc_id = doc.nodes[0].id if doc.nodes else UUID(int=0)
         row = CanonicalDocumentRow(
             id=doc_id,
             source=doc.source,
