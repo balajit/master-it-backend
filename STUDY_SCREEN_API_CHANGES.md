@@ -385,6 +385,78 @@ Remove the `# TODO` placeholder comment added in Change 2 once this migration is
 
 ---
 
+## Change 10 — Add `last_accessed_at` to `user_lesson_progress`
+
+**Files:** Alembic migration, `src/database/models.py`, `src/routers/v1.py`
+
+The resume feature requires knowing which lesson the user most recently interacted with. Add a
+timestamp column to the `user_lesson_progress` table.
+
+**Migration steps:**
+
+1. Create migration: `uv run alembic revision --autogenerate -m "add_last_accessed_at_to_lesson_progress"`
+2. If autogenerate does not detect the column (SQLite quirks), write it manually:
+   ```python
+   op.add_column(
+       'user_lesson_progress',
+       sa.Column('last_accessed_at', sa.String(), nullable=True)
+   )
+   ```
+3. Apply: `uv run alembic upgrade head`
+
+**Update `src/routers/v1.py` — `update_lesson_progress_v1` (`PATCH /api/v1/users/me/lessons/{lesson_id}`):**
+
+Always write `last_accessed_at = datetime.now(timezone.utc).isoformat()` when upserting lesson
+progress, regardless of status. `datetime` and `timezone` imports are already present.
+
+**Update wherever `upsert_user_lesson_progress` is defined** (database layer): add
+`last_accessed_at: str | None = None` parameter and persist it to the table.
+
+---
+
+## Change 11 — Add `GET /api/v1/users/me/courses/{course_id}/resume`
+
+**Files:** `src/schemas.py`, `src/routers/v1.py`, `src/database/`
+
+The frontend study page calls this endpoint on load to determine which lesson to open first (the
+"resume" feature — pick up where you left off).
+
+Add a new response schema to `src/schemas.py`:
+
+```python
+class ResumeResponse(BaseModel):
+    """The lesson to resume for a given course — most recently accessed."""
+
+    lesson_id: int | None = None   # None if the user has no progress in this course
+    unit_id: int | None = None     # The unit that contains the lesson
+```
+
+Add this endpoint to `src/routers/v1.py`:
+
+```python
+@router.get("/users/me/courses/{course_id}/resume", response_model=ResumeResponse)
+async def get_resume_v1(
+    course_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> ResumeResponse:
+    ...
+```
+
+**Implementation logic:**
+
+1. Fetch all lessons for the course by joining:
+   `lessons → sections → units` where `units.course_id = course_id`
+2. Join with `user_lesson_progress` for the current user
+3. Filter to rows where `last_accessed_at IS NOT NULL`
+4. Order by `last_accessed_at DESC`
+5. Take the first row — return its `lesson_id` and resolved `unit_id`
+6. If no rows found (no progress yet), return `{ lesson_id: null, unit_id: null }`
+
+Implement as a new database query function in `src/database/repositories/learning.py`:
+`get_resume_lesson(user_id: int, course_id: int) -> dict | None`
+
+---
+
 ## Note — Sidebar `children` (nested lessons)
 
 The hardcoded `PLACEHOLDER_GROUPS` in `StudyPage.tsx` uses `SidebarItemData.children` to show
@@ -405,6 +477,7 @@ After all changes:
 4. Verify the OpenAPI spec at `GET /api/spec` includes:
    - `GET /api/v1/courses/{course_id}/units` → `List[UnitSummary]`
    - `GET /api/v1/units/{unit_id}` → `UnitResponse` with updated nested schemas
+   - `GET /api/v1/users/me/courses/{course_id}/resume` → `ResumeResponse`
    - `ProgressStatus` values are lowercase in the schema
 5. Run existing tests: `uv run pytest` — must pass.
 6. Manually test one unit: `curl -H "Authorization: Bearer <token>" http://localhost:5000/api/v1/units/1`
@@ -415,6 +488,8 @@ After all changes:
    - `practices[]` include `progress_label`, `action_label`, `locked`, `sidebar_status`, `activity_type`
    - `goals[]` include `status`, `action_label`, `locked`
    - `total_lessons` and `total_minutes` are present at the unit level
+7. Test resume: `curl -H "Authorization: Bearer <token>" http://localhost:5000/api/v1/users/me/courses/1/resume`
+   and confirm `{ lesson_id: <int|null>, unit_id: <int|null> }` is returned.
 
 ---
 
@@ -422,8 +497,9 @@ After all changes:
 
 | File | Changes |
 |---|---|
-| `src/schemas.py` | Update `ProgressStatus` to lowercase; add fields to `PracticeResponse`, `GoalResponse`, `LessonResponse`; add `total_lessons`/`total_minutes` to `UnitResponse`; add `sidebar_status` to `LessonResponse` + `PracticeResponse`; add new `UnitSummary` schema |
+| `src/schemas.py` | Update `ProgressStatus` to lowercase; add fields to `PracticeResponse`, `GoalResponse`, `LessonResponse`; add `total_lessons`/`total_minutes` to `UnitResponse`; add `sidebar_status` to `LessonResponse` + `PracticeResponse`; add `UnitSummary` and `ResumeResponse` schemas |
 | `src/services/learning.py` | Add `format_duration()`; compute `total_lessons`/`total_minutes`; populate all new fields in `PracticeResponse`, `GoalResponse`, `LessonResponse` construction; update `about` field resolution |
 | `src/services/progress.py` | Add `to_sidebar_status()`; verify all `ProgressStatus` comparisons use enum members after casing change |
-| `src/routers/v1.py` | Add `GET /api/v1/courses/{course_id}/units`; update `get_practice_v1` and `get_quiz_v1` to populate new fields |
-| Alembic migrations | Add `about` column to `units` table (Change 5); add `practice_type` column to `practices` table (Change 9) |
+| `src/routers/v1.py` | Add `GET /api/v1/courses/{course_id}/units`; add `GET /api/v1/users/me/courses/{course_id}/resume`; update `get_practice_v1` and `get_quiz_v1` to populate new fields; write `last_accessed_at` in `update_lesson_progress_v1` |
+| `src/database/repositories/learning.py` | Add `get_resume_lesson(user_id, course_id)` query |
+| Alembic migrations | (1) `about` column on `units`; (2) `practice_type` column on `practices`; (3) `last_accessed_at` column on `user_lesson_progress` |

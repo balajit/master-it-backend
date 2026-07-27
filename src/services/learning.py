@@ -25,6 +25,7 @@ from database.repositories.learning import (
 from schemas import (
     ProgressResponse,
     ProgressSquareResponse,
+    ProgressStatus,
     SectionResponse,
     UnitResponse,
 )
@@ -56,6 +57,22 @@ def invalidate_study_page_cache(unit_id: int | None = None) -> None:
     ]
     for k in keys_to_remove:
         _study_page_cache.invalidate(k)
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────
+
+
+def format_duration(minutes: int) -> str:
+    """Format an integer minute count into a human-readable label."""
+    if minutes <= 0:
+        return ""
+    if minutes < 60:
+        return f"{minutes} min"
+    hours: int = minutes // 60
+    remaining: int = minutes % 60
+    if remaining == 0:
+        return f"{hours} hr"
+    return f"{hours} hr {remaining} min"
 
 
 # ── Main entry point ──────────────────────────────────────────────────────
@@ -177,16 +194,16 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
         # Accumulate stats inline
         for lesson in lessons:
             total_items += 1
-            if lesson.status.value == "MASTERED":
+            if lesson.status == ProgressStatus.MASTERED:
                 mastered_count += 1
         for practice in practices:
             total_items += 1
-            if practice.status.value == "MASTERED":
+            if practice.status == ProgressStatus.MASTERED:
                 mastered_count += 1
         for goal in goals:
             total_items += 1
             goal_status = determine_goal_status(goal)
-            if goal_status.value == "MASTERED":
+            if goal_status == ProgressStatus.MASTERED:
                 mastered_count += 1
 
         sections.append(
@@ -208,6 +225,11 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
         round(mastered_count / total_items * 100, 2) if total_items > 0 else 0.0
     )
 
+    total_lessons: int = sum(len(s.lessons) for s in sections)
+    total_minutes: int = sum(
+        lesson.duration_minutes for s in sections for lesson in s.lessons
+    )
+
     return UnitResponse(
         id=unit["id"],
         title=unit["title"],
@@ -219,7 +241,10 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
             mastered_pct=mastered_pct,
             squares=squares,
         ),
-        about=unit["description"],
+        # Use the db `about` column when it exists; fall back to description for now.
+        about=unit.get("about") or unit.get("description", ""),
+        total_lessons=total_lessons,
+        total_minutes=total_minutes,
         sections=sections,
     )
 

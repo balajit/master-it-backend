@@ -179,6 +179,7 @@ class UnitModel(Base):
     )
     title: Mapped[str] = mapped_column(String, nullable=False)
     description: Mapped[str] = mapped_column(String, nullable=False, default="")
+    about: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default="")
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
@@ -227,6 +228,9 @@ class PracticeModel(Base):
     required_correct: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_questions: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    practice_type: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True, default="practice"
+    )
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -244,6 +248,35 @@ class QuizModel(Base):
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
 
+class CourseEnrollmentModel(Base):
+    __tablename__ = "course_enrollments"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    course_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("courses.id"), primary_key=True
+    )
+    enrolled_at: Mapped[str] = mapped_column(String, nullable=False)
+    # 'active' | 'completed' | 'dropped'
+    status: Mapped[str] = mapped_column(String, nullable=False, default="active")
+
+
+class SectionUnlockOverrideModel(Base):
+    __tablename__ = "section_unlock_overrides"
+
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), primary_key=True
+    )
+    section_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("sections.id"), primary_key=True
+    )
+    unlocked_by: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    unlocked_at: Mapped[str] = mapped_column(String, nullable=False)
+
+
 class UserLessonProgressModel(Base):
     __tablename__ = "user_lesson_progress"
 
@@ -255,6 +288,7 @@ class UserLessonProgressModel(Base):
     )
     status: Mapped[str] = mapped_column(String, nullable=False, default="NOT_STARTED")
     completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    last_accessed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
 
 class UserPracticeProgressModel(Base):

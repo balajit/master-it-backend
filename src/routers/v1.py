@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -20,28 +21,43 @@ from database import (
     get_user_practice_progress,
     get_user_quiz_progress,
     list_courses,
+    list_units,
     upsert_user_lesson_progress,
     upsert_user_practice_progress,
     upsert_user_quiz_progress,
 )
 from schemas import (
     Course,
+    EnrollRequest,
+    EnrollResponse,
     GoalResponse,
     LessonResponse,
     PracticeResponse,
     PracticeSubmitRequest,
     PracticeSubmitResponse,
+    ProgressStatus,
     QuizSubmitRequest,
     QuizSubmitResponse,
+    ResumeResponse,
+    SectionUnlockRequest,
     UnitResponse,
+    UnitSummary,
     UserLessonProgressUpdate,
     UserPracticeProgressUpdate,
     UserQuizProgressUpdate,
 )
-from services.learning import get_unit_details, invalidate_study_page_cache
+from services.enrollment import check_and_unlock_next_section, provision_enrollment
+from services.learning import (
+    format_duration,
+    get_unit_details,
+    invalidate_study_page_cache,
+)
 from services.progress import (
+    _action_label,
     determine_lesson_status,
     determine_practice_status,
+    determine_quiz_status,
+    to_sidebar_status,
 )
 
 router: APIRouter = APIRouter(prefix="/api/v1", tags=["v1"])
@@ -129,9 +145,11 @@ async def get_lesson_v1(
         title=lesson["title"],
         description=lesson["description"],
         duration_minutes=lesson["duration_minutes"],
+        duration_label=format_duration(lesson["duration_minutes"]),
         order=lesson["display_order"],
         status=status,
         completed_at=progress["completed_at"] if progress else None,
+        sidebar_status=to_sidebar_status(status),
     )
 
 
@@ -148,15 +166,24 @@ async def get_practice_v1(
         raise HTTPException(status_code=404, detail="Practice not found")
     progress = await get_user_practice_progress(user["id"], practice_id)
     status = determine_practice_status(progress, practice["required_correct"])
+    req: int = practice["required_correct"]
+    total: int = practice["total_questions"]
+    progress_label: str = f"Score {req}/{total} to pass" if total > 0 else ""
     return PracticeResponse(
         id=practice["id"],
         title=practice["title"],
-        required_correct=practice["required_correct"],
-        total_questions=practice["total_questions"],
+        required_correct=req,
+        total_questions=total,
         order=practice["display_order"],
         status=status,
         attempts=progress["attempts"] if progress else 0,
         best_score=progress["best_score"] if progress else 0.0,
+        # TODO: derive from db column once added
+        activity_type=practice.get("practice_type") or "practice",
+        locked=status == ProgressStatus.LOCKED,
+        progress_label=progress_label,
+        action_label=_action_label(status),
+        sidebar_status=to_sidebar_status(status),
     )
 
 
@@ -177,7 +204,9 @@ async def submit_practice_v1(
     progress = await get_user_practice_progress(user["id"], practice_id)
     attempts: int = (progress["attempts"] if progress else 0) + 1
     best_score: float = max(score, progress["best_score"] if progress else 0.0)
-    status: str = "MASTERED" if passed else "ATTEMPTED"
+    status: str = (
+        ProgressStatus.MASTERED.value if passed else ProgressStatus.ATTEMPTED.value
+    )
 
     await upsert_user_practice_progress(
         user_id=user["id"],
@@ -220,11 +249,15 @@ async def get_quiz_v1(
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
     progress = await get_user_quiz_progress(user["id"], quiz_id)
+    status = determine_quiz_status(progress)
     return GoalResponse(
         id=quiz["id"],
         title=quiz["title"],
         score=progress["score"] if progress else None,
         completed_at=progress["completed_at"] if progress else None,
+        status=status,
+        locked=status == ProgressStatus.LOCKED,
+        action_label=_action_label(status),
     )
 
 
@@ -300,6 +333,7 @@ async def update_lesson_progress_v1(
         lesson_id=lesson_id,
         status=payload.status,
         completed_at=payload.completed_at,
+        last_accessed_at=datetime.now(timezone.utc).isoformat(),
     )
 
     progress = await get_user_lesson_progress(user["id"], lesson_id)
@@ -312,6 +346,8 @@ async def update_lesson_progress_v1(
     )
     unit_id = await _resolve_unit_id_from_lesson(lesson_id)
     invalidate_study_page_cache(unit_id)
+    # Fire-and-forget: check if this section is now fully mastered and unlock the next
+    asyncio.create_task(check_and_unlock_next_section(user["id"], lesson["section_id"]))
     return progress
 
 
@@ -374,3 +410,115 @@ async def update_quiz_progress_v1(
     unit_id = await _resolve_unit_id_from_quiz(quiz_id)
     invalidate_study_page_cache(unit_id)
     return progress
+
+
+# ── Units listing (study page nav) ──────────────────────────────────────────
+
+
+@router.get("/courses/{course_id}/units", response_model=List[UnitSummary])
+async def list_units_v1(
+    course_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[UnitSummary]:
+    units = await list_units(course_id)
+    return [
+        UnitSummary(
+            id=u["id"],
+            title=u["title"],
+            description=u["description"],
+            display_order=u["display_order"],
+            # TODO: compute total_sections and estimated_minutes from sections table
+            total_sections=0,
+            estimated_minutes=0,
+        )
+        for u in units
+    ]
+
+
+# ── Resume ───────────────────────────────────────────────────────────────────
+
+
+@router.get("/users/me/courses/{course_id}/resume", response_model=ResumeResponse)
+async def get_resume_v1(
+    course_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> ResumeResponse:
+    from database.repositories.learning import get_resume_lesson
+
+    row = await get_resume_lesson(user_id=user["id"], course_id=course_id)
+    if row is None:
+        return ResumeResponse(lesson_id=None, unit_id=None)
+    return ResumeResponse(lesson_id=row["lesson_id"], unit_id=row["unit_id"])
+
+
+# ── Enrollment ────────────────────────────────────────────────────────────────
+
+
+@router.post("/courses/{course_id}/enroll", response_model=EnrollResponse)
+async def enroll_in_course_v1(
+    course_id: int,
+    payload: EnrollRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> EnrollResponse:
+    """Enroll the authenticated user in a course.
+
+    Idempotent — calling again returns status='already_enrolled' with no duplicate writes.
+    Pass source_document_id to generate course content from a study plan (Flow B).
+    """
+    course = await get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    return await provision_enrollment(
+        user_id=user["id"],
+        course_id=course_id,
+        source_document_id=payload.source_document_id,
+    )
+
+
+# ── Section unlock (instructor) ───────────────────────────────────────────────
+
+
+@router.post("/sections/{section_id}/unlock")
+async def unlock_section_v1(
+    section_id: int,
+    payload: SectionUnlockRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> Dict[str, Any]:
+    """Manually unlock a section for a specific student.
+
+    Inserts a section_unlock_overrides record and batch-upserts all locked
+    items in the section to not_started.  No role guard for now — RBAC to
+    be added in a future iteration.
+    """
+    from database import create_section_unlock_override, unlock_section_items
+
+    section = await get_section(section_id)
+    if not section:
+        raise HTTPException(status_code=404, detail="Section not found")
+
+    await create_section_unlock_override(
+        user_id=payload.user_id,
+        section_id=section_id,
+        unlocked_by=user["id"],
+    )
+    count = await unlock_section_items(payload.user_id, section_id)
+
+    logger.info(
+        "Section %d manually unlocked for user %d by user %d (%d items)",
+        section_id,
+        payload.user_id,
+        user["id"],
+        count,
+    )
+
+    # Invalidate cached study page so the next fetch reflects the new unlock
+    unit_id = section.get("unit_id")
+    if unit_id:
+        invalidate_study_page_cache(unit_id)
+
+    return {
+        "section_id": section_id,
+        "user_id": payload.user_id,
+        "items_unlocked": count,
+    }

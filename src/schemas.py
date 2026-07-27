@@ -363,12 +363,12 @@ class UserQuizProgressResponse(BaseModel):
 
 
 class ProgressStatus(str, enum.Enum):
-    MASTERED = "MASTERED"
-    PRACTICED = "PRACTICED"
-    FAMILIAR = "FAMILIAR"
-    ATTEMPTED = "ATTEMPTED"
-    NOT_STARTED = "NOT_STARTED"
-    LOCKED = "LOCKED"
+    MASTERED = "mastered"
+    PRACTICED = "practiced"
+    FAMILIAR = "familiar"
+    ATTEMPTED = "attempted"
+    NOT_STARTED = "not_started"
+    LOCKED = "locked"
 
 
 class ProgressStats(BaseModel):
@@ -392,8 +392,13 @@ class GoalResponse(BaseModel):
 
     id: int
     title: str
+    description: str = ""  # TODO: derive from db column once added
     score: Optional[float] = None
     completed_at: Optional[str] = None
+    status: ProgressStatus = ProgressStatus.NOT_STARTED
+    activity_type: str = "quiz"  # TODO: derive from db column once added
+    locked: bool = False
+    action_label: str = "Start"  # "Start" | "Continue" | "Review"
 
 
 class LessonResponse(BaseModel):
@@ -403,9 +408,11 @@ class LessonResponse(BaseModel):
     title: str
     description: str
     duration_minutes: int
+    duration_label: str = ""  # e.g. "5 min", "1 hr 10 min" — computed, not stored
     order: int
     status: ProgressStatus = ProgressStatus.NOT_STARTED
     completed_at: Optional[str] = None
+    sidebar_status: str = "not_started"  # "completed" | "in_progress" | "not_started"
 
 
 class PracticeResponse(BaseModel):
@@ -413,12 +420,18 @@ class PracticeResponse(BaseModel):
 
     id: int
     title: str
+    description: str = ""  # TODO: derive from db column once added
     required_correct: int
     total_questions: int
     order: int
     status: ProgressStatus = ProgressStatus.NOT_STARTED
     attempts: int = 0
     best_score: float = 0.0
+    activity_type: str = "practice"  # "practice" | "project" | "self_test"
+    locked: bool = False
+    progress_label: str = ""  # e.g. "Score 12/15 to pass"
+    action_label: str = "Start"  # "Start" | "Continue" | "Review"
+    sidebar_status: str = "not_started"  # "completed" | "in_progress" | "not_started"
 
 
 class ProgressSquareResponse(BaseModel):
@@ -462,4 +475,66 @@ class UnitResponse(BaseModel):
     course_id: int
     progress: ProgressResponse
     about: str
+    total_lessons: int = 0  # count of all lessons across all sections
+    total_minutes: int = 0  # sum of all lesson duration_minutes
     sections: List[SectionResponse] = []
+
+
+# ── Unit Summary (lightweight listing for study page nav) ──────────────────
+
+
+class UnitSummary(BaseModel):
+    """Lightweight unit listing item for the study page navigation."""
+
+    id: int
+    title: str
+    description: str
+    display_order: int
+    total_sections: int = 0
+    estimated_minutes: int = 0
+
+
+# ── Resume ─────────────────────────────────────────────────────────────────
+
+
+class ResumeResponse(BaseModel):
+    """The lesson to resume for a given course — most recently accessed."""
+
+    lesson_id: Optional[int] = None  # None if the user has no progress in this course
+    unit_id: Optional[int] = None  # The unit that contains the lesson
+
+
+# ── Enrollment ──────────────────────────────────────────────────────────────
+
+
+class EnrollRequest(BaseModel):
+    """Request body for course enrollment.
+
+    source_document_id: if provided, the learning content (units/sections/lessons)
+    will be generated from the corresponding study plan before progress is initialized.
+    Leave None when the course content already exists in the learning hierarchy.
+    """
+
+    source_document_id: Optional[str] = None
+
+
+class EnrollResponse(BaseModel):
+    """Response from a successful enrollment or idempotent re-enroll."""
+
+    course_id: int
+    user_id: int
+    enrolled_at: str
+    # "enrolled" on first enrollment, "already_enrolled" on subsequent calls
+    status: str
+    lessons_initialized: int = 0
+    practices_initialized: int = 0
+    quizzes_initialized: int = 0
+
+
+# ── Section Unlock ──────────────────────────────────────────────────────────
+
+
+class SectionUnlockRequest(BaseModel):
+    """Instructor request to manually unlock a section for a specific student."""
+
+    user_id: int

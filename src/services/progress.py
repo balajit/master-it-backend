@@ -79,6 +79,8 @@ def merge_lesson_status(
     locked_ids: Optional[set[int]] = None,
 ) -> List[LessonResponse]:
     """Merge progress status into lesson data, returning clean LessonResponse list."""
+    from services.learning import format_duration  # avoid circular at module level
+
     result: list[LessonResponse] = []
     for lesson in lessons:
         progress = progress_map.get(lesson["id"])
@@ -89,9 +91,11 @@ def merge_lesson_status(
                 title=lesson["title"],
                 description=lesson["description"],
                 duration_minutes=lesson["duration_minutes"],
+                duration_label=format_duration(lesson["duration_minutes"]),
                 order=lesson["display_order"],
                 status=status,
                 completed_at=progress["completed_at"] if progress else None,
+                sidebar_status=to_sidebar_status(status),
             )
         )
     return result
@@ -111,16 +115,25 @@ def merge_practice_status(
             required_correct=practice.get("required_correct", 0),
             locked_ids=locked_ids,
         )
+        req: int = practice["required_correct"]
+        total: int = practice["total_questions"]
+        progress_label: str = f"Score {req}/{total} to pass" if total > 0 else ""
         result.append(
             PracticeResponse(
                 id=practice["id"],
                 title=practice["title"],
-                required_correct=practice["required_correct"],
-                total_questions=practice["total_questions"],
+                required_correct=req,
+                total_questions=total,
                 order=practice["display_order"],
                 status=status,
                 attempts=progress["attempts"] if progress else 0,
                 best_score=progress["best_score"] if progress else 0.0,
+                # TODO: derive from db column once added
+                activity_type=practice.get("practice_type") or "practice",
+                locked=status == ProgressStatus.LOCKED,
+                progress_label=progress_label,
+                action_label=_action_label(status),
+                sidebar_status=to_sidebar_status(status),
             )
         )
     return result
@@ -136,12 +149,16 @@ def merge_quiz_status(
     result: list[GoalResponse] = []
     for quiz in quizzes:
         progress = progress_map.get(quiz["id"])
+        status = determine_quiz_status(progress, locked_ids, passing_score)
         result.append(
             GoalResponse(
                 id=quiz["id"],
                 title=quiz["title"],
                 score=progress["score"] if progress else None,
                 completed_at=progress["completed_at"] if progress else None,
+                status=status,
+                locked=status == ProgressStatus.LOCKED,
+                action_label=_action_label(status),
             )
         )
     return result
@@ -172,6 +189,32 @@ def determine_goal_status(goal: GoalResponse) -> ProgressStatus:
     if goal.score is not None:
         return ProgressStatus.ATTEMPTED
     return ProgressStatus.NOT_STARTED
+
+
+def to_sidebar_status(status: ProgressStatus) -> str:
+    """Collapse 6-state ProgressStatus into the 3-state sidebar ItemStatus."""
+    if status == ProgressStatus.MASTERED:
+        return "completed"
+    if status in (
+        ProgressStatus.PRACTICED,
+        ProgressStatus.FAMILIAR,
+        ProgressStatus.ATTEMPTED,
+    ):
+        return "in_progress"
+    return "not_started"  # covers NOT_STARTED and LOCKED
+
+
+def _action_label(status: ProgressStatus) -> str:
+    """Derive action button label from status."""
+    if status == ProgressStatus.MASTERED:
+        return "Review"
+    if status in (
+        ProgressStatus.ATTEMPTED,
+        ProgressStatus.PRACTICED,
+        ProgressStatus.FAMILIAR,
+    ):
+        return "Continue"
+    return "Start"
 
 
 def calculate_completed(sections: Sequence[SectionResponse]) -> int:

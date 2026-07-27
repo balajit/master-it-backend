@@ -138,6 +138,7 @@ def _unit_to_dict(unit: UnitModel) -> Dict[str, Any]:
         "course_id": unit.course_id,
         "title": unit.title,
         "description": unit.description,
+        "about": unit.about,
         "display_order": unit.display_order,
         "created_at": unit.created_at,
         "updated_at": unit.updated_at,
@@ -512,6 +513,7 @@ def _practice_to_dict(practice: PracticeModel) -> Dict[str, Any]:
         "required_correct": practice.required_correct,
         "total_questions": practice.total_questions,
         "display_order": practice.display_order,
+        "practice_type": practice.practice_type,
         "created_at": practice.created_at,
         "updated_at": practice.updated_at,
     }
@@ -702,6 +704,7 @@ async def get_lesson_progress_for_user(
                 "lesson_id": r.lesson_id,
                 "status": r.status,
                 "completed_at": r.completed_at,
+                "last_accessed_at": r.last_accessed_at,
             }
             for r in rows
         }
@@ -794,6 +797,7 @@ async def get_user_lesson_progress(
             "lesson_id": result.lesson_id,
             "status": result.status,
             "completed_at": result.completed_at,
+            "last_accessed_at": result.last_accessed_at,
         }
 
 
@@ -802,6 +806,7 @@ async def upsert_user_lesson_progress(
     lesson_id: int,
     status: str = "NOT_STARTED",
     completed_at: str | None = None,
+    last_accessed_at: str | None = None,
 ) -> None:
     """Upsert using ON CONFLICT — single query instead of read-then-write."""
     async with AsyncSession(engine) as session:
@@ -812,12 +817,14 @@ async def upsert_user_lesson_progress(
                 lesson_id=lesson_id,
                 status=status,
                 completed_at=completed_at,
+                last_accessed_at=last_accessed_at,
             )
             .on_conflict_do_update(
                 index_elements=["user_id", "lesson_id"],
                 set_={
                     "status": status,
                     "completed_at": completed_at,
+                    "last_accessed_at": last_accessed_at,
                 },
             )
         )
@@ -1012,3 +1019,45 @@ async def get_all_user_progress(user_id: int) -> Dict[str, List[Dict[str, Any]]]
                 for qp in quizzes
             ],
         }
+
+
+# ── Resume ──────────────────────────────────────────────────────────────────
+
+
+async def get_resume_lesson(user_id: int, course_id: int) -> Optional[Dict[str, Any]]:
+    """Return the most recently accessed lesson for a user in a given course.
+
+    Joins user_lesson_progress → lessons → sections → units filtered by course_id.
+    Returns a dict with lesson_id and unit_id, or None if no progress exists.
+    """
+    async with AsyncSession(engine) as session:
+        result = (
+            await session.execute(
+                select(
+                    UserLessonProgressModel.lesson_id,
+                    SectionModel.unit_id,
+                )
+                .join(
+                    LessonModel,
+                    LessonModel.id == UserLessonProgressModel.lesson_id,
+                )
+                .join(
+                    SectionModel,
+                    SectionModel.id == LessonModel.section_id,
+                )
+                .join(
+                    UnitModel,
+                    UnitModel.id == SectionModel.unit_id,
+                )
+                .where(
+                    UserLessonProgressModel.user_id == user_id,
+                    UnitModel.course_id == course_id,
+                    UserLessonProgressModel.last_accessed_at.isnot(None),
+                )
+                .order_by(UserLessonProgressModel.last_accessed_at.desc())
+                .limit(1)
+            )
+        ).first()
+        if result is None:
+            return None
+        return {"lesson_id": result.lesson_id, "unit_id": result.unit_id}

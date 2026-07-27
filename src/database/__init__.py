@@ -5,6 +5,7 @@ from __future__ import annotations
 from database.base import Base, engine
 from database.models import (
     CourseDocumentModel,
+    CourseEnrollmentModel,
     CourseModel,
     CourseTemplateModel,
     DocumentModel,
@@ -17,6 +18,7 @@ from database.models import (
     RoleModel,
     RolePermissionModel,
     SectionModel,
+    SectionUnlockOverrideModel,
     SessionModel,
     StudentProgressModel,
     UnitModel,
@@ -31,6 +33,18 @@ from database.repositories.courses import (
     delete_course,
     get_course,
     list_courses,
+)
+from database.repositories.enrollment import (
+    batch_init_lesson_progress,
+    batch_init_practice_progress,
+    batch_init_quiz_progress,
+    count_section_lessons,
+    create_enrollment,
+    create_section_unlock_override,
+    get_enrollment,
+    get_section_lesson_progress,
+    list_course_enrollments,
+    unlock_section_items,
 )
 from database.repositories.documents import (
     attach_document_to_course,
@@ -126,6 +140,8 @@ __all__ = [
     "QuizModel",
     "UserLessonProgressModel",
     "UserPracticeProgressModel",
+    "CourseEnrollmentModel",
+    "SectionUnlockOverrideModel",
     "UserQuizProgressModel",
     "init_db",
     "create_session",
@@ -195,4 +211,14 @@ __all__ = [
     "get_lesson_progress_for_user",
     "get_practice_progress_for_user",
     "get_quiz_progress_for_user",
+    "get_enrollment",
+    "create_enrollment",
+    "list_course_enrollments",
+    "batch_init_lesson_progress",
+    "batch_init_practice_progress",
+    "batch_init_quiz_progress",
+    "create_section_unlock_override",
+    "get_section_lesson_progress",
+    "count_section_lessons",
+    "unlock_section_items",
 ]
