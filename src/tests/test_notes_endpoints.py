@@ -49,7 +49,8 @@ MOCK_LESSON_NOTE: dict[str, Any] = {
 def app():
     from main import app as _app
 
-    return _app
+    yield _app
+    _app.dependency_overrides.clear()
 
 
 @pytest.fixture()

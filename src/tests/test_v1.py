@@ -247,7 +247,7 @@ class TestV1Lessons:
         assert resp.status_code == 200
         data = resp.json()
         assert data["title"] == "Lesson 1"
-        assert data["status"] == "NOT_STARTED"
+        assert data["status"] == "not_started"
 
     def test_get_lesson_with_progress(self, app, mock_user):
         _mock_deps(app, mock_user)
@@ -278,7 +278,7 @@ class TestV1Lessons:
         resp = asyncio.run(_run())
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "MASTERED"
+        assert data["status"] == "mastered"
         assert data["completed_at"] == "2026-01-15T10:00:00"
 
     def test_get_lesson_not_found(self, app, mock_user):
@@ -326,7 +326,7 @@ class TestV1Practices:
         assert resp.status_code == 200
         data = resp.json()
         assert data["title"] == "Practice 1"
-        assert data["status"] == "NOT_STARTED"
+        assert data["status"] == "not_started"
 
     def test_get_practice_not_found(self, app, mock_user):
         _mock_deps(app, mock_user)
@@ -391,7 +391,7 @@ class TestV1Practices:
         assert data["passed"] is True
         assert data["attempts"] == 1
         assert data["best_score"] == 9.0
-        assert data["status"] == "MASTERED"
+        assert data["status"] == "mastered"
 
     def test_submit_practice_not_mastered(self, app, mock_user):
         _mock_deps(app, mock_user)
@@ -434,7 +434,7 @@ class TestV1Practices:
         assert resp.status_code == 200
         data = resp.json()
         assert data["passed"] is False
-        assert data["status"] == "ATTEMPTED"
+        assert data["status"] == "attempted"
 
     def test_submit_practice_not_found(self, app, mock_user):
         _mock_deps(app, mock_user)
@@ -787,7 +787,9 @@ class TestV1UserProgressUpdate:
         resp = asyncio.run(_run())
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "COMPLETED"
+        assert (
+            data["status"] == "COMPLETED"
+        )  # passthrough from mock, not a ProgressStatus enum
 
     def test_update_lesson_progress_not_found(self, app, mock_user):
         _mock_deps(app, mock_user)
@@ -837,7 +839,7 @@ class TestV1UserProgressUpdate:
                         "practice_id": 1,
                         "attempts": 1,
                         "best_score": 8.0,
-                        "status": "MASTERED",
+                        "status": "mastered",
                     },
                 ),
                 patch(
@@ -859,7 +861,7 @@ class TestV1UserProgressUpdate:
         resp = asyncio.run(_run())
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "MASTERED"
+        assert data["status"] == "mastered"
         assert data["best_score"] == 8.0
 
     def test_update_practice_progress_not_found(self, app, mock_user):

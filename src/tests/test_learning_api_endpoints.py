@@ -1294,7 +1294,7 @@ class TestV1PracticeSubmission:
         assert data["passed"] is True
         assert data["attempts"] == 1
         assert data["best_score"] == 9.0
-        assert data["status"] == "MASTERED"
+        assert data["status"] == "mastered"
 
     def test_submit_practice_not_passing(self) -> None:
         async def _run() -> tuple:
@@ -1331,7 +1331,7 @@ class TestV1PracticeSubmission:
         status, data = asyncio.run(_run())
         assert status == 200
         assert data["passed"] is False
-        assert data["status"] == "ATTEMPTED"
+        assert data["status"] == "attempted"
 
     def test_submit_practice_increments_attempts(self) -> None:
         async def _run() -> tuple:
@@ -1741,6 +1741,11 @@ class TestUserProgressCRUD:
                     return_value=MOCK_LESSON_PROGRESS,
                 ),
                 patch(
+                    "routers.learning.get_lesson",
+                    new_callable=AsyncMock,
+                    return_value=MOCK_LESSON,
+                ),
+                patch(
                     "routers.learning.get_section",
                     new_callable=AsyncMock,
                     return_value=MOCK_SECTION,
@@ -1864,7 +1869,7 @@ class TestV1GetEntitiesWithProgress:
 
         status, data = asyncio.run(_run())
         assert status == 200
-        assert data["status"] == "MASTERED"
+        assert data["status"] == "mastered"
         assert data["completed_at"] == "2026-01-15T10:00:00"
 
     def test_get_lesson_no_progress(self) -> None:
@@ -1889,7 +1894,7 @@ class TestV1GetEntitiesWithProgress:
 
         status, data = asyncio.run(_run())
         assert status == 200
-        assert data["status"] == "NOT_STARTED"
+        assert data["status"] == "not_started"
 
     def test_get_practice_with_progress(self) -> None:
         async def _run() -> tuple:

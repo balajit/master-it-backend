@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
     Uuid,
     func,
 )
@@ -254,11 +255,16 @@ class QuizModel(Base):
 class CourseEnrollmentModel(Base):
     __tablename__ = "course_enrollments"
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "course_id", name="uq_enrollment_user_course"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("users.id"), primary_key=True
+        Integer, ForeignKey("users.id"), nullable=False
     )
     course_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("courses.id"), primary_key=True
+        Integer, ForeignKey("courses.id"), nullable=False
     )
     enrolled_at: Mapped[str] = mapped_column(String, nullable=False)
     # 'active' | 'completed' | 'dropped'
@@ -407,7 +413,7 @@ class ItemProgressModel(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     enrollment_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("course_enrollments.user_id"), nullable=False
+        Integer, ForeignKey("course_enrollments.id"), nullable=False
     )
     item_id: Mapped[str] = mapped_column(String, nullable=False)  # lp_book_item UUID
     status: Mapped[str] = mapped_column(

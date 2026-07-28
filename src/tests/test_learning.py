@@ -21,7 +21,8 @@ if _src_dir not in sys.path:
 def app():
     from main import app as _app
 
-    return _app
+    yield _app
+    _app.dependency_overrides.clear()
 
 
 @pytest.fixture()
@@ -42,6 +43,10 @@ def _mock_deps(app, mock_user):
     from auth import get_current_user
 
     app.dependency_overrides[get_current_user] = lambda: mock_user
+
+
+def _clear_deps(app):
+    app.dependency_overrides.clear()
 
 
 MOCK_COURSE = {

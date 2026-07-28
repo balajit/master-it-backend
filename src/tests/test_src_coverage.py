@@ -145,7 +145,14 @@ class TestDocumentUpload:
             patch(
                 "routers.documents.create_document",
                 new_callable=AsyncMock,
-                return_value={"id": "doc-1", "filename": "notes.pdf"},
+                return_value={
+                    "id": "doc-1",
+                    "filename": "notes.pdf",
+                    "storage_path": "/uploads/notes.pdf",
+                    "content_type": "application/pdf",
+                    "size_bytes": 11,
+                    "created_at": "2026-01-01T00:00:00",
+                },
             ),
             patch(
                 "routers.documents.attach_document_to_course", new_callable=AsyncMock
@@ -197,7 +204,24 @@ class TestDocumentList:
 
     @pytest.mark.asyncio
     async def test_list_returns_documents(self, authed_app) -> None:
-        docs = [{"id": "a", "filename": "x.pdf"}, {"id": "b", "filename": "y.pdf"}]
+        docs = [
+            {
+                "id": "a",
+                "filename": "x.pdf",
+                "storage_path": "/uploads/x.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": 100,
+                "created_at": "2026-01-01T00:00:00",
+            },
+            {
+                "id": "b",
+                "filename": "y.pdf",
+                "storage_path": "/uploads/y.pdf",
+                "content_type": "application/pdf",
+                "size_bytes": 200,
+                "created_at": "2026-01-01T00:00:00",
+            },
+        ]
         with (
             patch(
                 "routers.documents.get_course",

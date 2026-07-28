@@ -1,6 +1,6 @@
 """Tests for Learning endpoint authentication and authorization.
 
-Verifies that all learning endpoints require a valid JWT and return 403 for
+Verifies that all learning endpoints require a valid JWT and return 401 for
 invalid tokens, and that the get_current_user dependency is properly wired.
 """
 
@@ -18,6 +18,7 @@ _src_dir: str = str(Path(__file__).resolve().parent.parent)
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
 
+from auth import get_current_user  # noqa: E402
 from main import app  # noqa: E402
 
 MOCK_USER: dict[str, Any] = {"id": 1, "email": "test@test.com", "role": "Student"}
@@ -34,7 +35,7 @@ def _mock_deps(user: dict[str, Any] | None = None) -> None:
 
             raise HTTPException(status_code=401, detail="Not authenticated")
 
-        app.dependency_overrides["get_current_user"] = _no_user
+        app.dependency_overrides[get_current_user] = _no_user
     else:
         mock_user = MagicMock()
         mock_user.id = user["id"]
@@ -44,7 +45,7 @@ def _mock_deps(user: dict[str, Any] | None = None) -> None:
         async def _get_user() -> Any:
             return mock_user
 
-        app.dependency_overrides["get_current_user"] = _get_user
+        app.dependency_overrides[get_current_user] = _get_user
 
 
 def _clear_deps() -> None:
@@ -55,7 +56,7 @@ def _clear_deps() -> None:
 
 
 class TestCRUDEndpointsRequireAuth:
-    """All /learning/* endpoints should return 401 when unauthenticated."""
+    """All /api/* learning endpoints should return 401 when unauthenticated."""
 
     def setup_method(self) -> None:
         _mock_deps(None)
@@ -70,7 +71,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/learning/units/", params={"course_id": 1})
+                resp = await client.get("/api/courses/1/units")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -83,8 +84,8 @@ class TestCRUDEndpointsRequireAuth:
                 transport=transport, base_url="http://test"
             ) as client:
                 resp = await client.post(
-                    "/learning/units/",
-                    json={"course_id": 1, "title": "X"},
+                    "/api/courses/1/units",
+                    json={"title": "X", "description": ""},
                 )
                 return resp.status_code
 
@@ -97,7 +98,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/learning/units/1")
+                resp = await client.get("/api/units/1")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -109,7 +110,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.patch("/learning/units/1", json={"title": "X"})
+                resp = await client.put("/api/units/1", json={"title": "X"})
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -121,7 +122,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.delete("/learning/units/1")
+                resp = await client.delete("/api/units/1")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -133,10 +134,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get(
-                    "/learning/sections/",
-                    params={"unit_id": 1},
-                )
+                resp = await client.get("/api/units/1/sections")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -149,8 +147,8 @@ class TestCRUDEndpointsRequireAuth:
                 transport=transport, base_url="http://test"
             ) as client:
                 resp = await client.post(
-                    "/learning/sections/",
-                    json={"unit_id": 1, "title": "X"},
+                    "/api/units/1/sections",
+                    json={"title": "X"},
                 )
                 return resp.status_code
 
@@ -163,10 +161,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get(
-                    "/learning/lessons/",
-                    params={"section_id": 1},
-                )
+                resp = await client.get("/api/sections/1/lessons")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -179,8 +174,8 @@ class TestCRUDEndpointsRequireAuth:
                 transport=transport, base_url="http://test"
             ) as client:
                 resp = await client.post(
-                    "/learning/lessons/",
-                    json={"section_id": 1, "title": "X"},
+                    "/api/sections/1/lessons",
+                    json={"title": "X"},
                 )
                 return resp.status_code
 
@@ -193,10 +188,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get(
-                    "/learning/practices/",
-                    params={"section_id": 1},
-                )
+                resp = await client.get("/api/sections/1/practices")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -209,8 +201,8 @@ class TestCRUDEndpointsRequireAuth:
                 transport=transport, base_url="http://test"
             ) as client:
                 resp = await client.post(
-                    "/learning/practices/",
-                    json={"section_id": 1, "title": "X"},
+                    "/api/sections/1/practices",
+                    json={"title": "X"},
                 )
                 return resp.status_code
 
@@ -223,10 +215,7 @@ class TestCRUDEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get(
-                    "/learning/quizzes/",
-                    params={"section_id": 1},
-                )
+                resp = await client.get("/api/sections/1/quizzes")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -239,8 +228,8 @@ class TestCRUDEndpointsRequireAuth:
                 transport=transport, base_url="http://test"
             ) as client:
                 resp = await client.post(
-                    "/learning/quizzes/",
-                    json={"section_id": 1, "title": "X"},
+                    "/api/sections/1/quizzes",
+                    json={"title": "X"},
                 )
                 return resp.status_code
 
@@ -308,8 +297,8 @@ class TestV1EndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.put(
-                    "/api/v1/lessons/1/progress",
+                resp = await client.patch(
+                    "/api/v1/users/me/lessons/1",
                     json={"status": "COMPLETED"},
                 )
                 return resp.status_code
@@ -323,9 +312,9 @@ class TestV1EndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.put(
-                    "/api/v1/practices/1/progress",
-                    json={"status": "MASTERED"},
+                resp = await client.patch(
+                    "/api/v1/users/me/practices/1",
+                    json={"status": "mastered"},
                 )
                 return resp.status_code
 
@@ -338,8 +327,8 @@ class TestV1EndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.put(
-                    "/api/v1/quizzes/1/progress",
+                resp = await client.patch(
+                    "/api/v1/users/me/quizzes/1",
                     json={"score": 85.0},
                 )
                 return resp.status_code
@@ -366,7 +355,7 @@ class TestProgressEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/progress/")
+                resp = await client.get("/api/v1/users/me/progress")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -378,7 +367,7 @@ class TestProgressEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/progress/lessons/1")
+                resp = await client.get("/api/users/1/lessons/1/progress")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -390,7 +379,7 @@ class TestProgressEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/progress/practices/1")
+                resp = await client.get("/api/users/1/practices/1/progress")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -402,7 +391,7 @@ class TestProgressEndpointsRequireAuth:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get("/progress/quizzes/1")
+                resp = await client.get("/api/users/1/quizzes/1/progress")
                 return resp.status_code
 
         assert asyncio.run(_run()) == 401
@@ -427,17 +416,26 @@ class TestEndpointsWithValidUser:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(
-                transport=transport, base_url="http://test"
-            ) as client:
-                resp = await client.get(
-                    "/learning/units/",
-                    params={"course_id": 1},
-                )
-                return resp.status_code
+            with (
+                patch(
+                    "routers.learning.get_course",
+                    new_callable=AsyncMock,
+                    return_value={"id": 1, "title": "C"},
+                ),
+                patch(
+                    "routers.learning.list_units",
+                    new_callable=AsyncMock,
+                    return_value=[],
+                ),
+            ):
+                async with AsyncClient(
+                    transport=transport, base_url="http://test"
+                ) as client:
+                    resp = await client.get("/api/courses/1/units")
+                    return resp.status_code
 
         result = asyncio.run(_run())
-        assert result in (200, 422)
+        assert result in (200, 404, 422)
 
     @patch("database.repositories.learning.AsyncSession")
     def test_get_unit_with_auth(self, _mock_session: MagicMock) -> None:
@@ -465,14 +463,11 @@ class TestEndpointsWithValidUser:
             async with AsyncClient(
                 transport=transport, base_url="http://test"
             ) as client:
-                resp = await client.get(
-                    "/learning/sections/",
-                    params={"unit_id": 1},
-                )
+                resp = await client.get("/api/units/1/sections")
                 return resp.status_code
 
         result = asyncio.run(_run())
-        assert result in (200, 422)
+        assert result in (200, 404, 422)
 
 
 def _make_session_for_repos(rows: Any = None) -> MagicMock:

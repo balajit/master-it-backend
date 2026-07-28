@@ -18,6 +18,37 @@ from services.learning import (
     invalidate_study_page_cache,
 )
 
+# Reuse a single event loop for all tests in this module to avoid
+# "Future attached to a different loop" errors from SQLAlchemy's async pool.
+_loop: asyncio.AbstractEventLoop = asyncio.new_event_loop()
+
+
+def run_sync(coro):
+    """Run a coroutine on the module-level event loop."""
+    return _loop.run_until_complete(coro)
+
+
+def _dispose_engine() -> None:
+    """Dispose the SQLAlchemy async engine pool so the next test gets fresh
+    connections bound to _loop rather than a stale loop from a prior test file."""
+    try:
+        from db import engine  # type: ignore[import]
+
+        run_sync(engine.dispose())
+    except Exception:
+        pass
+
+
+async def _reset_engine() -> None:
+    """Async variant — dispose engine inside the running loop."""
+    try:
+        from db import engine  # type: ignore[import]
+
+        await engine.dispose()
+    except Exception:
+        pass
+
+
 MOCK_UNIT: Dict[str, Any] = {
     "id": 1,
     "course_id": 1,
@@ -149,16 +180,47 @@ def _patch_batch(
             return_value=quiz_progress,
         )
     )
+    stack.enter_context(
+        patch(
+            "services.learning.has_notes_for_unit",
+            new_callable=AsyncMock,
+            return_value=False,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_flashcards_for_unit",
+            new_callable=AsyncMock,
+            return_value=False,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_notes_for_lessons",
+            new_callable=AsyncMock,
+            return_value={},
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_flashcards_for_lessons",
+            new_callable=AsyncMock,
+            return_value={},
+        )
+    )
     return stack
 
 
 class TestGetUnitDetails:
+    def setup_method(self) -> None:
+        _dispose_engine()
+
     def test_returns_none_when_unit_not_found(self):
         async def _run():
             with _patch_batch(unit=None):
                 return await get_unit_details(unit_id=999, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert result is None
 
     def test_assembles_unit_with_sections(self):
@@ -166,7 +228,7 @@ class TestGetUnitDetails:
             with _patch_batch():
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert result is not None
         assert result.id == 1
         assert result.title == "Unit 1"
@@ -187,9 +249,9 @@ class TestGetUnitDetails:
             ):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         lesson = result.sections[0].lessons[0]
-        assert lesson.status == "MASTERED"
+        assert lesson.status == "mastered"
         assert lesson.completed_at == "2026-01-15T10:00:00"
 
     def test_includes_user_progress_for_practices(self):
@@ -207,11 +269,11 @@ class TestGetUnitDetails:
             ):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         practice = result.sections[0].practices[0]
         assert practice.attempts == 3
         assert practice.best_score == 9.0
-        assert practice.status == "MASTERED"
+        assert practice.status == "mastered"
 
     def test_includes_user_progress_for_quizzes(self):
         async def _run():
@@ -227,7 +289,7 @@ class TestGetUnitDetails:
             ):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         goal = result.sections[0].goals[0]
         assert goal.score == 85.0
         assert goal.completed_at == "2026-01-15T10:00:00"
@@ -237,7 +299,7 @@ class TestGetUnitDetails:
             with _patch_batch(lessons=[], practices=[], quizzes=[]):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert result is not None
         assert len(result.sections) == 1
         assert result.sections[0].lessons == []
@@ -274,7 +336,7 @@ class TestGetUnitDetails:
             ):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert len(result.sections) == 2
         assert result.sections[0].title == "Section A"
         assert len(result.sections[0].lessons) == 1
@@ -288,7 +350,7 @@ class TestGetUnitDetails:
             with _patch_batch():
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert len(result.progress.squares) > 0
 
     def test_progress_stats_computed(self):
@@ -305,12 +367,15 @@ class TestGetUnitDetails:
             ):
                 return await get_unit_details(unit_id=1, user_id=1)
 
-        result = asyncio.run(_run())
+        result = run_sync(_run())
         assert result.progress is not None
         assert result.progress.completed >= 1
 
 
 class TestStudyPageCache:
+    def setup_method(self) -> None:
+        _dispose_engine()
+
     def test_cache_hit_returns_same_object(self):
         async def _run():
             with _patch_batch():
@@ -318,7 +383,7 @@ class TestStudyPageCache:
                 second = await get_unit_details(unit_id=1, user_id=1)
                 return first, second
 
-        first, second = asyncio.run(_run())
+        first, second = run_sync(_run())
         assert first is second
 
     def test_cache_miss_on_different_user(self):
@@ -328,7 +393,7 @@ class TestStudyPageCache:
                 b = await get_unit_details(unit_id=1, user_id=2)
                 return a, b
 
-        a, b = asyncio.run(_run())
+        a, b = run_sync(_run())
         assert a is not b
 
     def test_invalidate_specific_unit(self):
@@ -339,7 +404,7 @@ class TestStudyPageCache:
                 second = await get_unit_details(unit_id=1, user_id=1)
                 return first, second
 
-        first, second = asyncio.run(_run())
+        first, second = run_sync(_run())
         assert first is not second
 
     def test_invalidate_all(self):
@@ -350,5 +415,5 @@ class TestStudyPageCache:
                 second = await get_unit_details(unit_id=1, user_id=1)
                 return first, second
 
-        first, second = asyncio.run(_run())
+        first, second = run_sync(_run())
         assert first is not second

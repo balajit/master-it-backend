@@ -198,6 +198,34 @@ def _patch_batch(
             return_value=quiz_progress,
         )
     )
+    stack.enter_context(
+        patch(
+            "services.learning.has_notes_for_unit",
+            new_callable=AsyncMock,
+            return_value=False,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_flashcards_for_unit",
+            new_callable=AsyncMock,
+            return_value=False,
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_notes_for_lessons",
+            new_callable=AsyncMock,
+            return_value={},
+        )
+    )
+    stack.enter_context(
+        patch(
+            "services.learning.has_flashcards_for_lessons",
+            new_callable=AsyncMock,
+            return_value={},
+        )
+    )
     return stack
 
 
@@ -1043,7 +1071,7 @@ def _lesson(status: str, lesson_id: int = 1) -> LessonResponse:
         description="",
         duration_minutes=10,
         order=0,
-        status=ProgressStatus(status),
+        status=ProgressStatus(status.lower()),
     )
 
 
@@ -1054,13 +1082,17 @@ def _practice(status: str, practice_id: int = 1) -> PracticeResponse:
         required_correct=8,
         total_questions=10,
         order=0,
-        status=ProgressStatus(status),
+        status=ProgressStatus(status.lower()),
     )
 
 
 def _goal(status: str, goal_id: int = 1) -> GoalResponse:
-    score = 85.0 if status == "MASTERED" else (45.0 if status == "ATTEMPTED" else None)
-    completed = "2026-01-20" if status == "MASTERED" else None
+    score = (
+        85.0
+        if status.upper() == "MASTERED"
+        else (45.0 if status.upper() == "ATTEMPTED" else None)
+    )
+    completed = "2026-01-20" if status.upper() == "MASTERED" else None
     return GoalResponse(id=goal_id, title="Q", score=score, completed_at=completed)
 
 

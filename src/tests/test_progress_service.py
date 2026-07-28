@@ -281,7 +281,7 @@ def _lesson(status: str, lesson_id: int = 1) -> LessonResponse:
         description="",
         duration_minutes=10,
         order=0,
-        status=ProgressStatus(status),
+        status=ProgressStatus(status.lower()),
     )
 
 
@@ -292,7 +292,7 @@ def _practice(status: str, practice_id: int = 1) -> PracticeResponse:
         required_correct=8,
         total_questions=10,
         order=0,
-        status=ProgressStatus(status),
+        status=ProgressStatus(status.lower()),
     )
 
 
@@ -408,4 +408,4 @@ class TestProgressSquareResponseModel:
             status=ProgressStatus.MASTERED,
         )
         d = sq.model_dump()
-        assert d["status"] == "MASTERED"
+        assert d["status"] == "mastered"
