@@ -31,7 +31,10 @@ def _now() -> str:
 
 
 async def create_unit(
-    course_id: int, title: str, description: str = "", display_order: int = 0
+    course_id: int,
+    title: str,
+    description: str = "",
+    display_order: int = 0,
 ) -> int:
     now = _now()
     async with AsyncSession(engine) as session:
@@ -279,6 +282,7 @@ async def create_lesson(
     description: str = "",
     duration_minutes: int = 0,
     display_order: int = 0,
+    plan_lesson_id: Optional[str] = None,
 ) -> int:
     now = _now()
     async with AsyncSession(engine) as session:
@@ -299,6 +303,7 @@ async def create_lesson(
             description=description,
             duration_minutes=duration_minutes,
             display_order=display_order,
+            plan_lesson_id=plan_lesson_id,
             created_at=now,
             updated_at=now,
         )
@@ -389,6 +394,7 @@ def _lesson_to_dict(lesson: LessonModel) -> Dict[str, Any]:
         "description": lesson.description,
         "duration_minutes": lesson.duration_minutes,
         "display_order": lesson.display_order,
+        "plan_lesson_id": lesson.plan_lesson_id,
         "created_at": lesson.created_at,
         "updated_at": lesson.updated_at,
     }
@@ -1019,6 +1025,54 @@ async def get_all_user_progress(user_id: int) -> Dict[str, List[Dict[str, Any]]]
                 for qp in quizzes
             ],
         }
+
+
+# ── Plan ID cross-reference lookups ─────────────────────────────────────────
+
+
+async def get_lessons_by_plan_ids(plan_lesson_ids: List[str]) -> List[Dict[str, Any]]:
+    """Batch-fetch lessons by their LP LearningUnit UUID (plan_lesson_id).
+
+    Used by the study-plan router to back-populate master-it integer PKs
+    into the book-structured response so the frontend can call
+    progress/notes/flashcard APIs with integer IDs.
+    """
+    if not plan_lesson_ids:
+        return []
+    async with AsyncSession(engine) as session:
+        rows = (
+            (
+                await session.execute(
+                    select(LessonModel).where(
+                        LessonModel.plan_lesson_id.in_(plan_lesson_ids)
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return [_lesson_to_dict(r) for r in rows]
+
+
+async def get_sections_by_ids(section_ids: List[int]) -> List[Dict[str, Any]]:
+    """Batch-fetch sections by their integer PKs.
+
+    Used alongside get_lessons_by_plan_ids to resolve unit_id from
+    lesson → section → unit without an N+1 query pattern.
+    """
+    if not section_ids:
+        return []
+    async with AsyncSession(engine) as session:
+        rows = (
+            (
+                await session.execute(
+                    select(SectionModel).where(SectionModel.id.in_(section_ids))
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return [_section_to_dict(r) for r in rows]
 
 
 # ── Resume ──────────────────────────────────────────────────────────────────

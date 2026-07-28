@@ -1,5 +1,10 @@
+"""Course endpoints — CRUD and book-structured study plan."""
+
+from __future__ import annotations
+
 import logging
 from typing import Any, Dict, List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -11,14 +16,14 @@ from database import (
     get_documents_by_course,
     list_courses,
 )
+from database.repositories.learning import get_lessons_by_plan_ids, get_sections_by_ids
 from schemas import (
+    Chapter,
     Course,
     CourseCreate,
     CourseStudyPlanResponse,
-    StudyPlanCheckpoint,
-    StudyPlanDetail,
-    StudyPlanLesson,
-    StudyPlanMilestone,
+    Lesson,
+    Page,
 )
 
 router: APIRouter = APIRouter(prefix="/api", tags=["courses"])
@@ -74,38 +79,54 @@ async def get_course_study_plan(
     course_id: int,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> CourseStudyPlanResponse:
-    """Return study plans for all documents attached to a course."""
+    """Return the book-structured study plan for a course.
+
+    Reads the CanonicalBook produced by Pipeline 2 (BookPipeline) from the
+    learning_platform database.  The response is structured as:
+        Course → Chapter → Lesson → Page → ContentItem
+
+    Each Lesson in the response includes:
+      - lesson_id: master-it LessonModel.id (int) — use with progress/notes/flashcard APIs
+      - unit_id: master-it UnitModel.id (int) — use with unit-scoped notes/flashcard APIs
+    """
     course = await get_course(course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
 
     documents = await get_documents_by_course(course_id)
 
-    study_plans: List[StudyPlanDetail] = []
+    # Collect chapters from all documents attached to this course.
+    # Multiple documents result in their chapters being concatenated.
+    all_chapters: list[Chapter] = []
+    chapter_order_offset: int = 0
+
     for doc in documents:
-        plan = await _fetch_study_plan(doc["id"])
-        if plan is not None:
-            study_plans.append(plan)
+        doc_chapters = await _fetch_book_chapters(doc["id"], chapter_order_offset)
+        all_chapters.extend(doc_chapters)
+        chapter_order_offset += len(doc_chapters)
 
     return CourseStudyPlanResponse(
         course_id=course_id,
         course_title=course["title"],
-        documents_processed=len(study_plans),
-        study_plans=study_plans,
+        chapters=all_chapters,
     )
 
 
-async def _fetch_study_plan(doc_id_str: str) -> StudyPlanDetail | None:
-    """Fetch a study plan from the learning_platform database for a given document ID."""
-    try:
-        from uuid import UUID
+async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[Chapter]:
+    """Fetch book chapters from the LP database for a given document ID.
 
+    Also back-populates master-it integer PKs (lesson_id, unit_id) on each
+    Lesson by joining BookLesson.unit_id → LessonModel.plan_lesson_id.
+
+    Returns an empty list if no book has been assembled for the document yet.
+    """
+    try:
         from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
         from learning_platform.config import Settings
         from learning_platform.infrastructure.persistence.engine import create_engine
-        from learning_platform.infrastructure.persistence.repositories.sequence import (
-            StudyPlanRepository,
+        from learning_platform.infrastructure.persistence.repositories.book import (
+            BookRepository,
         )
         from learning_platform.infrastructure.persistence.session import (
             create_session_factory,
@@ -116,60 +137,97 @@ async def _fetch_study_plan(doc_id_str: str) -> StudyPlanDetail | None:
         factory: async_sessionmaker[AsyncSession] = create_session_factory(engine)
 
         doc_uuid = UUID(doc_id_str)
+
         async with factory() as session:
-            repo = StudyPlanRepository(session)
-            plan = await repo.find_by_document(doc_uuid)
+            repo = BookRepository(session)
+            book = await repo.find_by_document(doc_uuid)
 
         await engine.dispose()
 
-        if plan is None:
-            return None
+        if book is None:
+            return []
 
-        return StudyPlanDetail(
-            doc_id=doc_id_str,
-            title=plan.title,
-            description=plan.description,
-            total_estimated_minutes=plan.total_estimated_minutes,
-            total_lessons=plan.total_lessons,
-            lessons=[
-                StudyPlanLesson(
-                    id=str(lesson.id),
-                    unit_id=str(lesson.unit_id),
-                    order=lesson.order,
-                    title=lesson.title,
-                    description=lesson.description,
-                    lesson_type=lesson.lesson_type.value,
-                    difficulty=lesson.difficulty,
-                    estimated_minutes=lesson.estimated_minutes,
-                    milestone_id=str(lesson.milestone_id)
-                    if lesson.milestone_id
-                    else None,
-                )
-                for lesson in plan.lessons
-            ],
-            milestones=[
-                StudyPlanMilestone(
-                    id=str(m.id),
-                    order=m.order,
-                    title=m.title,
-                    description=m.description,
-                    estimated_minutes=m.estimated_minutes,
-                    lesson_count=len(m.lesson_ids),
-                )
-                for m in plan.milestones
-            ],
-            checkpoints=[
-                StudyPlanCheckpoint(
-                    id=str(cp.id),
-                    milestone_id=str(cp.milestone_id),
-                    order=cp.order,
-                    title=cp.title,
-                    checkpoint_type=cp.checkpoint_type.value,
-                    estimated_minutes=cp.estimated_minutes,
-                )
-                for cp in plan.checkpoints
-            ],
+        # ── Collect all LP LearningUnit UUIDs from book lessons ──────────
+        # BookLesson.unit_id == StudyPlan.Lesson.unit_id == lp_learning_unit.id
+        # This is stored as LessonModel.plan_lesson_id during enrollment.
+        plan_lesson_ids: list[str] = []
+        for bc in book.chapters:
+            for bl in bc.lessons:
+                if bl.unit_id is not None:
+                    plan_lesson_ids.append(str(bl.unit_id))
+
+        # ── Batch-fetch master-it lesson rows by plan_lesson_id ───────────
+        lesson_rows = await get_lessons_by_plan_ids(plan_lesson_ids)
+        # map: plan_lesson_id → lesson_dict
+        plan_to_lesson: dict[str, dict] = {
+            r["plan_lesson_id"]: r for r in lesson_rows if r.get("plan_lesson_id")
+        }
+
+        # ── Batch-fetch sections to resolve unit_id ───────────────────────
+        section_ids_seen: list[int] = list(
+            {r["section_id"] for r in lesson_rows if r.get("section_id")}
         )
+        section_rows = await get_sections_by_ids(section_ids_seen)
+        section_to_unit: dict[int, int] = {s["id"]: s["unit_id"] for s in section_rows}
+
+        # ── Build chapters with integer PKs ──────────────────────────────
+        chapters: list[Chapter] = []
+        for bc in book.chapters:
+            lessons: list[Lesson] = []
+            chapter_unit_id: int | None = None
+
+            for bl in bc.lessons:
+                pages: list[Page] = []
+                for bp in bl.pages:
+                    pages.append(
+                        Page(
+                            id=str(bp.id),
+                            page_number=bp.page_number,
+                            order=bp.order,
+                            items=[_serialize_item(item) for item in bp.items],
+                        )
+                    )
+
+                # Resolve integer PKs
+                lesson_id: int | None = None
+                lesson_unit_id: int | None = None
+                if bl.unit_id is not None:
+                    lesson_row = plan_to_lesson.get(str(bl.unit_id))
+                    if lesson_row:
+                        lesson_id = lesson_row["id"]
+                        lesson_unit_id = section_to_unit.get(lesson_row["section_id"])
+                        if chapter_unit_id is None:
+                            chapter_unit_id = lesson_unit_id
+
+                lessons.append(
+                    Lesson(
+                        id=str(bl.id),
+                        title=bl.title,
+                        order=bl.order,
+                        pages=pages,
+                        lesson_id=lesson_id,
+                        unit_id=lesson_unit_id,
+                    )
+                )
+
+            chapters.append(
+                Chapter(
+                    id=str(bc.id),
+                    title=bc.title,
+                    order=bc.order + order_offset,
+                    lessons=lessons,
+                    unit_id=chapter_unit_id,
+                )
+            )
+        return chapters
+
     except Exception:
-        logger.debug("No study plan found for document %s", doc_id_str)
-        return None
+        logger.debug("No book found for document %s", doc_id_str, exc_info=True)
+        return []
+
+
+def _serialize_item(item: object) -> dict:
+    """Convert a ContentItem domain object to a dict for the API response."""
+    if hasattr(item, "model_dump"):
+        return item.model_dump()
+    return {}

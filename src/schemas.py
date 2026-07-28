@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import List, Literal, Optional
+from typing import Annotated, List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr, model_validator
+from pydantic import BaseModel, EmailStr, Field, model_validator
 
 from learning_platform.presentation.models import ContentNode
 
@@ -95,55 +95,130 @@ class Document(BaseModel):
     created_at: str
 
 
-# ── Study Plan ──────────────────────────────────────────────────────────────
+# ── Study Plan — Book-structured API ────────────────────────────────────────
+# The study plan is now structured as: Course → Chapter → Lesson → Page → Item
+# Each entity carries a stable UUID from the LP book pipeline.
+# Content items are typed so the frontend can apply the correct HTML renderer.
 
 
-class StudyPlanLesson(BaseModel):
-    id: str
-    unit_id: str
-    order: int = 0
-    title: str = ""
-    description: str = ""
-    lesson_type: str = "core"
-    difficulty: str = "basic"
-    estimated_minutes: int = 0
-    milestone_id: str | None = None
-
-
-class StudyPlanMilestone(BaseModel):
+class TextItem(BaseModel):
+    type: Literal["text"] = "text"
     id: str
     order: int = 0
-    title: str = ""
-    description: str = ""
-    estimated_minutes: int = 0
-    lesson_count: int = 0
+    content: str = ""
+    level: int = 0
+    bbox: Optional[dict] = None
+    style: Optional[dict] = None
 
 
-class StudyPlanCheckpoint(BaseModel):
+class HeadingItem(BaseModel):
+    type: Literal["heading"] = "heading"
     id: str
-    milestone_id: str
     order: int = 0
-    title: str = ""
-    checkpoint_type: str = "self_test"
-    estimated_minutes: int = 0
+    content: str = ""
+    level: int = 1
+    bbox: Optional[dict] = None
+    style: Optional[dict] = None
 
 
-class StudyPlanDetail(BaseModel):
-    doc_id: str
+class ImageItem(BaseModel):
+    type: Literal["image"] = "image"
+    id: str
+    order: int = 0
+    data: str = ""  # base64-encoded
+    caption: Optional[str] = None
+    bbox: Optional[dict] = None
+
+
+class TableItem(BaseModel):
+    type: Literal["table"] = "table"
+    id: str
+    order: int = 0
+    caption: Optional[str] = None
+    headers: List[str] = []
+    rows: List[List[str]] = []
+    bbox: Optional[dict] = None
+    style: Optional[dict] = None
+
+
+class EquationItem(BaseModel):
+    type: Literal["equation"] = "equation"
+    id: str
+    order: int = 0
+    latex: str = ""
+    label: Optional[str] = None
+    bbox: Optional[dict] = None
+
+
+class CodeItem(BaseModel):
+    type: Literal["code"] = "code"
+    id: str
+    order: int = 0
+    content: str = ""
+    language: Optional[str] = None
+    bbox: Optional[dict] = None
+
+
+class ListItem(BaseModel):
+    type: Literal["list"] = "list"
+    id: str
+    order: int = 0
+    ordered: bool = False
+    items: List[str] = []
+    bbox: Optional[dict] = None
+    style: Optional[dict] = None
+
+
+ContentItem = Annotated[
+    TextItem | HeadingItem | ImageItem | TableItem | EquationItem | CodeItem | ListItem,
+    Field(discriminator="type"),
+]
+
+
+class Page(BaseModel):
+    """A page within a lesson — contains ordered content items."""
+
+    id: str
+    page_number: int = 0
+    order: int = 0
+    items: List[ContentItem] = []
+
+
+class Lesson(BaseModel):
+    """A lesson within a chapter — contains ordered pages."""
+
+    id: str
     title: str = ""
-    description: str = ""
-    total_estimated_minutes: int = 0
-    total_lessons: int = 0
-    lessons: List[StudyPlanLesson] = []
-    milestones: List[StudyPlanMilestone] = []
-    checkpoints: List[StudyPlanCheckpoint] = []
+    order: int = 0
+    pages: List[Page] = []
+    lesson_id: Optional[int] = None  # master-it LessonModel.id; None if not provisioned
+    unit_id: Optional[int] = None  # master-it UnitModel.id; None if not provisioned
+
+
+class Chapter(BaseModel):
+    """A chapter within a course — contains ordered lessons."""
+
+    id: str
+    title: str = ""
+    order: int = 0
+    lessons: List[Lesson] = []
+    unit_id: Optional[int] = None  # master-it UnitModel.id for this chapter's content
 
 
 class CourseStudyPlanResponse(BaseModel):
+    """Response for GET /api/courses/{course_id}/study-plan."""
+
     course_id: int
     course_title: str = ""
-    documents_processed: int = 0
-    study_plans: List[StudyPlanDetail] = []
+    chapters: List[Chapter] = []
+
+
+# ── Study Plan legacy aliases (kept for backward-compat while old tests exist)
+# TODO: remove once all callers are migrated to the new schema
+StudyPlanLesson = Lesson
+StudyPlanMilestone = Chapter
+StudyPlanCheckpoint = Page
+StudyPlanDetail = CourseStudyPlanResponse
 
 
 # ── Learning Domain ─────────────────────────────────────────────────────────
@@ -675,12 +750,101 @@ class MessageResponse(BaseModel):
 
 class UserProgressResponse(BaseModel):
     user_id: int
-    lessons: List[dict]
-    practices: List[dict]
-    quizzes: List[dict]
+    lessons: List[UserLessonProgressResponse]
+    practices: List[UserPracticeProgressResponse]
+    quizzes: List[UserQuizProgressResponse]
 
 
 class SectionUnlockResponse(BaseModel):
     section_id: int
     user_id: int
     items_unlocked: int
+
+
+# ── Document pipeline response types ────────────────────────────────────────
+
+
+class DocumentUploadResponse(BaseModel):
+    """Response for POST /api/courses/{course_id}/documents."""
+
+    id: str
+    filename: str
+    storage_path: str
+    content_type: str
+    size_bytes: int
+    created_at: str
+
+
+class DocumentProcessResponse(BaseModel):
+    """Response for POST /api/documents/{document_id}/process."""
+
+    doc_id: str
+    title: str
+    units_count: int
+    concepts_count: int
+    graph_nodes: int
+    graph_edges: int
+    lessons: int
+    milestones: int
+
+
+class DocumentTreeResponse(BaseModel):
+    """Response for GET /api/documents/{document_id}/tree."""
+
+    doc_id: str
+    title: str
+    total_nodes: int
+
+
+class DocumentUnit(BaseModel):
+    """A single learning unit within a document."""
+
+    id: str
+    title: str
+    unit_type: str
+    difficulty: str
+    estimated_study_time_minutes: int
+
+
+class DocumentUnitsResponse(BaseModel):
+    """Response for GET /api/documents/{document_id}/units."""
+
+    doc_id: str
+    units: List[DocumentUnit]
+    count: int
+
+
+class DocumentConcept(BaseModel):
+    """A single concept extracted from a document."""
+
+    id: str
+    name: str
+    category: str
+    importance: float
+
+
+class DocumentConceptsResponse(BaseModel):
+    """Response for GET /api/documents/{document_id}/concepts."""
+
+    doc_id: str
+    concepts: List[DocumentConcept]
+    total_concepts: int
+    total_relationships: int
+
+
+class DocumentStudyPlanSummary(BaseModel):
+    """Response for GET /api/documents/{document_id}/study-plan."""
+
+    doc_id: str
+    title: str
+    total_lessons: int
+    total_estimated_minutes: int
+    milestones: int
+
+
+class DocumentExportResponse(BaseModel):
+    """Response for GET /api/documents/{document_id}/export/json."""
+
+    doc_id: str
+    export_dir: str
+    files: List[str]

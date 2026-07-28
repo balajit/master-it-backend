@@ -29,7 +29,6 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from fastapi.responses import JSONResponse
 
 from auth import get_current_user
 from database import (
@@ -44,6 +43,18 @@ from learning_platform.service import (
     LearningPlatformService,
     get_service,
     stable_doc_id,
+)
+from schemas import (
+    Document,
+    DocumentConceptsResponse,
+    DocumentConcept,
+    DocumentExportResponse,
+    DocumentProcessResponse,
+    DocumentStudyPlanSummary,
+    DocumentTreeResponse,
+    DocumentUnit,
+    DocumentUnitsResponse,
+    DocumentUploadResponse,
 )
 
 router: APIRouter = APIRouter(prefix="/api", tags=["documents"])
@@ -83,12 +94,16 @@ def register_document(uploaded_file: str) -> None:
             portalocker.unlock(file)
 
 
-@router.post("/courses/{course_id}/documents", status_code=201)
+@router.post(
+    "/courses/{course_id}/documents",
+    status_code=201,
+    response_model=DocumentUploadResponse,
+)
 async def upload_document(
     course_id: int,
     file: UploadFile,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> DocumentUploadResponse:
     """Upload a document and associate it with a course.
 
     Stores the file at ``uploads/{course_id}/{sanitized_filename}``.
@@ -131,20 +146,20 @@ async def upload_document(
         course_id,
         user["id"],
     )
-    return doc
+    return DocumentUploadResponse(**doc)
 
 
-@router.get("/courses/{course_id}/documents")
+@router.get("/courses/{course_id}/documents", response_model=List[Document])
 async def list_course_documents(
     course_id: int,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> List[Dict[str, Any]]:
+) -> List[Document]:
     """List all documents associated with a course."""
     course: Dict[str, Any] | None = await get_course(course_id)
     if not course:
         raise HTTPException(status_code=404, detail="Course not found")
     docs: List[Dict[str, Any]] = await get_course_documents(course_id)
-    return docs
+    return [Document(**d) for d in docs]
 
 
 @router.delete("/documents/{document_id}", status_code=204)
@@ -171,12 +186,15 @@ async def delete_document_endpoint(
 # ── LP pipeline integration ──────────────────────────────────────────────────
 
 
-@router.post("/documents/{document_id}/process")
+@router.post(
+    "/documents/{document_id}/process",
+    response_model=DocumentProcessResponse,
+)
 async def process_document(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
+) -> DocumentProcessResponse:
     """Trigger LP pipeline processing for an uploaded document.
 
     Resolves the storage path from the DocumentModel and calls the LP
@@ -200,27 +218,24 @@ async def process_document(
 
     lp_doc_id = stable_doc_id(storage_path)
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "title": result.document.title,
-            "units_count": len(result.units),
-            "concepts_count": len(result.concepts.concepts),
-            "graph_nodes": len(result.graph.nodes),
-            "graph_edges": len(result.graph.edges),
-            "lessons": result.study_plan.total_lessons,
-            "milestones": len(result.study_plan.milestones),
-        },
-        status_code=200,
+    return DocumentProcessResponse(
+        doc_id=lp_doc_id,
+        title=result.document.title,
+        units_count=len(result.units),
+        concepts_count=len(result.concepts.concepts),
+        graph_nodes=len(result.graph.nodes),
+        graph_edges=len(result.graph.edges),
+        lessons=result.study_plan.total_lessons,
+        milestones=len(result.study_plan.milestones),
     )
 
 
-@router.get("/documents/{document_id}/tree")
+@router.get("/documents/{document_id}/tree", response_model=DocumentTreeResponse)
 async def get_document_tree(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
+) -> DocumentTreeResponse:
     """Return the canonical document tree for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
@@ -233,21 +248,19 @@ async def get_document_tree(
             status_code=404, detail="Document not processed — call /process first"
         )
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "title": result.document.title,
-            "total_nodes": len(result.document.nodes),
-        }
+    return DocumentTreeResponse(
+        doc_id=lp_doc_id,
+        title=result.document.title,
+        total_nodes=len(result.document.nodes),
     )
 
 
-@router.get("/documents/{document_id}/units")
+@router.get("/documents/{document_id}/units", response_model=DocumentUnitsResponse)
 async def get_document_units(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
+) -> DocumentUnitsResponse:
     """Return all learning units for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
@@ -260,30 +273,30 @@ async def get_document_units(
             status_code=404, detail="Document not processed — call /process first"
         )
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "units": [
-                {
-                    "id": str(u.id),
-                    "title": u.title,
-                    "unit_type": u.unit_type.value,
-                    "difficulty": u.difficulty.value,
-                    "estimated_study_time_minutes": u.estimated_study_time_minutes,
-                }
-                for u in result.units
-            ],
-            "count": len(result.units),
-        }
+    return DocumentUnitsResponse(
+        doc_id=lp_doc_id,
+        units=[
+            DocumentUnit(
+                id=str(u.id),
+                title=u.title,
+                unit_type=u.unit_type.value,
+                difficulty=u.difficulty.value,
+                estimated_study_time_minutes=u.estimated_study_time_minutes,
+            )
+            for u in result.units
+        ],
+        count=len(result.units),
     )
 
 
-@router.get("/documents/{document_id}/concepts")
+@router.get(
+    "/documents/{document_id}/concepts", response_model=DocumentConceptsResponse
+)
 async def get_document_concepts(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
+) -> DocumentConceptsResponse:
     """Return all concepts for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
@@ -296,31 +309,32 @@ async def get_document_concepts(
             status_code=404, detail="Document not processed — call /process first"
         )
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "concepts": [
-                {
-                    "id": str(c.id),
-                    "name": c.name,
-                    "category": c.category.value,
-                    "importance": c.importance,
-                }
-                for c in result.concepts.concepts
-            ],
-            "total_concepts": len(result.concepts.concepts),
-            "total_relationships": len(result.concepts.relationships),
-        }
+    return DocumentConceptsResponse(
+        doc_id=lp_doc_id,
+        concepts=[
+            DocumentConcept(
+                id=str(c.id),
+                name=c.name,
+                category=c.category.value,
+                importance=c.importance,
+            )
+            for c in result.concepts.concepts
+        ],
+        total_concepts=len(result.concepts.concepts),
+        total_relationships=len(result.concepts.relationships),
     )
 
 
-@router.get("/documents/{document_id}/study-plan")
+@router.get(
+    "/documents/{document_id}/study-plan",
+    response_model=DocumentStudyPlanSummary,
+)
 async def get_document_study_plan(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
-    """Return the study plan for a processed document."""
+) -> DocumentStudyPlanSummary:
+    """Return the study plan summary for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -332,23 +346,24 @@ async def get_document_study_plan(
             status_code=404, detail="Document not processed — call /process first"
         )
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "title": result.study_plan.title,
-            "total_lessons": result.study_plan.total_lessons,
-            "total_estimated_minutes": result.study_plan.total_estimated_minutes,
-            "milestones": len(result.study_plan.milestones),
-        }
+    return DocumentStudyPlanSummary(
+        doc_id=lp_doc_id,
+        title=result.study_plan.title,
+        total_lessons=result.study_plan.total_lessons,
+        total_estimated_minutes=result.study_plan.total_estimated_minutes,
+        milestones=len(result.study_plan.milestones),
     )
 
 
-@router.get("/documents/{document_id}/export/json")
+@router.get(
+    "/documents/{document_id}/export/json",
+    response_model=DocumentExportResponse,
+)
 async def export_document_json(
     document_id: str,
     user: Dict[str, Any] = Depends(get_current_user),
     lp: LearningPlatformService = Depends(get_service),
-) -> JSONResponse:
+) -> DocumentExportResponse:
     """Export all pipeline results as JSON for a processed document."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
@@ -377,17 +392,15 @@ async def export_document_json(
         plan=result.study_plan,
     )
 
-    return JSONResponse(
-        content={
-            "doc_id": lp_doc_id,
-            "export_dir": str(export_dir),
-            "files": [
-                "document.json",
-                "learning_units.json",
-                "annotations.json",
-                "concepts.json",
-                "knowledge_graph.json",
-                "study_plan.json",
-            ],
-        }
+    return DocumentExportResponse(
+        doc_id=lp_doc_id,
+        export_dir=str(export_dir),
+        files=[
+            "document.json",
+            "learning_units.json",
+            "annotations.json",
+            "concepts.json",
+            "knowledge_graph.json",
+            "study_plan.json",
+        ],
     )

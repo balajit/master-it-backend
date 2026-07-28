@@ -2,6 +2,12 @@
 
 from learning_platform.infrastructure.persistence.models.annotation import AnnotationRow
 from learning_platform.infrastructure.persistence.models.base import Base
+from learning_platform.infrastructure.persistence.models.book import (
+    BookChapterRow,
+    BookItemRow,
+    BookLessonRow,
+    BookPageRow,
+)
 from learning_platform.infrastructure.persistence.models.concept import (
     ConceptRelationshipRow,
     ConceptRow,
@@ -25,6 +31,10 @@ from learning_platform.infrastructure.persistence.models.sequence import (
 __all__ = [
     "AnnotationRow",
     "Base",
+    "BookChapterRow",
+    "BookItemRow",
+    "BookLessonRow",
+    "BookPageRow",
     "CanonicalDocumentRow",
     "CheckpointRow",
     "ConceptRelationshipRow",

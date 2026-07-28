@@ -1,0 +1,140 @@
+"""Integration test configuration and shared fixtures.
+
+These tests require a running PostgreSQL instance. Set the environment variable:
+
+    TEST_DATABASE_URL=postgresql+asyncpg://user:pass@localhost:5433/test_db
+
+If the database is unreachable, all tests in this package are automatically
+skipped via the `db_engine` fixture.
+
+Run integration tests only:
+    uv run pytest src/tests/integration/ -v
+
+Run with a custom DB URL:
+    TEST_DATABASE_URL=... uv run pytest src/tests/integration/ -v
+"""
+
+from __future__ import annotations
+
+import os
+import sys
+from pathlib import Path
+from typing import Any, AsyncGenerator
+
+import pytest
+import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
+
+# Ensure src/ is importable when running pytest from the project root.
+_src_dir: str = str(Path(__file__).resolve().parent.parent.parent)
+if _src_dir not in sys.path:
+    sys.path.insert(0, _src_dir)
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+_DEFAULT_TEST_DB_URL: str = (
+    "postgresql+asyncpg://postgres_user:secure_password_here"
+    "@localhost:5433/learning_platform_testing"
+)
+
+TEST_DATABASE_URL: str = os.environ.get("TEST_DATABASE_URL", _DEFAULT_TEST_DB_URL)
+
+# ---------------------------------------------------------------------------
+# Session-scoped engine — created once per pytest session
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture(scope="session")
+async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
+    """Create an async engine connected to the test Postgres DB.
+
+    Skips the entire session if the database is unreachable.
+    All tables are created before the session starts and dropped after.
+    """
+    from database.base import Base
+
+    engine: AsyncEngine = create_async_engine(TEST_DATABASE_URL, echo=False)
+
+    try:
+        async with engine.connect() as conn:
+            await conn.run_sync(Base.metadata.create_all)
+    except Exception as exc:  # noqa: BLE001
+        pytest.skip(f"PostgreSQL not reachable at {TEST_DATABASE_URL}: {exc}")
+
+    yield engine
+
+    async with engine.connect() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
+    await engine.dispose()
+
+
+# ---------------------------------------------------------------------------
+# Function-scoped session — each test gets a rolled-back transaction
+# ---------------------------------------------------------------------------
+
+
+@pytest_asyncio.fixture()
+async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, None]:
+    """Yield an AsyncSession that is rolled back after each test.
+
+    This keeps tests fully isolated without truncating tables.
+    """
+    async_session_factory = sessionmaker(
+        db_engine, class_=AsyncSession, expire_on_commit=False
+    )
+    async with async_session_factory() as session:
+        async with session.begin():
+            yield session
+            await session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# FastAPI test app — auth bypassed, engine pointed at test DB
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(scope="session")
+def mock_user() -> dict[str, Any]:
+    """Fake authenticated user injected via dependency_overrides."""
+    return {
+        "id": 1,
+        "email": "integration@example.com",
+        "name": "Integration User",
+        "picture_url": "",
+        "phone": "",
+        "auth_provider": "local",
+        "roles": ["Admin"],
+        "permissions": ["course:browse", "course:manage"],
+    }
+
+
+@pytest.fixture(scope="session")
+def app(mock_user: dict[str, Any]):
+    """FastAPI app with auth overridden and engine pointed at test DB.
+
+    The DATABASE_URL env var is set before importing main so the module-level
+    engine singleton picks up the test URL.
+    """
+    os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+    os.environ.setdefault("JWT_SECRET", "test-integration-secret")
+
+    from auth import get_current_user
+    from main import app as _app
+
+    _app.dependency_overrides[get_current_user] = lambda: mock_user
+    return _app
+
+
+@pytest_asyncio.fixture()
+async def client(app, db_engine: AsyncEngine) -> AsyncGenerator[AsyncClient, None]:
+    """HTTP test client wired to the integration app."""
+    async with AsyncClient(
+        transport=ASGITransport(app=app),
+        base_url="http://testserver",
+    ) as ac:
+        yield ac

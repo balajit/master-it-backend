@@ -6,6 +6,20 @@ Import domain models from here rather than from individual sub-modules.
 from __future__ import annotations
 
 from learning_platform.models.annotation import Annotation
+from learning_platform.models.book import (
+    BookChapter,
+    BookLesson,
+    BookPage,
+    CanonicalBook,
+    CodeItem,
+    ContentItem,
+    EquationItem,
+    HeadingItem,
+    ImageItem,
+    ListItem,
+    TableItem,
+    TextItem,
+)
 from learning_platform.models.concept import Concept, ConceptMap, ConceptRelationship
 from learning_platform.models.document import CanonicalDocument, DocumentNode
 from learning_platform.models.knowledge_graph import GraphEdge, GraphNode, KnowledgeGraph
@@ -17,19 +31,31 @@ from learning_platform.models.summary import Summary
 
 __all__ = [
     "Annotation",
+    "BookChapter",
+    "BookLesson",
+    "BookPage",
+    "CanonicalBook",
     "CanonicalDocument",
+    "CodeItem",
     "Concept",
     "ConceptMap",
     "ConceptRelationship",
+    "ContentItem",
     "DocumentNode",
+    "EquationItem",
     "GraphEdge",
     "GraphNode",
+    "HeadingItem",
+    "ImageItem",
     "KnowledgeGraph",
     "LearningUnit",
+    "ListItem",
     "NodeRef",
     "PageContext",
     "Quiz",
     "StudyPlan",
     "Summary",
+    "TableItem",
+    "TextItem",
     "build_page_contexts",
 ]

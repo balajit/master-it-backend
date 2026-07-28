@@ -287,6 +287,7 @@ async def _provision_content_from_study_plan(
                 description=lesson.description or "",
                 duration_minutes=lesson.estimated_minutes or 0,
                 display_order=lesson.order,
+                plan_lesson_id=str(lesson.unit_id),
             )
 
         # Checkpoints belonging to this milestone

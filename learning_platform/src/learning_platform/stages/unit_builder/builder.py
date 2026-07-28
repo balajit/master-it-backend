@@ -109,8 +109,28 @@ _SKIP_KINDS: frozenset[str] = frozenset(
 )
 
 
-def _unit_type_for_heading(level: int) -> UnitType:
-    """Map a heading level to the appropriate unit type."""
+# Chapter keywords (case-insensitive, matched as whole words at start of heading)
+_CHAPTER_KEYWORDS: frozenset[str] = frozenset({"chapter", "unit", "module", "part"})
+
+# Lesson keywords (case-insensitive, matched as whole words at start of heading)
+_LESSON_KEYWORDS: frozenset[str] = frozenset({"lesson", "section", "topic", "lab"})
+
+
+def _unit_type_for_heading(level: int, title: str = "") -> UnitType:
+    """Map a heading to the appropriate unit type.
+
+    Keyword detection takes priority over heading level:
+    - Headings starting with chapter/unit/module/part → MODULE
+    - Headings starting with lesson/section/topic/lab → LESSON
+    - Fallback: heading level (CHAPTER→MODULE, SECTION→LESSON, deeper→TOPIC)
+    """
+    if title:
+        first_word = title.strip().split()[0].lower().rstrip(".:") if title.strip() else ""
+        if first_word in _CHAPTER_KEYWORDS:
+            return UnitType.MODULE
+        if first_word in _LESSON_KEYWORDS:
+            return UnitType.LESSON
+    # Fallback to heading level
     if level <= HeadingLevel.CHAPTER:
         return UnitType.MODULE
     if level <= HeadingLevel.SECTION:
@@ -346,7 +366,7 @@ class LearningUnitBuilder:
                 if is_root and course_unit is None:
                     unit_type = UnitType.COURSE
                 else:
-                    unit_type = _unit_type_for_heading(content.level)
+                    unit_type = _unit_type_for_heading(content.level, content.text.plain_text)
 
                 new_unit = LearningUnit(
                     unit_type=unit_type,
@@ -466,7 +486,7 @@ class LearningUnitBuilder:
                     if is_root and course_unit is None:
                         unit_type = UnitType.COURSE
                     else:
-                        unit_type = _unit_type_for_heading(content.level)
+                        unit_type = _unit_type_for_heading(content.level, content.text.plain_text)
 
                     new_unit = LearningUnit(
                         unit_type=unit_type,

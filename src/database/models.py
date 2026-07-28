@@ -214,6 +214,7 @@ class LessonModel(Base):
     description: Mapped[str] = mapped_column(String, nullable=False, default="")
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     display_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    plan_lesson_id: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[str] = mapped_column(String, nullable=False)
     updated_at: Mapped[str] = mapped_column(String, nullable=False)
 
@@ -387,3 +388,31 @@ class UserFlashcardModel(Base):
     updated_at: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True), onupdate=func.now(), nullable=True
     )
+
+
+# ── Item Progress (book-level) ────────────────────────────────────────────────
+# Tracks per-student progress at the lp_book_item level.
+# item_id is a UUID string referencing lp_book_item.id in the LP database.
+# TODO: rename table to singular convention (item_progress → item_progress already singular)
+
+
+class ItemProgressModel(Base):
+    """Per-student progress for a single content item (lp_book_item)."""
+
+    __tablename__ = "item_progress"
+    __table_args__ = (
+        Index("idx_item_progress_enrollment_id", "enrollment_id"),
+        Index("idx_item_progress_item_id", "item_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    enrollment_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("course_enrollments.user_id"), nullable=False
+    )
+    item_id: Mapped[str] = mapped_column(String, nullable=False)  # lp_book_item UUID
+    status: Mapped[str] = mapped_column(
+        String, nullable=False, default="not_started"
+    )  # not_started | in_progress | completed
+    completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    created_at: Mapped[str] = mapped_column(String, nullable=False, default="")
+    updated_at: Mapped[str] = mapped_column(String, nullable=False, default="")
