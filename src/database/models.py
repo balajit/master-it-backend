@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 
 from sqlalchemy import (
+    Boolean,
     DateTime,
     Float,
     ForeignKey,
@@ -13,6 +14,7 @@ from sqlalchemy import (
     String,
     Text,
     Uuid,
+    func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -316,3 +318,72 @@ class UserQuizProgressModel(Base):
     )
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
+
+# ── Notes & Flashcards ───────────────────────────────────────────────────────
+
+
+class UserNoteModel(Base):
+    __tablename__ = "user_notes"
+    __table_args__ = (
+        Index("idx_user_notes_user_id", "user_id"),
+        Index("idx_user_notes_unit_id", "unit_id"),
+        Index("idx_user_notes_lesson_id", "lesson_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    content: Mapped[str] = mapped_column(Text, nullable=False)
+    unit_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("units.id"), nullable=True
+    )
+    lesson_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("lessons.id"), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+
+
+class UserFlashcardModel(Base):
+    __tablename__ = "user_flashcards"
+    __table_args__ = (
+        Index("idx_user_flashcards_user_id", "user_id"),
+        Index("idx_user_flashcards_created_by", "created_by"),
+        Index("idx_user_flashcards_course_id", "course_id"),
+        Index("idx_user_flashcards_unit_id", "unit_id"),
+        Index("idx_user_flashcards_lesson_id", "lesson_id"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    # NULL = course-scoped; NOT NULL = user-owned
+    user_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=True
+    )
+    created_by: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    front: Mapped[str] = mapped_column(Text, nullable=False)
+    back: Mapped[str] = mapped_column(Text, nullable=False)
+    # Exactly one of the three scope columns is set
+    course_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("courses.id"), nullable=True
+    )
+    unit_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("units.id"), nullable=True
+    )
+    lesson_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("lessons.id"), nullable=True
+    )
+    is_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )

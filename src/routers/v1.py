@@ -30,8 +30,15 @@ from schemas import (
     Course,
     EnrollRequest,
     EnrollResponse,
+    FlashcardCreate,
+    FlashcardGenerateRequest,
+    FlashcardResponse,
+    FlashcardUpdate,
     GoalResponse,
     LessonResponse,
+    NoteCreate,
+    NoteResponse,
+    NoteUpdate,
     PracticeResponse,
     PracticeSubmitRequest,
     PracticeSubmitResponse,
@@ -47,6 +54,7 @@ from schemas import (
     UserQuizProgressUpdate,
 )
 from services.enrollment import check_and_unlock_next_section, provision_enrollment
+from services.flashcards import generate_flashcards
 from services.learning import (
     format_duration,
     get_unit_details,
@@ -522,3 +530,230 @@ async def unlock_section_v1(
         "user_id": payload.user_id,
         "items_unlocked": count,
     }
+
+
+# ── Notes ─────────────────────────────────────────────────────────────────
+
+
+@router.post("/notes", response_model=NoteResponse, status_code=201)
+async def create_note(
+    body: NoteCreate,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> NoteResponse:
+    from database.repositories.notes import create_note as _create_note
+
+    note = await _create_note(
+        user_id=user["id"],
+        content=body.content,
+        unit_id=body.unit_id,
+        lesson_id=body.lesson_id,
+    )
+    if body.unit_id is not None:
+        invalidate_study_page_cache(body.unit_id)
+    return NoteResponse(**note)
+
+
+@router.put("/notes/{note_id}", response_model=NoteResponse)
+async def update_note(
+    note_id: int,
+    body: NoteUpdate,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> NoteResponse:
+    from database.repositories.notes import update_note as _update_note
+
+    note = await _update_note(note_id=note_id, user_id=user["id"], content=body.content)
+    if note is None:
+        raise HTTPException(status_code=404, detail="Note not found or access denied")
+    if note.get("unit_id") is not None:
+        invalidate_study_page_cache(note["unit_id"])
+    return NoteResponse(**note)
+
+
+@router.delete("/notes/{note_id}", status_code=204)
+async def delete_note(
+    note_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> None:
+    from database.repositories.notes import delete_note as _delete_note
+
+    # Fetch before delete to know unit_id for cache invalidation
+    from database.repositories.notes import get_note_by_id as _get_note
+
+    note = await _get_note(note_id)
+    if note is None or note["user_id"] != user["id"]:
+        raise HTTPException(status_code=404, detail="Note not found or access denied")
+    await _delete_note(note_id=note_id, user_id=user["id"])
+    if note.get("unit_id") is not None:
+        invalidate_study_page_cache(note["unit_id"])
+
+
+@router.get("/units/{unit_id}/notes", response_model=List[NoteResponse])
+async def get_unit_notes(
+    unit_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[NoteResponse]:
+    from database.repositories.notes import get_notes_for_unit
+
+    notes = await get_notes_for_unit(unit_id=unit_id, user_id=user["id"])
+    return [NoteResponse(**n) for n in notes]
+
+
+@router.get("/lessons/{lesson_id}/notes", response_model=List[NoteResponse])
+async def get_lesson_notes(
+    lesson_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[NoteResponse]:
+    from database.repositories.notes import get_notes_for_lesson
+
+    notes = await get_notes_for_lesson(lesson_id=lesson_id, user_id=user["id"])
+    return [NoteResponse(**n) for n in notes]
+
+
+@router.get("/courses/{course_id}/notes", response_model=List[NoteResponse])
+async def get_course_notes(
+    course_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[NoteResponse]:
+    from database.repositories.notes import get_notes_by_course
+    from database.repositories.learning import (
+        list_units,
+        list_sections,
+        list_lessons_for_sections,
+    )
+
+    # Resolve all unit_ids and lesson_ids for this course
+    units = await list_units(course_id)
+    unit_ids: List[int] = [u["id"] for u in units]
+    section_ids: List[int] = []
+    for uid in unit_ids:
+        secs = await list_sections(uid)
+        section_ids.extend(s["id"] for s in secs)
+    all_lessons = await list_lessons_for_sections(section_ids)
+    lesson_ids: List[int] = [lesson["id"] for lesson in all_lessons]
+
+    notes = await get_notes_by_course(
+        course_id=course_id,
+        user_id=user["id"],
+        unit_ids=unit_ids,
+        lesson_ids=lesson_ids,
+    )
+    return [NoteResponse(**n) for n in notes]
+
+
+# ── Flashcards ────────────────────────────────────────────────────────────
+
+
+@router.post("/flashcards", response_model=FlashcardResponse, status_code=201)
+async def create_flashcard(
+    body: FlashcardCreate,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> FlashcardResponse:
+    from database.repositories.flashcards import create_flashcard as _create_flashcard
+
+    owner_id = user["id"] if body.scope == "user" else None
+    card = await _create_flashcard(
+        created_by=user["id"],
+        front=body.front,
+        back=body.back,
+        user_id=owner_id,
+        course_id=body.course_id,
+        unit_id=body.unit_id,
+        lesson_id=body.lesson_id,
+        is_generated=False,
+    )
+    if body.unit_id is not None:
+        invalidate_study_page_cache(body.unit_id)
+    return FlashcardResponse(**card)
+
+
+@router.post(
+    "/flashcards/generate", response_model=List[FlashcardResponse], status_code=201
+)
+async def generate_flashcards_endpoint(
+    body: FlashcardGenerateRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[FlashcardResponse]:
+    cards = await generate_flashcards(
+        scope=body.scope,
+        target_id=body.target_id,
+        card_scope=body.card_scope,
+        user_id=user["id"],
+        force=body.force,
+    )
+    return [FlashcardResponse(**c) for c in cards]
+
+
+@router.put("/flashcards/{card_id}", response_model=FlashcardResponse)
+async def update_flashcard(
+    card_id: int,
+    body: FlashcardUpdate,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> FlashcardResponse:
+    from database.repositories.flashcards import update_flashcard as _update_flashcard
+
+    card = await _update_flashcard(
+        card_id=card_id,
+        created_by=user["id"],
+        front=body.front,
+        back=body.back,
+    )
+    if card is None:
+        raise HTTPException(
+            status_code=404, detail="Flashcard not found or access denied"
+        )
+    if card.get("unit_id") is not None:
+        invalidate_study_page_cache(card["unit_id"])
+    return FlashcardResponse(**card)
+
+
+@router.delete("/flashcards/{card_id}", status_code=204)
+async def delete_flashcard(
+    card_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> None:
+    from database.repositories.flashcards import (
+        delete_flashcard as _delete_flashcard,
+        get_flashcard_by_id,
+    )
+
+    card = await get_flashcard_by_id(card_id)
+    if card is None or card["created_by"] != user["id"]:
+        raise HTTPException(
+            status_code=404, detail="Flashcard not found or access denied"
+        )
+    await _delete_flashcard(card_id=card_id, created_by=user["id"])
+    if card.get("unit_id") is not None:
+        invalidate_study_page_cache(card["unit_id"])
+
+
+@router.get("/units/{unit_id}/flashcards", response_model=List[FlashcardResponse])
+async def get_unit_flashcards(
+    unit_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[FlashcardResponse]:
+    from database.repositories.flashcards import get_flashcards_for_unit
+
+    cards = await get_flashcards_for_unit(unit_id=unit_id, user_id=user["id"])
+    return [FlashcardResponse(**c) for c in cards]
+
+
+@router.get("/lessons/{lesson_id}/flashcards", response_model=List[FlashcardResponse])
+async def get_lesson_flashcards(
+    lesson_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[FlashcardResponse]:
+    from database.repositories.flashcards import get_flashcards_for_lesson
+
+    cards = await get_flashcards_for_lesson(lesson_id=lesson_id, user_id=user["id"])
+    return [FlashcardResponse(**c) for c in cards]
+
+
+@router.get("/courses/{course_id}/flashcards", response_model=List[FlashcardResponse])
+async def get_course_flashcards(
+    course_id: int,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> List[FlashcardResponse]:
+    from database.repositories.flashcards import get_flashcards_for_course
+
+    cards = await get_flashcards_for_course(course_id=course_id, user_id=user["id"])
+    return [FlashcardResponse(**c) for c in cards]

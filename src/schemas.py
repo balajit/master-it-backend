@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import enum
+from datetime import datetime
 from typing import List, Literal, Optional
 
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, model_validator
 
 from learning_platform.presentation.models import ContentNode
 
@@ -416,6 +417,8 @@ class LessonResponse(BaseModel):
     completed_at: Optional[str] = None
     sidebar_status: str = "not_started"  # "completed" | "in_progress" | "not_started"
     content: List[ContentNode] = []
+    has_notes: bool = False
+    has_flashcards: bool = False
 
 
 class PracticeResponse(BaseModel):
@@ -481,6 +484,8 @@ class UnitResponse(BaseModel):
     total_lessons: int = 0  # count of all lessons across all sections
     total_minutes: int = 0  # sum of all lesson duration_minutes
     sections: List[SectionResponse] = []
+    has_notes: bool = False
+    has_flashcards: bool = False
 
 
 # ── Unit Summary (lightweight listing for study page nav) ──────────────────
@@ -541,3 +546,111 @@ class SectionUnlockRequest(BaseModel):
     """Instructor request to manually unlock a section for a specific student."""
 
     user_id: int
+
+
+# ── Notes ───────────────────────────────────────────────────────────────────
+
+
+class NoteCreate(BaseModel):
+    """Create a user note attached to exactly one unit or lesson."""
+
+    content: str
+    unit_id: Optional[int] = None
+    lesson_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_target(self) -> NoteCreate:
+        set_count = sum([self.unit_id is not None, self.lesson_id is not None])
+        if set_count != 1:
+            raise ValueError("Exactly one of unit_id or lesson_id must be provided.")
+        return self
+
+
+class NoteUpdate(BaseModel):
+    content: str
+
+
+class NoteResponse(BaseModel):
+    id: int
+    content: str
+    unit_id: Optional[int] = None
+    lesson_id: Optional[int] = None
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+# ── Flashcards ───────────────────────────────────────────────────────────────
+
+
+class FlashcardCreate(BaseModel):
+    """Create a flashcard with user or course scope.
+
+    Exactly one of course_id, unit_id, lesson_id must be set.
+    scope='course' requires course_id; scope='user' requires unit_id or lesson_id.
+    """
+
+    front: str
+    back: str
+    scope: Literal["user", "course"]
+    course_id: Optional[int] = None
+    unit_id: Optional[int] = None
+    lesson_id: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validate_scope_and_target(self) -> FlashcardCreate:
+        set_count = sum(
+            [
+                self.course_id is not None,
+                self.unit_id is not None,
+                self.lesson_id is not None,
+            ]
+        )
+        if set_count != 1:
+            raise ValueError(
+                "Exactly one of course_id, unit_id, or lesson_id must be provided."
+            )
+        if self.scope == "course" and self.course_id is None:
+            raise ValueError("scope='course' requires course_id.")
+        if self.scope == "user" and self.course_id is not None:
+            raise ValueError("scope='user' cannot use course_id.")
+        return self
+
+
+class FlashcardUpdate(BaseModel):
+    """Update front and/or back of a flashcard. At least one field required."""
+
+    front: Optional[str] = None
+    back: Optional[str] = None
+
+    @model_validator(mode="after")
+    def validate_at_least_one(self) -> FlashcardUpdate:
+        if self.front is None and self.back is None:
+            raise ValueError("At least one of front or back must be provided.")
+        return self
+
+
+class FlashcardResponse(BaseModel):
+    id: int
+    front: str
+    back: str
+    user_id: Optional[int] = None
+    created_by: int
+    course_id: Optional[int] = None
+    unit_id: Optional[int] = None
+    lesson_id: Optional[int] = None
+    is_generated: bool
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
+class FlashcardGenerateRequest(BaseModel):
+    """Request AI generation of flashcards for a unit or lesson.
+
+    force=True replaces any existing generated flashcards for the same target+scope.
+    force=False (default) returns 409 if generated flashcards already exist.
+    """
+
+    scope: Literal["unit", "lesson"]
+    target_id: int
+    card_scope: Literal["user", "course"]
+    force: bool = False

@@ -12,6 +12,10 @@ from __future__ import annotations
 from typing import Dict, List, Optional
 
 from cache import TTLCache
+from database.repositories.flashcards import (
+    has_flashcards_for_lessons,
+    has_flashcards_for_unit,
+)
 from database.repositories.learning import (
     get_lesson_progress_for_user,
     get_practice_progress_for_user,
@@ -21,6 +25,10 @@ from database.repositories.learning import (
     list_practices_for_sections,
     list_quizzes_for_sections,
     list_sections,
+)
+from database.repositories.notes import (
+    has_notes_for_lessons,
+    has_notes_for_unit,
 )
 from schemas import (
     ProgressResponse,
@@ -81,18 +89,22 @@ def format_duration(minutes: int) -> str:
 async def get_unit_details(unit_id: int, user_id: int) -> Optional[UnitResponse]:
     """Return the complete study page for a unit, including user progress.
 
-    Uses 8 queries total regardless of data size, and caches the result
+    Uses 12 queries total regardless of data size, and caches the result
     per ``(unit_id, user_id)`` for 60 seconds.
 
     Queries:
-      1. get_unit
-      2. list_sections
-      3. list_lessons_for_sections (batch)
-      4. list_practices_for_sections (batch)
-      5. list_quizzes_for_sections (batch)
-      6. get_lesson_progress_for_user (batch)
-      7. get_practice_progress_for_user (batch)
-      8. get_quiz_progress_for_user (batch)
+      1.  get_unit
+      2.  list_sections
+      3.  list_lessons_for_sections (batch)
+      4.  list_practices_for_sections (batch)
+      5.  list_quizzes_for_sections (batch)
+      6.  get_lesson_progress_for_user (batch)
+      7.  get_practice_progress_for_user (batch)
+      8.  get_quiz_progress_for_user (batch)
+      9.  has_notes_for_unit (EXISTS)
+      10. has_flashcards_for_unit (EXISTS)
+      11. has_notes_for_lessons (batch EXISTS)
+      12. has_flashcards_for_lessons (batch EXISTS)
     """
     cache_key: str = f"{unit_id}:{user_id}"
     cached = _study_page_cache.get(cache_key)
@@ -131,6 +143,14 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
         user_id, practice_ids
     )
     quiz_progress: Dict[int, Dict] = await get_quiz_progress_for_user(user_id, quiz_ids)
+
+    # Batch fetch notes/flashcard existence flags (4 queries)
+    unit_has_notes: bool = await has_notes_for_unit(unit_id, user_id)
+    unit_has_flashcards: bool = await has_flashcards_for_unit(unit_id, user_id)
+    lesson_notes_map: Dict[int, bool] = await has_notes_for_lessons(lesson_ids, user_id)
+    lesson_flashcards_map: Dict[int, bool] = await has_flashcards_for_lessons(
+        lesson_ids, user_id
+    )
 
     # Pre-build section → items indexes (avoids O(S × L) set construction)
     lessons_by_section: Dict[int, List[Dict]] = {}
@@ -178,6 +198,10 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
                 if lid in lesson_progress
             },
         )
+        # Annotate lesson-level flags
+        for lesson in lessons:
+            lesson.has_notes = lesson_notes_map.get(lesson.id, False)
+            lesson.has_flashcards = lesson_flashcards_map.get(lesson.id, False)
         practices = merge_practice_status(
             practices_by_section.get(sec_id, []),
             {
@@ -246,6 +270,8 @@ async def _build_study_page(unit_id: int, user_id: int) -> Optional[UnitResponse
         total_lessons=total_lessons,
         total_minutes=total_minutes,
         sections=sections,
+        has_notes=unit_has_notes,
+        has_flashcards=unit_has_flashcards,
     )
 
 
