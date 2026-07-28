@@ -654,3 +654,33 @@ class FlashcardGenerateRequest(BaseModel):
     target_id: int
     card_scope: Literal["user", "course"]
     force: bool = False
+
+
+# ── Response schemas for OpenAPI spec completeness ───────────────────────────
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class GrantPermissionResponse(BaseModel):
+    message: str
+    permissions: List[str]
+
+
+class MessageResponse(BaseModel):
+    message: str
+
+
+class UserProgressResponse(BaseModel):
+    user_id: int
+    lessons: List[dict]
+    practices: List[dict]
+    quizzes: List[dict]
+
+
+class SectionUnlockResponse(BaseModel):
+    section_id: int
+    user_id: int
+    items_unlocked: int

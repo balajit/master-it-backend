@@ -47,10 +47,15 @@ from schemas import (
     QuizSubmitResponse,
     ResumeResponse,
     SectionUnlockRequest,
+    SectionUnlockResponse,
     UnitResponse,
     UnitSummary,
+    UserLessonProgressResponse,
     UserLessonProgressUpdate,
+    UserPracticeProgressResponse,
     UserPracticeProgressUpdate,
+    UserProgressResponse,
+    UserQuizProgressResponse,
     UserQuizProgressUpdate,
 )
 from services.enrollment import check_and_unlock_next_section, provision_enrollment
@@ -313,25 +318,27 @@ async def submit_quiz_v1(
 # ── User Progress ───────────────────────────────────────────────────────────
 
 
-@router.get("/users/me/progress")
+@router.get("/users/me/progress", response_model=UserProgressResponse)
 async def get_user_progress_v1(
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> UserProgressResponse:
     all_progress = await get_all_user_progress(user["id"])
-    return {
-        "user_id": user["id"],
-        "lessons": all_progress["lessons"],
-        "practices": all_progress["practices"],
-        "quizzes": all_progress["quizzes"],
-    }
+    return UserProgressResponse(
+        user_id=user["id"],
+        lessons=all_progress["lessons"],
+        practices=all_progress["practices"],
+        quizzes=all_progress["quizzes"],
+    )
 
 
-@router.patch("/users/me/lessons/{lesson_id}")
+@router.patch(
+    "/users/me/lessons/{lesson_id}", response_model=UserLessonProgressResponse
+)
 async def update_lesson_progress_v1(
     lesson_id: int,
     payload: UserLessonProgressUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> UserLessonProgressResponse:
     lesson = await get_lesson(lesson_id)
     if not lesson:
         raise HTTPException(status_code=404, detail="Lesson not found")
@@ -356,15 +363,17 @@ async def update_lesson_progress_v1(
     invalidate_study_page_cache(unit_id)
     # Fire-and-forget: check if this section is now fully mastered and unlock the next
     asyncio.create_task(check_and_unlock_next_section(user["id"], lesson["section_id"]))
-    return progress
+    return UserLessonProgressResponse(**progress)
 
 
-@router.patch("/users/me/practices/{practice_id}")
+@router.patch(
+    "/users/me/practices/{practice_id}", response_model=UserPracticeProgressResponse
+)
 async def update_practice_progress_v1(
     practice_id: int,
     payload: UserPracticeProgressUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> UserPracticeProgressResponse:
     practice = await get_practice(practice_id)
     if not practice:
         raise HTTPException(status_code=404, detail="Practice not found")
@@ -387,15 +396,15 @@ async def update_practice_progress_v1(
     )
     unit_id = await _resolve_unit_id_from_practice(practice_id)
     invalidate_study_page_cache(unit_id)
-    return progress
+    return UserPracticeProgressResponse(**progress)
 
 
-@router.patch("/users/me/quizzes/{quiz_id}")
+@router.patch("/users/me/quizzes/{quiz_id}", response_model=UserQuizProgressResponse)
 async def update_quiz_progress_v1(
     quiz_id: int,
     payload: UserQuizProgressUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> UserQuizProgressResponse:
     quiz = await get_quiz(quiz_id)
     if not quiz:
         raise HTTPException(status_code=404, detail="Quiz not found")
@@ -417,7 +426,7 @@ async def update_quiz_progress_v1(
     )
     unit_id = await _resolve_unit_id_from_quiz(quiz_id)
     invalidate_study_page_cache(unit_id)
-    return progress
+    return UserQuizProgressResponse(**progress)
 
 
 # ── Units listing (study page nav) ──────────────────────────────────────────
@@ -487,12 +496,12 @@ async def enroll_in_course_v1(
 # ── Section unlock (instructor) ───────────────────────────────────────────────
 
 
-@router.post("/sections/{section_id}/unlock")
+@router.post("/sections/{section_id}/unlock", response_model=SectionUnlockResponse)
 async def unlock_section_v1(
     section_id: int,
     payload: SectionUnlockRequest,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> Dict[str, Any]:
+) -> SectionUnlockResponse:
     """Manually unlock a section for a specific student.
 
     Inserts a section_unlock_overrides record and batch-upserts all locked
@@ -525,11 +534,11 @@ async def unlock_section_v1(
     if unit_id:
         invalidate_study_page_cache(unit_id)
 
-    return {
-        "section_id": section_id,
-        "user_id": payload.user_id,
-        "items_unlocked": count,
-    }
+    return SectionUnlockResponse(
+        section_id=section_id,
+        user_id=payload.user_id,
+        items_unlocked=count,
+    )
 
 
 # ── Notes ─────────────────────────────────────────────────────────────────

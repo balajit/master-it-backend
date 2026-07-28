@@ -12,6 +12,7 @@ from database import (
     list_courses,
 )
 from schemas import (
+    Course,
     CourseCreate,
     CourseStudyPlanResponse,
     StudyPlanCheckpoint,
@@ -24,17 +25,18 @@ router: APIRouter = APIRouter(prefix="/api", tags=["courses"])
 logger: logging.Logger = logging.getLogger(__name__)
 
 
-@router.get("/courses")
+@router.get("/courses", response_model=List[Course])
 async def get_courses(
     user: Dict[str, Any] = Depends(get_current_user),
-) -> List[Dict[str, Any]]:
-    return await list_courses()
+) -> List[Course]:
+    rows = await list_courses()
+    return [Course(**r) for r in rows]
 
 
-@router.post("/courses", status_code=201)
+@router.post("/courses", status_code=201, response_model=Course)
 async def add_course(
     course: CourseCreate, user: Dict[str, Any] = Depends(get_current_user)
-) -> Dict[str, Any]:
+) -> Course:
     logger.info(
         "Creating course '%s' by user %s (%s)",
         course.title,
@@ -54,7 +56,7 @@ async def add_course(
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     logger.info("Course created with id=%d", course_id)
-    return {"id": course_id, **course.model_dump(), "owner_id": user["id"]}
+    return Course(id=course_id, **course.model_dump(), owner_id=user["id"])
 
 
 @router.delete("/courses/{course_id}", status_code=204)

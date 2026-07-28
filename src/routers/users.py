@@ -24,10 +24,15 @@ from schemas import (
     AssignRole,
     CreatePermission,
     GrantPermission,
+    GrantPermissionResponse,
     LocalLogin,
     LocalRegister,
+    MessageResponse,
+    Permission,
     RevokePermission,
+    Role,
     TokenPayload,
+    TokenResponse,
     UserProfile,
 )
 
@@ -48,8 +53,8 @@ def require_permission(permission_name: str):
     return _check
 
 
-@router.post("/auth/google")
-async def auth_google(payload: TokenPayload) -> Dict[str, str]:
+@router.post("/auth/google", response_model=TokenResponse)
+async def auth_google(payload: TokenPayload) -> TokenResponse:
     from google.auth.transport import requests
     from google.oauth2 import id_token
 
@@ -67,11 +72,11 @@ async def auth_google(payload: TokenPayload) -> Dict[str, str]:
     token: str
     _: str
     token, _ = await create_token(user_id)
-    return {"access_token": token, "token_type": "bearer"}
+    return TokenResponse(access_token=token, token_type="bearer")
 
 
-@router.post("/auth/register")
-async def register(payload: LocalRegister) -> Dict[str, str]:
+@router.post("/auth/register", response_model=TokenResponse)
+async def register(payload: LocalRegister) -> TokenResponse:
     password_hash: str = bcrypt.hashpw(
         payload.password.encode(), bcrypt.gensalt()
     ).decode()
@@ -89,11 +94,11 @@ async def register(payload: LocalRegister) -> Dict[str, str]:
     token: str
     _: str
     token, _ = await create_token(user_id)
-    return {"access_token": token, "token_type": "bearer"}
+    return TokenResponse(access_token=token, token_type="bearer")
 
 
-@router.post("/auth/login")
-async def login(payload: LocalLogin) -> Dict[str, str]:
+@router.post("/auth/login", response_model=TokenResponse)
+async def login(payload: LocalLogin) -> TokenResponse:
     user: Dict[str, Any] | None = await get_user_by_email(payload.email)
     if not user or not user.get("password_hash"):
         raise HTTPException(status_code=401, detail="Invalid credentials")
@@ -104,7 +109,7 @@ async def login(payload: LocalLogin) -> Dict[str, str]:
     token: str
     _: str
     token, _ = await create_token(user["id"])
-    return {"access_token": token, "token_type": "bearer"}
+    return TokenResponse(access_token=token, token_type="bearer")
 
 
 @router.get("/me", response_model=UserProfile)
@@ -121,25 +126,29 @@ async def get_me(user: Dict[str, Any] = Depends(get_current_user)) -> UserProfil
     )
 
 
-@router.get("/roles")
+@router.get("/roles", response_model=List[Role])
 async def get_roles(
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> Any:
-    return await get_roles_with_permissions()
+) -> List[Role]:
+    rows = await get_roles_with_permissions()
+    return [Role(**r) for r in rows]
 
 
-@router.get("/permissions", status_code=200)
+@router.get("/permissions", status_code=200, response_model=List[Permission])
 async def get_permissions(
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> List[Dict[str, Any]]:
-    return await get_all_permissions()
+) -> List[Permission]:
+    rows = await get_all_permissions()
+    return [Permission(**r) for r in rows]
 
 
-@router.post("/roles/permissions", status_code=201)
+@router.post(
+    "/roles/permissions", status_code=201, response_model=GrantPermissionResponse
+)
 async def add_permission(
     payload: GrantPermission,
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> Dict[str, Any]:
+) -> GrantPermissionResponse:
     granted: List[str] = []
     for perm_name in payload.permission_names:
         try:
@@ -153,23 +162,23 @@ async def add_permission(
         payload.role_name,
         user["id"],
     )
-    return {
-        "message": f"Permissions granted to role '{payload.role_name}'",
-        "permissions": granted,
-    }
+    return GrantPermissionResponse(
+        message=f"Permissions granted to role '{payload.role_name}'",
+        permissions=granted,
+    )
 
 
-@router.post("/permissions", status_code=201)
+@router.post("/permissions", status_code=201, response_model=Permission)
 async def create_permission_endpoint(
     payload: CreatePermission,
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> Dict[str, Any]:
+) -> Permission:
     try:
         perm_id: int = await create_permission(payload.name)
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
     logger.info("Permission '%s' created by user %s", payload.name, user["id"])
-    return {"id": perm_id, "name": payload.name}
+    return Permission(id=perm_id, name=payload.name)
 
 
 @router.delete("/roles/permissions", status_code=204)
@@ -186,19 +195,20 @@ async def revoke_permission_endpoint(
     )
 
 
-@router.get("/users", status_code=200)
+@router.get("/users", status_code=200, response_model=List[UserProfile])
 async def list_users_endpoint(
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> List[Dict[str, Any]]:
-    return await list_users()
+) -> List[UserProfile]:
+    rows = await list_users()
+    return [UserProfile(**r) for r in rows]
 
 
-@router.put("/users/{user_id}/roles", status_code=200)
+@router.put("/users/{user_id}/roles", status_code=200, response_model=MessageResponse)
 async def assign_role_endpoint(
     user_id: int,
     payload: AssignRole,
     user: Dict[str, Any] = Depends(require_permission("permission:create")),
-) -> Dict[str, Any]:
+) -> MessageResponse:
     try:
         await assign_role(user_id, payload.role_name)
     except ValueError as e:
@@ -209,4 +219,6 @@ async def assign_role_endpoint(
         user_id,
         user["id"],
     )
-    return {"message": f"Role '{payload.role_name}' assigned to user {user_id}"}
+    return MessageResponse(
+        message=f"Role '{payload.role_name}' assigned to user {user_id}"
+    )
