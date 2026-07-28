@@ -24,8 +24,12 @@ def upgrade() -> None:
         sa.Column("source", sa.String(length=512), nullable=False, server_default=""),
         sa.Column("stage", sa.String(length=128), nullable=False, server_default=""),
         sa.Column("output", sa.String(length=1024), nullable=False, server_default=""),
-        sa.Column("result", sa.String(length=16), nullable=False, server_default="success"),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "result", sa.String(length=16), nullable=False, server_default="success"
+        ),
+        sa.Column(
+            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
 

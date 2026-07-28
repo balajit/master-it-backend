@@ -91,6 +91,7 @@ def upload_document(
     _ok("Document uploaded", resp.json())
     return doc_id
 
+
 def process_document(client: httpx.Client, token: str, doc_id: str) -> dict[str, Any]:
     """Run the full processing pipeline and return the response."""
     _section("3. PROCESS DOCUMENT")
@@ -237,7 +238,6 @@ def main() -> None:
         sys.exit(1)
     finally:
         client.close()
-
 
 
 if __name__ == "__main__":

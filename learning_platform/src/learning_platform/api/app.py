@@ -56,13 +56,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url="/openapi.json",
     )
 
-    from learning_platform.api.routes import documents, health
+    from learning_platform.api.routes import courses, documents, health
 
     app.include_router(health.router)
     app.include_router(
         documents.router,
         prefix="/api/documents",
         tags=["documents"],
+    )
+    app.include_router(
+        courses.router,
+        prefix="/api/courses",
+        tags=["courses"],
     )
 
     return app

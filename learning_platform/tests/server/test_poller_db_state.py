@@ -1,4 +1,4 @@
-"""Integration test: poller syncs registry.txt → lp_document_process.
+"""Server integration test: poller syncs registry.txt → lp_document_process.
 
 Verifies:
   1. FilePoller creates ``lp_document_process`` entries from registry.txt
@@ -6,7 +6,8 @@ Verifies:
   3. ``DocumentProcessRepository`` queries and updates work as expected
   4. Entries are visible in the testing database
 
-Run against the **testing** PostgreSQL (port 5433).
+Requires a live PostgreSQL instance on port 5433 (testing DB).
+Run with: uv run pytest learning_platform/tests/server/ -m server
 """
 
 from __future__ import annotations
@@ -19,13 +20,12 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from learning_platform.config import get_settings
 from learning_platform.infrastructure.persistence.engine import create_engine
-from learning_platform.infrastructure.persistence.models.document_process import DocumentProcessRow
 from learning_platform.infrastructure.persistence.repositories.document_process import (
     DocumentProcessRepository,
 )
 from learning_platform.poller import FilePoller
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.server
 
 
 @pytest.fixture

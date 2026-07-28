@@ -357,8 +357,7 @@ class TestPageAwareConceptExtraction:
 
         # Same text on both pages → deduplicated to one concept
         energy_concepts = [
-            c for c in concept_map.concepts
-            if "energy transformation" in c.name.lower()
+            c for c in concept_map.concepts if "energy transformation" in c.name.lower()
         ]
         assert len(energy_concepts) <= 1
         if energy_concepts:

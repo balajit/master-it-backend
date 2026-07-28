@@ -290,7 +290,6 @@ class TestProcess:
         dest.write_bytes(SMALL_PDF.read_bytes())
 
         doc_id_str, result = _make_result(str(dest))
-        doc_id_uuid = doc_id_str  # _make_result now returns UUID-string as key
         lp_app.dependency_overrides[get_pipeline_orchestrator] = lambda: MagicMock(
             run=MagicMock(return_value=result)
         )

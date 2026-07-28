@@ -22,6 +22,7 @@ from learning_platform.presentation.mappers.configuration import (
 )
 from learning_platform.presentation.models import (
     CardStatus,
+    ContentNode,
     DifficultyLevel,
 )
 
@@ -295,6 +296,7 @@ class LessonCardSchema(BaseModel):
     figures: list[NodeRefSchema] = Field(default_factory=list)
     tables: list[NodeRefSchema] = Field(default_factory=list)
     equations: list[NodeRefSchema] = Field(default_factory=list)
+    content: list[ContentNode] = Field(default_factory=list)
 
 
 class ExerciseOptionSchema(BaseModel):

@@ -331,9 +331,7 @@ class TestSmallPdfEndToEnd:
             if n.metadata.get("role") == "page_group":
                 page_num = n.metadata.get("page_number", 0)
                 # Check direct children of this page group
-                child_keys = [
-                    (c.bbox.y, c.bbox.x, c.seq) for c in n.children
-                ]
+                child_keys = [(c.bbox.y, c.bbox.x, c.seq) for c in n.children]
                 if child_keys:
                     assert child_keys == sorted(child_keys), (
                         f"Page {page_num}: children not in spatial order"

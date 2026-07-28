@@ -75,8 +75,18 @@ def test_lesson_card_content_references_and_page_range():
     )
     study_plan = StudyPlan(title="Plan", lessons=[lesson])
 
-    page1 = PageContext(page_number=1, heading="Header 1", page_text="Page 1 full text content", units=[lesson_unit])
-    page3 = PageContext(page_number=3, heading="Header 3", page_text="Page 3 full text content", units=[lesson_unit])
+    page1 = PageContext(
+        page_number=1,
+        heading="Header 1",
+        page_text="Page 1 full text content",
+        units=[lesson_unit],
+    )
+    page3 = PageContext(
+        page_number=3,
+        heading="Header 3",
+        page_text="Page 3 full text content",
+        units=[lesson_unit],
+    )
 
     output = PipelineOutput(
         document=doc,
@@ -134,7 +144,9 @@ def test_objective_annotation_tracing():
     ann1 = ObjectiveAnnotation(id=uuid4(), node_id=node_id, objective_text="Objective 1")
 
     course_unit = LearningUnit(id=uuid4(), unit_type=UnitType.COURSE, title="Course")
-    module_unit = LearningUnit(id=uuid4(), unit_type=UnitType.MODULE, title="Module", parent_id=course_unit.id)
+    module_unit = LearningUnit(
+        id=uuid4(), unit_type=UnitType.MODULE, title="Module", parent_id=course_unit.id
+    )
     lesson_unit = LearningUnit(
         id=uuid4(),
         unit_type=UnitType.LESSON,
@@ -145,7 +157,9 @@ def test_objective_annotation_tracing():
     course_unit.children_ids = [module_unit.id]
     module_unit.children_ids = [lesson_unit.id]
 
-    lesson = Lesson(id=uuid4(), unit_id=lesson_unit.id, title="Lesson", learning_objectives=["Objective 1"])
+    lesson = Lesson(
+        id=uuid4(), unit_id=lesson_unit.id, title="Lesson", learning_objectives=["Objective 1"]
+    )
     doc = CanonicalDocument(source="test.pdf", title="Doc", nodes=[])
     output = PipelineOutput(
         document=doc,
@@ -167,7 +181,7 @@ def test_objective_annotation_tracing():
 
 
 def test_practice_card_exercise_details_resolution():
-    """Verify PracticeCard resolves question text, options, and solution from Exercise DocumentNode."""
+    """Verify PracticeCard resolves question text, options, and solution from Exercise."""
     exercise_id = uuid4()
     ex_content = Exercise(
         question=StyledText(runs=[TextRun(text="What is 2 + 2?")]),

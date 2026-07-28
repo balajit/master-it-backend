@@ -7,7 +7,9 @@ sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from dotenv import load_dotenv
 
-parser = argparse.ArgumentParser(description="System init: roles, permissions, superusers.")
+parser = argparse.ArgumentParser(
+    description="System init: roles, permissions, superusers."
+)
 parser.add_argument(
     "--env",
     choices=["test", "prod"],
@@ -43,7 +45,11 @@ async def init_roles(session: AsyncSession) -> None:
     )
     for role_name in roles:
         existing = (
-            (await session.execute(select(RoleModel).where(RoleModel.name == role_name)))
+            (
+                await session.execute(
+                    select(RoleModel).where(RoleModel.name == role_name)
+                )
+            )
             .scalars()
             .first()
         )
@@ -65,7 +71,11 @@ async def init_permissions(session: AsyncSession) -> None:
     )
     for perm_name in permissions:
         existing = (
-            (await session.execute(select(PermissionModel).where(PermissionModel.name == perm_name)))
+            (
+                await session.execute(
+                    select(PermissionModel).where(PermissionModel.name == perm_name)
+                )
+            )
             .scalars()
             .first()
         )
@@ -82,7 +92,11 @@ async def init_role_permissions(session: AsyncSession) -> None:
     }
     for role_name, perms in assignments.items():
         role = (
-            (await session.execute(select(RoleModel).where(RoleModel.name == role_name)))
+            (
+                await session.execute(
+                    select(RoleModel).where(RoleModel.name == role_name)
+                )
+            )
             .scalars()
             .first()
         )
@@ -90,7 +104,11 @@ async def init_role_permissions(session: AsyncSession) -> None:
             continue
         for perm_name in perms:
             perm = (
-                (await session.execute(select(PermissionModel).where(PermissionModel.name == perm_name)))
+                (
+                    await session.execute(
+                        select(PermissionModel).where(PermissionModel.name == perm_name)
+                    )
+                )
                 .scalars()
                 .first()
             )
@@ -109,11 +127,7 @@ async def init_role_permissions(session: AsyncSession) -> None:
                 .first()
             )
             if not existing:
-                session.add(
-                    RolePermissionModel(
-                        role_id=role.id, permission_id=perm.id
-                    )
-                )
+                session.add(RolePermissionModel(role_id=role.id, permission_id=perm.id))
     await session.flush()
     print("Role-permission assignments ensured")
 

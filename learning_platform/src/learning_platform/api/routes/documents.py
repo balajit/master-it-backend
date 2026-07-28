@@ -1,27 +1,27 @@
-"""Document processing routes — process a file and view canonical results.
+"""Document processing routes — upload, process a file, and view canonical results.
 
 The learning platform is modular and oblivious to the owning application.
 It works with *file paths* and *canonical documents* only.  It does not
-know about courses, uploaded-document entities, or file storage decisions.
+know about courses or file storage decisions.
 
-The owning application (``src/``) is responsible for:
-- Uploading files and creating document records
-- Associating documents with courses
-- Calling ``POST /process`` with a file path to trigger the pipeline
+Typical workflow:
+  1. ``POST /upload``          — upload a file, receive a ``doc_id``
+  2. ``POST /{doc_id}/process`` — run the full pipeline on the uploaded file
+  3. ``GET  /{doc_id}/tree``   — view results
 """
 
 from __future__ import annotations
 
 import asyncio
-import hashlib
 import logging
 import os
+import shutil
 from pathlib import Path
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.api.auth import get_current_user
@@ -61,16 +61,20 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
-# ── Request schema for /process ─────────────────────────────────────────────
+# ── Request / response schemas ───────────────────────────────────────────────
+
+
+class UploadResponse(BaseModel):
+    """Response for the upload endpoint."""
+
+    doc_id: UUID
+    filename: str
 
 
 class ProcessRequest(BaseModel):
-    """Request body for the process endpoint."""
+    """Request body for the legacy file-path process endpoint (kept for backward compatibility)."""
 
-    file_path: str = Field(
-        ...,
-        description=("Path to the document file, either absolute or relative to the UPLOAD_DIR."),
-    )
+    file_path: str
 
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
@@ -106,61 +110,73 @@ def _build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
     )
 
 
-def _stable_doc_id(file_path: str) -> str:
-    """Derive a stable, deterministic document ID from the file path.
-
-    Uses a SHA-256 hash of the *resolved absolute path* so the same file
-    always produces the same ID regardless of how the path was supplied
-    (relative vs. absolute).  This ID is used as the cache key and as the
-    primary key for all persistence calls, so host-app and LP are aligned.
-    """
-    resolved = str(Path(file_path).resolve())
-    return hashlib.sha256(resolved.encode()).hexdigest()
-
-
-def _resolve_file_path(file_path: str) -> str:
-    """Resolve a file path to an absolute path.
-
-    If the path is relative, it is resolved against the UPLOAD_DIR
-    environment variable (default ``uploads``).
-    """
-    p = Path(file_path)
-    if p.is_absolute():
-        return str(p)
-
-    upload_dir = Path(os.getenv("UPLOAD_PATH", "uploads"))
-    return str(upload_dir / p)
-
-
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
 
 @router.post(
-    "/process",
-    response_model=DocumentProcessResponse,
+    "/upload",
+    response_model=UploadResponse,
     status_code=201,
-    summary="Process a document through the full pipeline",
+    summary="Upload a document file",
     description=(
-        "Accept a file path, run the complete processing pipeline (parse, "
-        "normalize, enrich, build learning units, extract concepts, build "
-        "knowledge graph, generate study plan), persist the canonical "
-        "document, and return summary counts."
+        "Accept a file upload, store it under a new UUID, and return the "
+        "``doc_id`` to use in subsequent pipeline calls."
     ),
     responses={
-        400: {"model": ErrorResponse, "description": "Invalid file path"},
+        400: {"model": ErrorResponse, "description": "No filename provided"},
+    },
+)
+async def upload_document(
+    file: UploadFile,
+    user: dict = Depends(get_current_user),
+) -> UploadResponse:
+    """Store the uploaded file and return a stable doc_id."""
+    if not file.filename:
+        raise HTTPException(status_code=400, detail="No filename provided")
+
+    doc_id = uuid4()
+    dest_dir = Path("uploads") / str(doc_id)
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / file.filename
+
+    with dest.open("wb") as fh:
+        shutil.copyfileobj(file.file, fh)
+
+    return UploadResponse(doc_id=doc_id, filename=file.filename)
+
+
+@router.post(
+    "/{doc_id}/process",
+    response_model=DocumentProcessResponse,
+    status_code=200,
+    summary="Process a document through the full pipeline",
+    description=(
+        "Run the complete processing pipeline on a previously uploaded document "
+        "(parse, normalize, enrich, build learning units, extract concepts, build "
+        "knowledge graph, generate study plan), persist the canonical document, "
+        "and return summary counts."
+    ),
+    responses={
+        404: {"model": ErrorResponse, "description": "Uploaded file not found"},
         500: {"model": ErrorResponse, "description": "Pipeline error"},
     },
 )
 async def process_document(
-    body: ProcessRequest,
+    doc_id: UUID,
     orchestrator: PipelineOrchestrator = Depends(get_pipeline_orchestrator),  # type: ignore[assignment]
     session: AsyncSession = Depends(get_session),  # type: ignore[assignment]
     user: dict = Depends(get_current_user),
 ) -> DocumentProcessResponse:
-    """Run the full pipeline on the file at *file_path*."""
-    source = _resolve_file_path(body.file_path)
-    if not Path(source).exists():
-        raise HTTPException(status_code=400, detail=f"File not found: {source}")
+    """Run the full pipeline on the file previously uploaded under *doc_id*."""
+    upload_dir = Path("uploads") / str(doc_id)
+    if not upload_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Uploaded file not found for {doc_id}")
+
+    # Find the first file in the upload directory.
+    candidates = [f for f in upload_dir.iterdir() if f.is_file()]
+    if not candidates:
+        raise HTTPException(status_code=404, detail=f"No uploaded file found for {doc_id}")
+    source = str(candidates[0])
 
     try:
         result = await asyncio.to_thread(orchestrator.run, source)
@@ -170,13 +186,7 @@ async def process_document(
             detail=f"Pipeline failed: {exc}",
         ) from exc
 
-    # Stable doc ID derived from the resolved file path — consistent across
-    # re-runs and shared with the host app's document ID via _stable_doc_id().
-    doc_id_str = _stable_doc_id(source)
-    doc_id_uuid = UUID(doc_id_str[:32])  # first 32 hex chars = valid UUID
-
-    # Store under the UUID string — the same key all read endpoints use.
-    pipeline_cache.set(str(doc_id_uuid), result)
+    pipeline_cache.set(str(doc_id), result)
 
     doc_repo = DocumentRepository(session)
     unit_repo = LearningUnitRepository(session)
@@ -185,16 +195,16 @@ async def process_document(
     graph_repo = KnowledgeGraphRepository(session)
     plan_repo = StudyPlanRepository(session)
 
-    await doc_repo.save_document(result.document, doc_id=doc_id_uuid)
-    await unit_repo.save_all_units(result.units, doc_id_uuid)
-    await ann_repo.save_all_annotations(result.annotations, doc_id_uuid)
-    await concept_repo.save_concept_map(result.concepts, doc_id_uuid)
-    await graph_repo.save_graph(result.graph, doc_id_uuid)
-    await plan_repo.save_plan(result.study_plan, doc_id_uuid)
+    await doc_repo.save_document(result.document, doc_id=doc_id)
+    await unit_repo.save_all_units(result.units, doc_id)
+    await ann_repo.save_all_annotations(result.annotations, doc_id)
+    await concept_repo.save_concept_map(result.concepts, doc_id)
+    await graph_repo.save_graph(result.graph, doc_id)
+    await plan_repo.save_plan(result.study_plan, doc_id)
     await session.commit()
 
     return DocumentProcessResponse(
-        doc_id=doc_id_uuid,
+        doc_id=doc_id,
         title=result.document.title,
         units_count=len(result.units),
         concepts_count=len(result.concepts.concepts),
@@ -256,10 +266,11 @@ async def view_document_tree(
 )
 async def enrich_document(
     doc_id: UUID,
+    orchestrator: PipelineOrchestrator = Depends(get_pipeline_orchestrator),  # type: ignore[assignment]
     session: AsyncSession = Depends(get_session),  # type: ignore[assignment]
     user: dict = Depends(get_current_user),
 ) -> DocumentProcessResponse:
-    """Run enrichment (or full pipeline if not yet processed)."""
+    """Return cached result if available, otherwise run the full pipeline."""
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         return DocumentProcessResponse(
@@ -273,9 +284,47 @@ async def enrich_document(
             milestones=len(cached.study_plan.milestones),
             message="Document already processed (cached result)",
         )
-    raise HTTPException(
-        status_code=404,
-        detail=f"Document {doc_id} not found — call /process first",
+
+    # Not cached — run pipeline on the previously uploaded file.
+    upload_dir = Path("uploads") / str(doc_id)
+    if not upload_dir.exists():
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    candidates = [f for f in upload_dir.iterdir() if f.is_file()]
+    if not candidates:
+        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
+    source = str(candidates[0])
+
+    try:
+        result = await asyncio.to_thread(orchestrator.run, source)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
+
+    pipeline_cache.set(str(doc_id), result)
+
+    doc_repo = DocumentRepository(session)
+    unit_repo = LearningUnitRepository(session)
+    ann_repo = AnnotationRepository(session)
+    concept_repo = ConceptRepository(session)
+    graph_repo = KnowledgeGraphRepository(session)
+    plan_repo = StudyPlanRepository(session)
+
+    await doc_repo.save_document(result.document, doc_id=doc_id)
+    await unit_repo.save_all_units(result.units, doc_id)
+    await ann_repo.save_all_annotations(result.annotations, doc_id)
+    await concept_repo.save_concept_map(result.concepts, doc_id)
+    await graph_repo.save_graph(result.graph, doc_id)
+    await plan_repo.save_plan(result.study_plan, doc_id)
+    await session.commit()
+
+    return DocumentProcessResponse(
+        doc_id=doc_id,
+        title=result.document.title,
+        units_count=len(result.units),
+        concepts_count=len(result.concepts.concepts),
+        graph_nodes=len(result.graph.nodes),
+        graph_edges=len(result.graph.edges),
+        lessons=result.study_plan.total_lessons,
+        milestones=len(result.study_plan.milestones),
     )
 
 

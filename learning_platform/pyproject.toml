@@ -55,6 +55,11 @@ plugins = ["pydantic.mypy"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "integration: in-process integration tests (no live server required)",
+    "server: requires a live PostgreSQL instance on port 5433",
+    "slow: tests that run the full pipeline and are intentionally slow",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/learning_platform"]

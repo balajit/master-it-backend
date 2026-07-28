@@ -29,7 +29,9 @@ def _make_mock_session() -> AsyncMock:
     return session
 
 
-def _patch_session_execute(session: AsyncMock, rows: Any = None, rowcount: int = 1) -> None:
+def _patch_session_execute(
+    session: AsyncMock, rows: Any = None, rowcount: int = 1
+) -> None:
     """Configure session.execute to return mock results."""
     scalars_mock = MagicMock()
     if rows is None:
@@ -114,8 +116,13 @@ class TestGetUnit:
         from database.repositories.learning import get_unit
 
         unit = _mock_model(
-            id=1, course_id=1, title="U", description="D",
-            display_order=0, created_at="2026-01-01", updated_at="2026-01-01",
+            id=1,
+            course_id=1,
+            title="U",
+            description="D",
+            display_order=0,
+            created_at="2026-01-01",
+            updated_at="2026-01-01",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[unit])
@@ -144,12 +151,22 @@ class TestListUnits:
         from database.repositories.learning import list_units
 
         u1 = _mock_model(
-            id=1, course_id=1, title="A", description="",
-            display_order=0, created_at="", updated_at="",
+            id=1,
+            course_id=1,
+            title="A",
+            description="",
+            display_order=0,
+            created_at="",
+            updated_at="",
         )
         u2 = _mock_model(
-            id=2, course_id=1, title="B", description="",
-            display_order=1, created_at="", updated_at="",
+            id=2,
+            course_id=1,
+            title="B",
+            description="",
+            display_order=1,
+            created_at="",
+            updated_at="",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[u1, u2])
@@ -265,8 +282,13 @@ class TestGetSection:
         from database.repositories.learning import get_section
 
         sec = _mock_model(
-            id=1, unit_id=1, title="S", estimated_minutes=30,
-            display_order=0, created_at="", updated_at="",
+            id=1,
+            unit_id=1,
+            title="S",
+            estimated_minutes=30,
+            display_order=0,
+            created_at="",
+            updated_at="",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[sec])
@@ -356,8 +378,14 @@ class TestGetLesson:
         from database.repositories.learning import get_lesson
 
         lesson = _mock_model(
-            id=1, section_id=1, title="L", description="D",
-            duration_minutes=10, display_order=0, created_at="", updated_at="",
+            id=1,
+            section_id=1,
+            title="L",
+            description="D",
+            duration_minutes=10,
+            display_order=0,
+            created_at="",
+            updated_at="",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[lesson])
@@ -433,8 +461,14 @@ class TestGetPractice:
         from database.repositories.learning import get_practice
 
         p = _mock_model(
-            id=1, section_id=1, title="P", required_correct=8,
-            total_questions=10, display_order=0, created_at="", updated_at="",
+            id=1,
+            section_id=1,
+            title="P",
+            required_correct=8,
+            total_questions=10,
+            display_order=0,
+            created_at="",
+            updated_at="",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[p])
@@ -510,7 +544,11 @@ class TestGetQuiz:
         from database.repositories.learning import get_quiz
 
         q = _mock_model(
-            id=1, section_id=1, title="Q", created_at="", updated_at="",
+            id=1,
+            section_id=1,
+            title="Q",
+            created_at="",
+            updated_at="",
         )
         session = _make_mock_session()
         _patch_session_execute(session, rows=[q])
@@ -539,31 +577,37 @@ class TestGetQuiz:
 class TestBatchQueries:
     def test_list_lessons_empty_input(self) -> None:
         from database.repositories.learning import list_lessons_for_sections
+
         result = asyncio.run(list_lessons_for_sections([]))
         assert result == []
 
     def test_list_practices_empty_input(self) -> None:
         from database.repositories.learning import list_practices_for_sections
+
         result = asyncio.run(list_practices_for_sections([]))
         assert result == []
 
     def test_list_quizzes_empty_input(self) -> None:
         from database.repositories.learning import list_quizzes_for_sections
+
         result = asyncio.run(list_quizzes_for_sections([]))
         assert result == []
 
     def test_get_lesson_progress_empty_input(self) -> None:
         from database.repositories.learning import get_lesson_progress_for_user
+
         result = asyncio.run(get_lesson_progress_for_user(1, []))
         assert result == {}
 
     def test_get_practice_progress_empty_input(self) -> None:
         from database.repositories.learning import get_practice_progress_for_user
+
         result = asyncio.run(get_practice_progress_for_user(1, []))
         assert result == {}
 
     def test_get_quiz_progress_empty_input(self) -> None:
         from database.repositories.learning import get_quiz_progress_for_user
+
         result = asyncio.run(get_quiz_progress_for_user(1, []))
         assert result == {}
 
@@ -734,9 +778,15 @@ class TestUserPracticeProgress:
 
         session = _make_mock_session()
         with patch("database.repositories.learning.AsyncSession", return_value=session):
-            asyncio.run(upsert_user_practice_progress(
-                1, 20, attempts=3, best_score=8.5, status="MASTERED",
-            ))
+            asyncio.run(
+                upsert_user_practice_progress(
+                    1,
+                    20,
+                    attempts=3,
+                    best_score=8.5,
+                    status="MASTERED",
+                )
+            )
 
         session.execute.assert_called_once()
         session.commit.assert_called_once()

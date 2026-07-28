@@ -298,7 +298,8 @@ class LearningExperienceMapper:
                 cur_s, cur_e = self._page_ranges.get(uid, (0, 0))
                 if cur_s == 0:
                     self._page_ranges[uid] = (
-                        page.page_number, page.page_number,
+                        page.page_number,
+                        page.page_number,
                     )
                 else:
                     self._page_ranges[uid] = (
@@ -315,9 +316,7 @@ class LearningExperienceMapper:
         # Units with no children are leaves — they go first
         for uid in unit_ids:
             unit = self._units_by_id[uid]
-            if not unit.children_ids or all(
-                c not in self._units_by_id for c in unit.children_ids
-            ):
+            if not unit.children_ids or all(c not in self._units_by_id for c in unit.children_ids):
                 order.append(uid)
                 children_done.add(uid)
                 remaining.discard(uid)
@@ -328,8 +327,7 @@ class LearningExperienceMapper:
             for uid in list(remaining):
                 unit = self._units_by_id[uid]
                 if all(
-                    c in children_done or c not in self._units_by_id
-                    for c in unit.children_ids
+                    c in children_done or c not in self._units_by_id for c in unit.children_ids
                 ):
                     order.append(uid)
                     children_done.add(uid)
@@ -350,9 +348,7 @@ class LearningExperienceMapper:
                     self._descendant_ids[child_id],
                 )
                 self._lesson_counts[uid] += self._lesson_counts[child_id]
-                self._exercise_counts[uid] += self._exercise_counts[
-                    child_id
-                ]
+                self._exercise_counts[uid] += self._exercise_counts[child_id]
                 self._lesson_ids[uid].update(self._lesson_ids[child_id])
                 self._exercises_index[uid].extend(
                     self._exercises_index[child_id],
@@ -368,7 +364,8 @@ class LearningExperienceMapper:
                             self._page_ranges[uid] = (s, e)
                         else:
                             self._page_ranges[uid] = (
-                                min(cur_s, s), max(cur_e, e),
+                                min(cur_s, s),
+                                max(cur_e, e),
                             )
 
         # ── 4. Section IDs (top-down) ───────────────────────────────────
@@ -387,7 +384,8 @@ class LearningExperienceMapper:
                     self._section_ids[cid] = cid
                 else:
                     self._section_ids[cid] = self._section_ids.get(
-                        unit.parent_id, cid,
+                        unit.parent_id,
+                        cid,
                     )
                 queue.extend(unit.children_ids)
 
@@ -525,7 +523,8 @@ class LearningExperienceMapper:
 
         # Resolve page range: first and last pages containing any child unit's content
         start_page, end_page = self._find_page_range_for_unit(
-            section_unit.id, pipeline_output.pages,
+            section_unit.id,
+            pipeline_output.pages,
         )
 
         return Section(
@@ -592,6 +591,7 @@ class LearningExperienceMapper:
         pages: list[PageContext] | None = None,
     ) -> list:
         """Build LessonCards from the study plan using configuration."""
+        from learning_platform.presentation.mappers.content_mapper import document_nodes_to_content
         from learning_platform.presentation.models import LessonCard
 
         # Build a unit_id → list[page_number] lookup from page contexts
@@ -642,6 +642,18 @@ class LearningExperienceMapper:
             start_page = min(lesson_pages) if lesson_pages else 0
             end_page = max(lesson_pages) if lesson_pages else 0
 
+            # Build content nodes from the canonical document for this lesson's page range.
+            # When start_page is 0 (no page-unit associations), use all document nodes.
+            lesson_content = []
+            if self._document is not None:
+                if start_page > 0:
+                    page_nodes = [
+                        n for n in self._document.nodes if start_page <= n.page <= end_page
+                    ]
+                else:
+                    page_nodes = list(self._document.nodes)
+                lesson_content = document_nodes_to_content(page_nodes)
+
             lessons.append(
                 LessonCard(
                     lesson_id=lesson.id,
@@ -663,6 +675,7 @@ class LearningExperienceMapper:
                     figures=unit.figures,
                     tables=unit.tables,
                     equations=unit.equations,
+                    content=lesson_content,
                 )
             )
 
@@ -717,8 +730,7 @@ class LearningExperienceMapper:
         return [
             ann.id
             for ann in self._annotations
-            if isinstance(ann, ObjectiveAnnotation)
-            and ann.node_id in node_ids
+            if isinstance(ann, ObjectiveAnnotation) and ann.node_id in node_ids
         ]
 
     # ── Practices ────────────────────────────────────────────────────────

@@ -13,19 +13,16 @@ logger.setLevel(level=logging.INFO)
 logger.info("TEST INFO")
 logger.warning("TEST WARNING")
 
+
 def normalize() -> CanonicalDocument:
     normalizer = StructuralNormalizer()
     return normalizer.normalize(process())
 
-if __name__ == "__main__":
-    doc : CanonicalDocument = normalize()
 
-    for node in doc.nodes :
+if __name__ == "__main__":
+    doc: CanonicalDocument = normalize()
+
+    for node in doc.nodes:
         print(node.to_string())
         for c_node in node.children:
             print("Child ----> " + c_node.to_string())
-
-
-
-
-

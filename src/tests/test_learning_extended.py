@@ -226,7 +226,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/api/v1/units/99999")
                 return resp.status_code
 
@@ -238,7 +240,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/sections/99999")
                 return resp.status_code
 
@@ -250,7 +254,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/lessons/99999")
                 return resp.status_code
 
@@ -262,7 +268,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/practices/99999")
                 return resp.status_code
 
@@ -274,7 +282,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/quizzes/99999")
                 return resp.status_code
 
@@ -286,9 +296,12 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.patch(
-                    "/learning/lessons/99999", json={"title": "X"},
+                    "/learning/lessons/99999",
+                    json={"title": "X"},
                 )
                 return resp.status_code
 
@@ -300,7 +313,9 @@ class TestMissingEntity404:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.delete("/learning/units/99999")
                 return resp.status_code
 
@@ -436,16 +451,19 @@ class TestMergeStatuses:
 
     def test_merge_lesson_prioritizes_completed(self) -> None:
         from services.progress import merge_lesson_status
+
         s = merge_lesson_status("COMPLETED", "NOT_STARTED")
         assert s == "COMPLETED"
 
     def test_merge_lesson_prioritizes_familiar_over_attempted(self) -> None:
         from services.progress import merge_lesson_status
+
         s = merge_lesson_status("ATTEMPTED", "FAMILIAR")
         assert s == "FAMILIAR"
 
     def test_merge_practice_prioritizes_mastered(self) -> None:
         from services.progress import merge_practice_status
+
         s = merge_practice_status("MASTERED", "PRACTICED")
         assert s == "MASTERED"
 
@@ -532,7 +550,9 @@ class TestQuizSubmissionEdgeCases:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/quizzes/99999/submit",
                     json={"score": 85.0},
@@ -549,7 +569,9 @@ class TestQuizSubmissionEdgeCases:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/quizzes/1/submit",
                     json={"score": 70.0},
@@ -580,7 +602,9 @@ class TestPracticeSubmissionEdgeCases:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/practices/99999/submit",
                     json={"correct": 8, "total": 10},
@@ -591,12 +615,16 @@ class TestPracticeSubmissionEdgeCases:
 
     @patch("database.repositories.learning.AsyncSession")
     def test_submit_practice_zero_total(self, _mock: MagicMock) -> None:
-        practice = _mock_model(id=1, section_id=1, required_correct=8, total_questions=10)
+        practice = _mock_model(
+            id=1, section_id=1, required_correct=8, total_questions=10
+        )
         _mock.return_value = _mock_session(rows=[practice])
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/practices/1/submit",
                     json={"correct": 0, "total": 0},
@@ -627,7 +655,9 @@ class TestCreateWithInvalidParent:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/sections/",
                     json={"unit_id": 99999, "title": "X"},
@@ -642,7 +672,9 @@ class TestCreateWithInvalidParent:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/lessons/",
                     json={"section_id": 99999, "title": "X"},
@@ -657,7 +689,9 @@ class TestCreateWithInvalidParent:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/practices/",
                     json={"section_id": 99999, "title": "X"},
@@ -672,7 +706,9 @@ class TestCreateWithInvalidParent:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/quizzes/",
                     json={"section_id": 99999, "title": "X"},
@@ -687,7 +723,9 @@ class TestCreateWithInvalidParent:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/units/",
                     json={"course_id": 99999, "title": "X"},
@@ -714,14 +752,18 @@ class TestCacheInvalidation:
     @patch("services.learning.invalidate_study_page_cache")
     @patch("database.repositories.learning.AsyncSession")
     def test_create_lesson_invalidates_cache(
-        self, _mock: MagicMock, mock_invalidate: MagicMock,
+        self,
+        _mock: MagicMock,
+        mock_invalidate: MagicMock,
     ) -> None:
         section = _mock_model(id=1)
         _mock.return_value = _mock_session(rows=[section])
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/lessons/",
                     json={"section_id": 1, "title": "X"},
@@ -734,14 +776,18 @@ class TestCacheInvalidation:
     @patch("services.learning.invalidate_study_page_cache")
     @patch("database.repositories.learning.AsyncSession")
     def test_create_practice_invalidates_cache(
-        self, _mock: MagicMock, mock_invalidate: MagicMock,
+        self,
+        _mock: MagicMock,
+        mock_invalidate: MagicMock,
     ) -> None:
         section = _mock_model(id=1)
         _mock.return_value = _mock_session(rows=[section])
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/practices/",
                     json={"section_id": 1, "title": "X"},

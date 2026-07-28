@@ -114,9 +114,7 @@ class SemanticEnricher(Protocol):
         self, document: CanonicalDocument
     ) -> tuple[CanonicalDocument, list[Annotation]]: ...
 
-    def enrich_pages(
-        self, pages: list[PageContext]
-    ) -> list[PageContext]: ...
+    def enrich_pages(self, pages: list[PageContext]) -> list[PageContext]: ...
 
 
 @runtime_checkable
@@ -131,9 +129,7 @@ class LearningUnitBuilder(Protocol):
         self, document: CanonicalDocument, annotations: list[Annotation]
     ) -> list[LearningUnit]: ...
 
-    def build_pages(
-        self, pages: list[PageContext]
-    ) -> list[LearningUnit]: ...
+    def build_pages(self, pages: list[PageContext]) -> list[LearningUnit]: ...
 
 
 @runtime_checkable

@@ -12,6 +12,7 @@ import pytest
 from httpx import ASGITransport, AsyncClient
 
 from learning_platform.api.app import create_app
+from learning_platform.api.auth import get_current_user
 from learning_platform.api.deps import get_pipeline_orchestrator, get_session
 from learning_platform.cache import pipeline_cache
 from learning_platform.config import Settings
@@ -67,8 +68,13 @@ def settings() -> Settings:
 
 @pytest.fixture()
 def app(settings: Settings):
-    """Create the FastAPI app with routes wired."""
-    return create_app(settings)
+    """Create the FastAPI app with routes wired and auth bypassed."""
+    application = create_app(settings)
+    application.dependency_overrides[get_current_user] = lambda: {
+        "id": 1,
+        "email": "test@test.com",
+    }
+    return application
 
 
 @pytest.fixture()

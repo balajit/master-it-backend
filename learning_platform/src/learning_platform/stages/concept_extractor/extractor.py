@@ -156,8 +156,7 @@ class ConceptExtractor:
             # Find units that overlap with this page's nodes
             page_node_ids = {n.id for n in page.nodes}
             page_units = [
-                u for u in units
-                if any(nid in page_node_ids for nid in u.source_node_ids)
+                u for u in units if any(nid in page_node_ids for nid in u.source_node_ids)
             ]
 
             for strategy in self._strategies:
@@ -167,7 +166,9 @@ class ConceptExtractor:
                     found = strategy.extract(page_doc, page.annotations, page_units)
                     _LOG.debug(
                         "  → %d concepts from %s on page %d",
-                        len(found), name, page.page_number,
+                        len(found),
+                        name,
+                        page.page_number,
                     )
                     raw_concepts.extend(found)
                 except Exception:

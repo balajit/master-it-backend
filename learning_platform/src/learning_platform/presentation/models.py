@@ -15,7 +15,7 @@ Design Principles
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
+from typing import Annotated, Any, Literal, Union
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -184,6 +184,11 @@ class LessonCard(BaseModel):
     figures: list[NodeRef] = Field(default_factory=list)
     tables: list[NodeRef] = Field(default_factory=list)
     equations: list[NodeRef] = Field(default_factory=list)
+    content: list[ContentNode] = Field(
+        default_factory=list,
+        description="Ordered array of typed content nodes for this lesson. "
+        "Empty list when content has not yet been extracted.",
+    )
 
 
 class ExerciseOption(BaseModel):
@@ -340,6 +345,215 @@ class NavigationNode(BaseModel):
     is_current: bool = False
     is_accessible: bool = True
     status: CardStatus = CardStatus.NOT_STARTED
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Content Node Types — typed, ordered lesson body content
+# ──────────────────────────────────────────────────────────────────────────────
+
+
+class TextRunType(StrEnum):
+    """Discriminator for inline run types within a paragraph."""
+
+    TEXT = "text"
+    EQ = "eq"
+    BOLD = "bold"
+    ITALIC = "italic"
+    CODE = "code"
+    LINK = "link"
+
+
+class PlainRun(BaseModel):
+    """A plain text span within a paragraph."""
+
+    run_type: Literal[TextRunType.TEXT] = TextRunType.TEXT
+    text: str
+
+
+class EqRun(BaseModel):
+    """An inline LaTeX equation embedded in a paragraph."""
+
+    run_type: Literal[TextRunType.EQ] = TextRunType.EQ
+    latex: str
+
+
+class BoldRun(BaseModel):
+    """Bold text span."""
+
+    run_type: Literal[TextRunType.BOLD] = TextRunType.BOLD
+    text: str
+
+
+class ItalicRun(BaseModel):
+    """Italic text span."""
+
+    run_type: Literal[TextRunType.ITALIC] = TextRunType.ITALIC
+    text: str
+
+
+class CodeRun(BaseModel):
+    """Inline code span."""
+
+    run_type: Literal[TextRunType.CODE] = TextRunType.CODE
+    text: str
+
+
+class LinkRun(BaseModel):
+    """Hyperlink span."""
+
+    run_type: Literal[TextRunType.LINK] = TextRunType.LINK
+    text: str
+    href: str
+
+
+InlineRun = Annotated[
+    Union[PlainRun, EqRun, BoldRun, ItalicRun, CodeRun, LinkRun],  # noqa: UP007
+    Field(discriminator="run_type"),
+]
+
+
+class HeadingNode(BaseModel):
+    """A section heading."""
+
+    type: Literal["heading"] = "heading"
+    level: int = Field(
+        ge=1, le=4, description="1=chapter, 2=section, 3=subsection, 4=sub-subsection"
+    )
+    number: str = ""
+    text: str
+
+
+class ParagraphNode(BaseModel):
+    """A paragraph of inline content, possibly with mixed styling and inline math."""
+
+    type: Literal["paragraph"] = "paragraph"
+    runs: list[InlineRun] = Field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, text: str) -> ParagraphNode:
+        """Convenience constructor for a plain-text paragraph."""
+        return cls(runs=[PlainRun(text=text)])
+
+
+class ListItemNode(BaseModel):
+    """A single item in a list — may itself contain inline runs."""
+
+    runs: list[InlineRun] = Field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, text: str) -> ListItemNode:
+        return cls(runs=[PlainRun(text=text)])
+
+
+class ListNode(BaseModel):
+    """An ordered or unordered list."""
+
+    type: Literal["list"] = "list"
+    style: Literal["bullet", "numbered", "alpha", "roman", "checkbox"] = "bullet"
+    items: list[ListItemNode] = Field(default_factory=list)
+
+
+class EquationNode(BaseModel):
+    """A block (display) LaTeX equation.
+
+    For inline equations within paragraph text, use EqRun inside ParagraphNode.
+    """
+
+    type: Literal["equation"] = "equation"
+    latex: str
+    label: str = ""
+
+
+class CodeBlockNode(BaseModel):
+    """A verbatim code listing."""
+
+    type: Literal["code_block"] = "code_block"
+    language: str = ""
+    code: str
+
+
+class TableCellNode(BaseModel):
+    """A single cell in a content table."""
+
+    header: bool = False
+    text: str
+    col_span: int = 1
+    row_span: int = 1
+
+
+class TableRowNode(BaseModel):
+    """A row in a content table."""
+
+    cells: list[TableCellNode] = Field(default_factory=list)
+    is_header: bool = False
+
+
+class TableNode(BaseModel):
+    """A data table."""
+
+    type: Literal["table"] = "table"
+    caption: str = ""
+    rows: list[TableRowNode] = Field(default_factory=list)
+
+
+class NoteNode(BaseModel):
+    """A margin note, tip, warning, or danger block."""
+
+    type: Literal["note"] = "note"
+    variant: Literal["info", "tip", "warning", "danger"] = "info"
+    runs: list[InlineRun] = Field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, text: str, variant: str = "info") -> NoteNode:
+        return cls(variant=variant, runs=[PlainRun(text=text)])  # type: ignore[arg-type]
+
+
+class CalloutNode(BaseModel):
+    """A highlighted callout block — example, non-example, or reminder."""
+
+    type: Literal["callout"] = "callout"
+    variant: Literal["example", "non_example", "reminder"] = "example"
+    title: str = ""
+    runs: list[InlineRun] = Field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, text: str, title: str = "", variant: str = "example") -> CalloutNode:
+        return cls(title=title, variant=variant, runs=[PlainRun(text=text)])  # type: ignore[arg-type]
+
+
+class DefinitionNode(BaseModel):
+    """A term-definition pair."""
+
+    type: Literal["definition"] = "definition"
+    term: str
+    definition: str
+
+
+class FigureNode(BaseModel):
+    """An image or diagram."""
+
+    type: Literal["figure"] = "figure"
+    image_url: str = ""
+    alt_text: str = ""
+    caption: str = ""
+
+
+ContentNode = Annotated[
+    Union[  # noqa: UP007
+        HeadingNode,
+        ParagraphNode,
+        ListNode,
+        EquationNode,
+        CodeBlockNode,
+        TableNode,
+        NoteNode,
+        CalloutNode,
+        DefinitionNode,
+        FigureNode,
+    ],
+    Field(discriminator="type"),
+]
+"""Typed, ordered array element for lesson body content."""
 
 
 # ──────────────────────────────────────────────────────────────────────────────

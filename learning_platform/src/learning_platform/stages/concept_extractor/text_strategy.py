@@ -149,9 +149,7 @@ class TextPatternStrategy:
             (ConceptCategory.FORMULA, _FORMULA_PATTERNS),
         ]
         for cat, patterns in cats:
-            concepts.extend(
-                TextPatternStrategy._extract_category(text, cat, patterns)
-            )
+            concepts.extend(TextPatternStrategy._extract_category(text, cat, patterns))
         return concepts
 
     @staticmethod

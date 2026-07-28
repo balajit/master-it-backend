@@ -186,6 +186,7 @@ def _study_experience_to_response(
                 figures=_node_refs_to_schema(lesson.figures),
                 tables=_node_refs_to_schema(lesson.tables),
                 equations=_node_refs_to_schema(lesson.equations),
+                content=list(lesson.content),
             )
             for lesson in experience.lessons
         ],

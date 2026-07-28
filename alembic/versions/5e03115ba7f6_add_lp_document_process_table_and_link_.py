@@ -23,12 +23,18 @@ def upgrade() -> None:
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
         sa.Column("source", sa.String(length=512), nullable=False),
         sa.Column("abs_path", sa.String(length=1024), nullable=False),
-        sa.Column("status", sa.String(length=16), nullable=False, server_default="pending"),
+        sa.Column(
+            "status", sa.String(length=16), nullable=False, server_default="pending"
+        ),
         sa.Column("retry_count", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("max_retries", sa.Integer(), nullable=False, server_default="3"),
         sa.Column("error_message", sa.Text(), nullable=True),
-        sa.Column("created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
-        sa.Column("updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False),
+        sa.Column(
+            "created_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
+        ),
+        sa.Column(
+            "updated_at", sa.DateTime(), server_default=sa.func.now(), nullable=False
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
     op.add_column(
@@ -48,6 +54,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    op.drop_index("ix_lp_pipeline_logs_document_process_id", table_name="lp_pipeline_logs")
+    op.drop_index(
+        "ix_lp_pipeline_logs_document_process_id", table_name="lp_pipeline_logs"
+    )
     op.drop_column("lp_pipeline_logs", "document_process_id")
     op.drop_table("lp_document_process")

@@ -479,8 +479,7 @@ class LearningUnitBuilder:
                         heading_stack = [new_unit]
                     else:
                         while (
-                            heading_stack
-                            and heading_stack[-1].unit_type.value >= unit_type.value
+                            heading_stack and heading_stack[-1].unit_type.value >= unit_type.value
                         ):
                             heading_stack.pop()
                         if heading_stack:

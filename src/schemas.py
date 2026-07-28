@@ -5,6 +5,8 @@ from typing import List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr
 
+from learning_platform.presentation.models import ContentNode
+
 
 class TokenPayload(BaseModel):
     id_token: str
@@ -413,6 +415,7 @@ class LessonResponse(BaseModel):
     status: ProgressStatus = ProgressStatus.NOT_STARTED
     completed_at: Optional[str] = None
     sidebar_status: str = "not_started"  # "completed" | "in_progress" | "not_started"
+    content: List[ContentNode] = []
 
 
 class PracticeResponse(BaseModel):

@@ -31,6 +31,7 @@ def _mock_deps(user: dict[str, Any] | None = None) -> None:
 
         async def _no_user() -> Any:
             from fastapi import HTTPException
+
             raise HTTPException(status_code=401, detail="Not authenticated")
 
         app.dependency_overrides["get_current_user"] = _no_user
@@ -64,129 +65,185 @@ class TestCRUDEndpointsRequireAuth:
 
     def test_list_units_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/units/", params={"course_id": 1})
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_create_unit_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/units/",
                     json={"course_id": 1, "title": "X"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_get_unit_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/learning/units/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_update_unit_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.patch("/learning/units/1", json={"title": "X"})
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_delete_unit_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.delete("/learning/units/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_list_sections_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/sections/", params={"unit_id": 1},
+                    "/learning/sections/",
+                    params={"unit_id": 1},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_create_section_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/sections/",
                     json={"unit_id": 1, "title": "X"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_list_lessons_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/lessons/", params={"section_id": 1},
+                    "/learning/lessons/",
+                    params={"section_id": 1},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_create_lesson_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/lessons/",
                     json={"section_id": 1, "title": "X"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_list_practices_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/practices/", params={"section_id": 1},
+                    "/learning/practices/",
+                    params={"section_id": 1},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_create_practice_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/practices/",
                     json={"section_id": 1, "title": "X"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_list_quizzes_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/quizzes/", params={"section_id": 1},
+                    "/learning/quizzes/",
+                    params={"section_id": 1},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_create_quiz_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/learning/quizzes/",
                     json={"section_id": 1, "title": "X"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
 
@@ -204,65 +261,89 @@ class TestV1EndpointsRequireAuth:
 
     def test_get_unit_detail_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/api/v1/units/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_submit_practice_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/practices/1/submit",
                     json={"correct": 8, "total": 10},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_submit_quiz_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.post(
                     "/api/v1/quizzes/1/submit",
                     json={"score": 85.0},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_update_lesson_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.put(
                     "/api/v1/lessons/1/progress",
                     json={"status": "COMPLETED"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_update_practice_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.put(
                     "/api/v1/practices/1/progress",
                     json={"status": "MASTERED"},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_update_quiz_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.put(
                     "/api/v1/quizzes/1/progress",
                     json={"score": 85.0},
                 )
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
 
@@ -280,34 +361,50 @@ class TestProgressEndpointsRequireAuth:
 
     def test_get_all_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/progress/")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_get_lesson_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/progress/lessons/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_get_practice_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/progress/practices/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
     def test_get_quiz_progress_no_auth(self):
         transport = ASGITransport(app=app)
+
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/progress/quizzes/1")
                 return resp.status_code
+
         assert asyncio.run(_run()) == 401
 
 
@@ -330,9 +427,12 @@ class TestEndpointsWithValidUser:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/units/", params={"course_id": 1},
+                    "/learning/units/",
+                    params={"course_id": 1},
                 )
                 return resp.status_code
 
@@ -346,7 +446,9 @@ class TestEndpointsWithValidUser:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get("/api/v1/units/99999")
                 return resp.status_code
 
@@ -360,9 +462,12 @@ class TestEndpointsWithValidUser:
         transport = ASGITransport(app=app)
 
         async def _run() -> int:
-            async with AsyncClient(transport=transport, base_url="http://test") as client:
+            async with AsyncClient(
+                transport=transport, base_url="http://test"
+            ) as client:
                 resp = await client.get(
-                    "/learning/sections/", params={"unit_id": 1},
+                    "/learning/sections/",
+                    params={"unit_id": 1},
                 )
                 return resp.status_code
 
