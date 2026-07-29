@@ -12,8 +12,8 @@ Requires environment variables:
     JWT_SECRET       – shared secret for token validation
     MAIN_APP_URL     – base URL of the main FastAPI app  (default http://localhost:5000)
     LP_APP_URL       – base URL of the learning_platform API (default http://localhost:8000)
-    AUTH_EMAIL       – email for login                 (default admin@example.com)
-    AUTH_PASSWORD    – password for login              (default admin123)
+    AUTH_EMAIL       – email for login                 (required)
+    AUTH_PASSWORD    – password for login              (required)
 """
 
 from __future__ import annotations
@@ -31,8 +31,8 @@ import httpx
 
 MAIN_APP_URL: str = os.environ.get("MAIN_APP_URL", "http://localhost:5000")
 LP_APP_URL: str = os.environ.get("LP_APP_URL", f"{MAIN_APP_URL}/lp")
-AUTH_EMAIL: str = os.environ.get("AUTH_EMAIL", "abc@gmail.com")
-AUTH_PASSWORD: str = os.environ.get("AUTH_PASSWORD", "abc")
+AUTH_EMAIL: str = os.environ.get("AUTH_EMAIL", "").strip()
+AUTH_PASSWORD: str = os.environ.get("AUTH_PASSWORD", "").strip()
 
 MOCK_PDF_CONTENT: bytes = b"%PDF-1.4 Mock document for pipeline test"
 
@@ -209,6 +209,10 @@ def _run_pipeline(client: httpx.Client, token: str, file_path: Path) -> None:
 
 def main() -> None:
     target_file: str | None = sys.argv[1] if len(sys.argv) > 1 else None
+
+    if not AUTH_EMAIL or not AUTH_PASSWORD:
+        _fail("AUTH_EMAIL and AUTH_PASSWORD must be set in the environment")
+        sys.exit(1)
 
     client = httpx.Client(base_url=LP_APP_URL, timeout=12000000.0)
 

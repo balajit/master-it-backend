@@ -16,7 +16,34 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
+def _table_exists(table_name: str) -> bool:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    return inspector.has_table(table_name)
+
+
+def _ensure_lp_documents_table() -> None:
+    """Create lp_documents if absent for clean-database migration runs."""
+    if _table_exists("lp_documents"):
+        return
+
+    op.create_table(
+        "lp_documents",
+        sa.Column("id", sa.Uuid(), nullable=False),
+        sa.Column("source", sa.String(length=2048), nullable=False, server_default=""),
+        sa.Column("title", sa.String(length=512), nullable=False, server_default=""),
+        sa.Column("metadata_json", sa.JSON(), nullable=True),
+        sa.Column("nodes_json", sa.JSON(), nullable=True),
+        sa.Column(
+            "created_at", sa.String(length=64), nullable=False, server_default=""
+        ),
+        sa.PrimaryKeyConstraint("id"),
+    )
+
+
 def upgrade() -> None:
+    _ensure_lp_documents_table()
+
     op.create_table(
         "lp_book_chapter",
         sa.Column("id", sa.Uuid(), nullable=False),

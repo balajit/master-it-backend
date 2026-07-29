@@ -55,6 +55,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
     )
+    app.state.settings = settings
 
     from learning_platform.api.routes import courses, documents, health
 

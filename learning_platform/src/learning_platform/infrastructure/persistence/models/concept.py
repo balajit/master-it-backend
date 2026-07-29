@@ -47,8 +47,14 @@ class ConceptRelationshipRow(Base):
     document_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("lp_documents.id", ondelete="CASCADE"), index=True
     )
-    source_concept_id: Mapped[uuid.UUID] = mapped_column(index=True)
-    target_concept_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    source_concept_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lp_concepts.id", ondelete="CASCADE"),
+        index=True,
+    )
+    target_concept_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lp_concepts.id", ondelete="CASCADE"),
+        index=True,
+    )
     relation_type: Mapped[str] = mapped_column(String(64), index=True)
     weight: Mapped[float] = mapped_column(Float, default=1.0)
 

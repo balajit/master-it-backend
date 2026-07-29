@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
-from sqlalchemy import ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from learning_platform.infrastructure.persistence.models.base import Base, JsonType
@@ -23,7 +24,9 @@ class StudyPlanRow(Base):
     description: Mapped[str] = mapped_column(String(2048), default="")
     total_estimated_minutes: Mapped[int] = mapped_column(Integer, default=0)
     total_lessons: Mapped[int] = mapped_column(Integer, default=0)
-    created_at: Mapped[str] = mapped_column(String(64), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
 
     metadata_json: Mapped[dict[str, object] | None] = mapped_column(
         JsonType, name="metadata", nullable=True
@@ -42,7 +45,10 @@ class LessonRow(Base):
     milestone_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("lp_milestones.id", ondelete="SET NULL"), nullable=True, index=True
     )
-    unit_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    unit_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lp_learning_units.id", ondelete="CASCADE"),
+        index=True,
+    )
     order: Mapped[int] = mapped_column(Integer, default=0)
     title: Mapped[str] = mapped_column(String(512), default="")
     description: Mapped[str] = mapped_column(String(2048), default="")
@@ -92,7 +98,10 @@ class CheckpointRow(Base):
     study_plan_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("lp_study_plans.id", ondelete="CASCADE"), index=True
     )
-    milestone_id: Mapped[uuid.UUID] = mapped_column(index=True)
+    milestone_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("lp_milestones.id", ondelete="CASCADE"),
+        index=True,
+    )
     order: Mapped[int] = mapped_column(Integer, default=0)
     title: Mapped[str] = mapped_column(String(512), default="")
     checkpoint_type: Mapped[str] = mapped_column(String(32), default="self_test")

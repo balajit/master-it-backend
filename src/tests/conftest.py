@@ -13,6 +13,7 @@ between tests so auth mocks from one test cannot contaminate another.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from pathlib import Path
 from typing import Any, Coroutine, Generator, TypeVar
@@ -25,6 +26,11 @@ T = TypeVar("T")
 _src_dir: str = str(Path(__file__).resolve().parent.parent)
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
+
+os.environ.setdefault("ENVIRONMENT", "test")
+os.environ.setdefault("JWT_SECRET", "test-jwt-secret")
+os.environ.setdefault("S3_ACCESS_KEY", "minioadmin")
+os.environ.setdefault("S3_SECRET_KEY", "minioadmin")
 
 # ── Single session-level event loop ──────────────────────────────────────────
 

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import TypeAdapter
@@ -44,7 +43,6 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
             owner_sub=owner_sub,
             metadata_json=doc.metadata.model_dump(),
             nodes_json=self._serialize_nodes(doc.nodes),
-            created_at=datetime.now(timezone.utc).isoformat(),
         )
         await self.save(row)
         return row.id

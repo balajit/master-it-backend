@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import AsyncMock
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from learning_platform.config import get_settings
 from learning_platform.infrastructure.persistence.engine import create_engine
+from learning_platform.infrastructure.persistence.models import Base
 from learning_platform.infrastructure.persistence.repositories.document_process import (
     DocumentProcessRepository,
 )
@@ -45,8 +48,16 @@ def registry_file(temp_upload_dir: Path) -> Path:
 async def session_factory():
     settings = get_settings()
     engine = create_engine(settings)
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
+
     factory = async_sessionmaker(engine, expire_on_commit=False)
     yield factory
+
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
+
     await engine.dispose()
 
 
@@ -248,3 +259,43 @@ async def test_sync_registry_skips_unsafe_paths(
         assert "10/ok.pdf" in sources
         assert "../escape.pdf" not in sources
         assert "/sneaky.pdf" not in sources
+
+
+@pytest.mark.asyncio
+async def test_process_pending_uses_service_process(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    rel_path = "12/service-path.pdf"
+    abs_path = temp_upload_dir / rel_path
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(b"fake")
+
+    mock_process = AsyncMock(return_value=SimpleNamespace())
+    mock_service = SimpleNamespace(process=mock_process)
+    poller = FilePoller(
+        upload_path=str(temp_upload_dir),
+        session_factory=session_factory,
+        service=mock_service,
+    )
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry(rel_path, str(abs_path))
+        row_id = row.id
+        await session.commit()
+
+    await poller._process_pending()
+
+    mock_process.assert_awaited_once()
+    await_args = mock_process.await_args
+    assert await_args is not None
+    assert await_args.args[0] == str(abs_path)
+    assert "session" in await_args.kwargs
+    assert await_args.kwargs["document_process_id"] == row_id
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        completed = await repo.find_by_id(row_id)
+        assert completed is not None
+        assert completed.status == "completed"

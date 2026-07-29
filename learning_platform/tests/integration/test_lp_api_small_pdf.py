@@ -32,6 +32,7 @@ from __future__ import annotations
 
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
@@ -77,21 +78,11 @@ from learning_platform.models.sequence import (
     StudyPlan,
 )
 from learning_platform.pipeline.orchestrator import PipelineResult
-from learning_platform.service import stable_doc_id
+from learning_platform.service import get_service, stable_doc_id
 
 # ── Paths ────────────────────────────────────────────────────────────────────
 
 SMALL_PDF: Path = Path(__file__).parent.parent.parent.parent / "test_pdfs" / "small.pdf"
-
-_REPO_PATHS = [
-    "learning_platform.api.routes.documents.DocumentRepository",
-    "learning_platform.api.routes.documents.LearningUnitRepository",
-    "learning_platform.api.routes.documents.AnnotationRepository",
-    "learning_platform.api.routes.documents.ConceptRepository",
-    "learning_platform.api.routes.documents.KnowledgeGraphRepository",
-    "learning_platform.api.routes.documents.StudyPlanRepository",
-]
-
 
 # ── Domain fixtures ──────────────────────────────────────────────────────────
 
@@ -212,7 +203,14 @@ def _make_result(file_path: str) -> tuple[str, PipelineResult]:
 
 @pytest.fixture(scope="module")
 def settings() -> Settings:
-    return Settings(database_url="sqlite+aiosqlite:///:memory:", debug=True)
+    return Settings(
+        environment="test",
+        database_url="sqlite+aiosqlite:///:memory:",
+        debug=True,
+        s3_access_key="minioadmin",
+        s3_secret_key="minioadmin",
+        jwt_secret="test-jwt-secret",
+    )
 
 
 @pytest.fixture(scope="module")
@@ -232,25 +230,6 @@ def clear_cache() -> Any:
 
 async def _mock_session() -> AsyncGenerator[AsyncMock, None]:
     yield AsyncMock()
-
-
-def _patch_all_repos() -> list:
-    return [patch(p) for p in _REPO_PATHS]
-
-
-def _start_repo_patches() -> list:
-    patches = _patch_all_repos()
-    mocks = [p.start() for p in patches]
-    for m in mocks:
-        m.return_value = MagicMock(
-            save_document=AsyncMock(),
-            save_all_units=AsyncMock(),
-            save_all_annotations=AsyncMock(),
-            save_concept_map=AsyncMock(),
-            save_graph=AsyncMock(),
-            save_plan=AsyncMock(),
-        )
-    return patches
 
 
 # ── Health ────────────────────────────────────────────────────────────────────
@@ -305,16 +284,11 @@ class TestProcess:
         )
         lp_app.dependency_overrides[get_session] = _mock_session
 
-        patches = _start_repo_patches()
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=lp_app), base_url="http://test"
-            ) as client:
-                doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
-                resp = await client.post(f"/api/documents/{doc_id}/process")
-        finally:
-            for p in patches:
-                p.stop()
+        async with AsyncClient(
+            transport=ASGITransport(app=lp_app), base_url="http://test"
+        ) as client:
+            doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
+            resp = await client.post(f"/api/documents/{doc_id}/process")
         lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
 
         assert resp.status_code == 200
@@ -342,16 +316,11 @@ class TestProcess:
         )
         lp_app.dependency_overrides[get_session] = _mock_session
 
-        patches = _start_repo_patches()
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=lp_app), base_url="http://test"
-            ) as client:
-                doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
-                await client.post(f"/api/documents/{doc_id}/process")
-        finally:
-            for p in patches:
-                p.stop()
+        async with AsyncClient(
+            transport=ASGITransport(app=lp_app), base_url="http://test"
+        ) as client:
+            doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
+            await client.post(f"/api/documents/{doc_id}/process")
         lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
 
         assert pipeline_cache.get(doc_id) is not None
@@ -394,14 +363,11 @@ class TestProcess:
         )
         lp_app.dependency_overrides[get_session] = _mock_session
 
-        patches = _start_repo_patches()
         async with AsyncClient(
             transport=ASGITransport(app=lp_app), base_url="http://test"
         ) as client:
             doc_id = await self._upload_doc(client, b"x", filename="small.pdf")
             resp = await client.post(f"/api/documents/{doc_id}/process", json={})
-        for p in patches:
-            p.stop()
         lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
 
         assert resp.status_code == 200
@@ -420,21 +386,142 @@ class TestProcess:
         )
         lp_app.dependency_overrides[get_session] = _mock_session
 
-        patches = _start_repo_patches()
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=lp_app), base_url="http://test"
-            ) as client:
-                doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
-                resp = await client.post(f"/api/documents/{doc_id}/process")
-        finally:
-            for p in patches:
-                p.stop()
+        async with AsyncClient(
+            transport=ASGITransport(app=lp_app), base_url="http://test"
+        ) as client:
+            doc_id = await self._upload_doc(client, SMALL_PDF.read_bytes())
+            resp = await client.post(f"/api/documents/{doc_id}/process")
         lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
 
         returned_id = resp.json()["doc_id"]
         expected_uuid = doc_id
         assert returned_id == expected_uuid
+
+    @pytest.mark.asyncio
+    async def test_process_uses_service_path(self, lp_app, tmp_path: Path) -> None:
+        doc_id = uuid4()
+        upload_dir = tmp_path / "uploads" / str(doc_id)
+        upload_dir.mkdir(parents=True)
+        source_path = upload_dir / "small.pdf"
+        source_path.write_bytes(b"fake")
+
+        _cache_key, result = _make_result(str(source_path))
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
+        mock_session = AsyncMock()
+
+        async def _mock_session_override() -> AsyncGenerator[AsyncMock, None]:
+            yield mock_session
+
+        lp_app.dependency_overrides[get_service] = lambda: mock_service
+        lp_app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
+        lp_app.dependency_overrides[get_session] = _mock_session_override
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=lp_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
+
+        lp_app.dependency_overrides.pop(get_service, None)
+        lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
+
+        assert resp.status_code == 200
+        mock_service.process.assert_awaited_once()
+
+
+class TestSharedProcessPath:
+    @pytest.mark.asyncio
+    async def test_api_and_poller_share_service_process(self, lp_app, tmp_path: Path) -> None:
+        _result_cache_key, result = _make_result(str(tmp_path / "uploaded.pdf"))
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
+        mock_session = AsyncMock()
+
+        async def _mock_session_override() -> AsyncGenerator[AsyncMock, None]:
+            yield mock_session
+
+        lp_app.dependency_overrides[get_service] = lambda: mock_service
+        lp_app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
+        lp_app.dependency_overrides[get_session] = _mock_session_override
+
+        api_doc_id = uuid4()
+        api_upload_dir = tmp_path / "uploads" / str(api_doc_id)
+        api_upload_dir.mkdir(parents=True)
+        api_source = api_upload_dir / "small.pdf"
+        api_source.write_bytes(b"api")
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=lp_app), base_url="http://test"
+            ) as client:
+                api_resp = await client.post(f"/api/documents/{api_doc_id}/process")
+
+        assert api_resp.status_code == 200
+
+        from learning_platform.poller import FilePoller
+
+        mock_row = SimpleNamespace(id=10, status="pending", abs_path=str(tmp_path / "poller.pdf"))
+        mock_repo = MagicMock()
+        mock_repo.find_pending = AsyncMock(return_value=[mock_row])
+        mock_repo.find_by_id = AsyncMock(side_effect=[mock_row, mock_row])
+        mock_repo.mark_processing = AsyncMock()
+        mock_repo.mark_completed = AsyncMock()
+        mock_repo.mark_retry = AsyncMock()
+        mock_repo.mark_failed = AsyncMock()
+
+        class _SessionCtx:
+            async def __aenter__(self) -> AsyncMock:
+                return mock_session
+
+            async def __aexit__(self, exc_type: object, exc: object, tb: object) -> bool:
+                return False
+
+        session_factory = MagicMock(return_value=_SessionCtx())
+        poller = FilePoller(
+            upload_path=str(tmp_path), session_factory=session_factory, service=mock_service
+        )
+
+        with patch(
+            "learning_platform.infrastructure.persistence.repositories.document_process.DocumentProcessRepository",
+            return_value=mock_repo,
+        ):
+            await poller._process_pending()
+
+        lp_app.dependency_overrides.pop(get_service, None)
+        lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
+
+        assert mock_service.process.await_count == 2
+        first_call = mock_service.process.await_args_list[0]
+        second_call = mock_service.process.await_args_list[1]
+        assert first_call.args[0] == str(api_source)
+        assert first_call.kwargs["dedupe_by_source"] is False
+        assert second_call.args[0] == str(tmp_path / "poller.pdf")
+        assert second_call.kwargs["document_process_id"] == 10
 
 
 # ── GET /api/documents/{doc_id}/tree ─────────────────────────────────────────
@@ -969,51 +1056,45 @@ class TestFullFlow:
         )
         lp_app.dependency_overrides[get_session] = _mock_session
 
-        patches = _start_repo_patches()
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=lp_app), base_url="http://test"
-            ) as client:
-                upload = await client.post(
-                    "/api/documents/upload",
-                    files={"file": ("small.pdf", SMALL_PDF.read_bytes(), "application/pdf")},
-                )
-                assert upload.status_code == 201
-                doc_id_uuid = upload.json()["doc_id"]
+        async with AsyncClient(
+            transport=ASGITransport(app=lp_app), base_url="http://test"
+        ) as client:
+            upload = await client.post(
+                "/api/documents/upload",
+                files={"file": ("small.pdf", SMALL_PDF.read_bytes(), "application/pdf")},
+            )
+            assert upload.status_code == 201
+            doc_id_uuid = upload.json()["doc_id"]
 
-                # 1. Process
-                proc = await client.post(f"/api/documents/{doc_id_uuid}/process")
-                assert proc.status_code == 200
-                assert proc.json()["doc_id"] == doc_id_uuid
+            # 1. Process
+            proc = await client.post(f"/api/documents/{doc_id_uuid}/process")
+            assert proc.status_code == 200
+            assert proc.json()["doc_id"] == doc_id_uuid
 
-                # 2. Tree
-                tree = await client.get(f"/api/documents/{doc_id_uuid}/tree")
-                assert tree.status_code == 200
-                assert tree.json()["title"] == "Small PDF"
+            # 2. Tree
+            tree = await client.get(f"/api/documents/{doc_id_uuid}/tree")
+            assert tree.status_code == 200
+            assert tree.json()["title"] == "Small PDF"
 
-                # 3. Enrich (cached)
-                enrich = await client.post(f"/api/documents/{doc_id_uuid}/enrich")
-                assert enrich.status_code == 200
-                assert enrich.json()["units_count"] == 1
+            # 3. Enrich (cached)
+            enrich = await client.post(f"/api/documents/{doc_id_uuid}/enrich")
+            assert enrich.status_code == 200
+            assert enrich.json()["units_count"] == 1
 
-                # 4. Units
-                units = await client.get(f"/api/documents/{doc_id_uuid}/units")
-                assert units.status_code == 200
-                assert units.json()["count"] == 1
+            # 4. Units
+            units = await client.get(f"/api/documents/{doc_id_uuid}/units")
+            assert units.status_code == 200
+            assert units.json()["count"] == 1
 
-                # 5. Concepts
-                concepts = await client.get(f"/api/documents/{doc_id_uuid}/concepts")
-                assert concepts.status_code == 200
-                assert concepts.json()["total_concepts"] == 2
+            # 5. Concepts
+            concepts = await client.get(f"/api/documents/{doc_id_uuid}/concepts")
+            assert concepts.status_code == 200
+            assert concepts.json()["total_concepts"] == 2
 
-                # 6. Study plan
-                plan = await client.get(f"/api/documents/{doc_id_uuid}/study-plan")
-                assert plan.status_code == 200
-                assert plan.json()["total_lessons"] == 1
-
-        finally:
-            for p in patches:
-                p.stop()
+            # 6. Study plan
+            plan = await client.get(f"/api/documents/{doc_id_uuid}/study-plan")
+            assert plan.status_code == 200
+            assert plan.json()["total_lessons"] == 1
         lp_app.dependency_overrides.pop(get_pipeline_orchestrator, None)
 
     @pytest.mark.slow
@@ -1031,21 +1112,17 @@ class TestFullFlow:
         dest.write_bytes(SMALL_PDF.read_bytes())
 
         lp_app.dependency_overrides[get_session] = _mock_session
-        patches = _start_repo_patches()
-        try:
-            async with AsyncClient(
-                transport=ASGITransport(app=lp_app), base_url="http://test", timeout=120.0
-            ) as client:
-                upload = await client.post(
-                    "/api/documents/upload",
-                    files={"file": ("small.pdf", SMALL_PDF.read_bytes(), "application/pdf")},
-                )
-                assert upload.status_code == 201
-                doc_id = upload.json()["doc_id"]
-                resp = await client.post(f"/api/documents/{doc_id}/process")
-        finally:
-            for p in patches:
-                p.stop()
+
+        async with AsyncClient(
+            transport=ASGITransport(app=lp_app), base_url="http://test", timeout=120.0
+        ) as client:
+            upload = await client.post(
+                "/api/documents/upload",
+                files={"file": ("small.pdf", SMALL_PDF.read_bytes(), "application/pdf")},
+            )
+            assert upload.status_code == 201
+            doc_id = upload.json()["doc_id"]
+            resp = await client.post(f"/api/documents/{doc_id}/process")
 
         assert resp.status_code == 200
         data = resp.json()

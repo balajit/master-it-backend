@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -37,15 +36,16 @@ class KnowledgeGraphRepository(BaseRepository[KnowledgeGraphRow]):
         """Persist a full knowledge graph.  Returns the graph row ID."""
         graph_row = KnowledgeGraphRow(
             document_id=document_id,
-            created_at=datetime.now(timezone.utc).isoformat(),
             metadata_json=graph.metadata,
         )
         await self.save(graph_row)
 
-        for node in graph.nodes:
-            await self._node_repo._save_node(node, graph_row.id)
-        for edge in graph.edges:
-            await self._edge_repo._save_edge(edge, graph_row.id)
+        node_rows = [self._node_repo._node_to_row(node, graph_row.id) for node in graph.nodes]
+        edge_rows = [self._edge_repo._edge_to_row(edge, graph_row.id) for edge in graph.edges]
+        if node_rows:
+            await self._node_repo.save_all(node_rows)
+        if edge_rows:
+            await self._edge_repo.save_all(edge_rows)
 
         return graph_row.id
 
@@ -89,7 +89,13 @@ class GraphNodeRepository(BaseRepository[GraphNodeRow]):
         super().__init__(session)
 
     async def _save_node(self, node: GraphNode, graph_id: UUID) -> UUID:
-        row = GraphNodeRow(
+        row = self._node_to_row(node, graph_id)
+        await self.save(row)
+        return row.id
+
+    @staticmethod
+    def _node_to_row(node: GraphNode, graph_id: UUID) -> GraphNodeRow:
+        return GraphNodeRow(
             id=node.id,
             graph_id=graph_id,
             node_type=node.node_type.value,
@@ -98,8 +104,6 @@ class GraphNodeRepository(BaseRepository[GraphNodeRow]):
             concept_id=node.concept_id,
             metadata_json=node.metadata,
         )
-        await self.save(row)
-        return row.id
 
     async def find_by_graph(self, graph_id: UUID) -> list[GraphNode]:
         stmt = select(GraphNodeRow).where(GraphNodeRow.graph_id == graph_id)
@@ -133,7 +137,13 @@ class GraphEdgeRepository(BaseRepository[GraphEdgeRow]):
         super().__init__(session)
 
     async def _save_edge(self, edge: GraphEdge, graph_id: UUID) -> UUID:
-        row = GraphEdgeRow(
+        row = self._edge_to_row(edge, graph_id)
+        await self.save(row)
+        return row.id
+
+    @staticmethod
+    def _edge_to_row(edge: GraphEdge, graph_id: UUID) -> GraphEdgeRow:
+        return GraphEdgeRow(
             graph_id=graph_id,
             source_node_id=edge.source_id,
             target_node_id=edge.target_id,
@@ -141,8 +151,6 @@ class GraphEdgeRepository(BaseRepository[GraphEdgeRow]):
             weight=edge.weight,
             metadata_json=edge.metadata,
         )
-        await self.save(row)
-        return row.id
 
     async def find_by_graph(self, graph_id: UUID) -> list[GraphEdge]:
         stmt = select(GraphEdgeRow).where(GraphEdgeRow.graph_id == graph_id)

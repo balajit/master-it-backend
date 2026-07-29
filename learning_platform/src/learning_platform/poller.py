@@ -6,6 +6,7 @@ import logging
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 if TYPE_CHECKING:
@@ -89,7 +90,8 @@ class FilePoller:
     async def _sync_registry_to_db(self) -> None:
         """Read ``registry.txt`` and create ``lp_document_process`` rows for
         any paths not yet tracked in the database."""
-        if not self._registry_path.exists():
+        registry_exists = await run_in_threadpool(self._registry_path.exists)
+        if not registry_exists:
             return
 
         from learning_platform.infrastructure.persistence.repositories.document_process import (
@@ -98,22 +100,27 @@ class FilePoller:
 
         async with self._session_factory() as session:
             repo = DocumentProcessRepository(session)
-            with open(self._registry_path, encoding="utf-8") as f:
-                for line in f:
-                    rel_path: str = line.strip()
-                    if not rel_path:
-                        continue
-                    try:
-                        safe_abs = resolve_safe_path(Path(self._upload_path), rel_path)
-                    except InvalidPathError:
-                        _LOG.warning("Skipping unsafe registry path: %s", rel_path)
-                        continue
-                    existing = await repo.find_by_source(rel_path)
-                    if existing is not None:
-                        continue
-                    abs_path: str = str(safe_abs)
-                    await repo.create_entry(rel_path, abs_path)
+            lines = await run_in_threadpool(self._read_registry_lines)
+            for line in lines:
+                rel_path: str = line.strip()
+                if not rel_path:
+                    continue
+                try:
+                    safe_abs = resolve_safe_path(Path(self._upload_path), rel_path)
+                except InvalidPathError:
+                    _LOG.warning("Skipping unsafe registry path: %s", rel_path)
+                    continue
+                existing = await repo.find_by_source(rel_path)
+                if existing is not None:
+                    continue
+                abs_path: str = str(safe_abs)
+                await repo.create_entry(rel_path, abs_path)
             await session.commit()
+
+    def _read_registry_lines(self) -> list[str]:
+        """Read registry file lines using blocking I/O in threadpool context."""
+        with open(self._registry_path, encoding="utf-8") as registry_file:
+            return registry_file.readlines()
 
     # ── Process pending entries from DB ──────────────────────────────────────
 

@@ -58,6 +58,7 @@ from learning_platform.models.sequence import (
     StudyPlan,
 )
 from learning_platform.pipeline.orchestrator import PipelineResult
+from learning_platform.service import get_service
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -75,8 +76,12 @@ TEST_PDF_PATH: Path = (
 def settings() -> Settings:
     """Minimal settings for test app."""
     return Settings(
+        environment="test",
         database_url="sqlite+aiosqlite:///:memory:",
         debug=True,
+        s3_access_key="minioadmin",
+        s3_secret_key="minioadmin",
+        jwt_secret="test-jwt-secret",
     )
 
 
@@ -267,21 +272,6 @@ async def _mock_get_session() -> AsyncGenerator[AsyncMock, None]:
     yield session
 
 
-_DOC_REPOS = [
-    "learning_platform.api.routes.documents.DocumentRepository",
-    "learning_platform.api.routes.documents.LearningUnitRepository",
-    "learning_platform.api.routes.documents.AnnotationRepository",
-    "learning_platform.api.routes.documents.ConceptRepository",
-    "learning_platform.api.routes.documents.KnowledgeGraphRepository",
-    "learning_platform.api.routes.documents.StudyPlanRepository",
-]
-
-
-def _patch_repos() -> list[object]:
-    """Return a list of patch contexts for all document route repositories."""
-    return [patch(path) for path in _DOC_REPOS]
-
-
 def _mock_user() -> dict[str, Any]:
     """Create a mock user for authenticated requests."""
     return {"id": 1, "email": "test@example.com"}
@@ -436,26 +426,10 @@ class TestDocumentProcessWithRealPDF:
 
             mock_path_cls.side_effect = _path_factory
 
-            repo_patches = _patch_repos()
-            mocks = [p.start() for p in repo_patches]
-            for m in mocks:
-                m.return_value = MagicMock(
-                    save_document=AsyncMock(),
-                    save_all_units=AsyncMock(),
-                    save_all_annotations=AsyncMock(),
-                    save_concept_map=AsyncMock(),
-                    save_graph=AsyncMock(),
-                    save_plan=AsyncMock(),
-                )
-
-            try:
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    resp = await client.post(f"/api/documents/{doc_id}/process")
-            finally:
-                for p in repo_patches:
-                    p.stop()
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
 
         assert resp.status_code == 200
         data = resp.json()
@@ -467,6 +441,47 @@ class TestDocumentProcessWithRealPDF:
         assert data["graph_edges"] == 1
         assert data["lessons"] == 1
         assert data["milestones"] == 1
+
+    @pytest.mark.asyncio
+    async def test_process_uses_service_path(self, app, tmp_path: Path) -> None:
+        doc_id = uuid4()
+        result = _make_pipeline_result(doc_id)
+
+        upload_dir = tmp_path / "uploads" / str(doc_id)
+        upload_dir.mkdir(parents=True)
+        (upload_dir / "test.pdf").write_bytes(b"fake")
+
+        mock_session = AsyncMock()
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield mock_session
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_service] = lambda: mock_service
+        app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
+
+        assert resp.status_code == 200
+        mock_service.process.assert_awaited_once()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -1101,26 +1116,10 @@ class TestFullPipelineIntegrationWithRealPDF:
         with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
             mock_path_cls.side_effect = _path_factory
 
-            repo_patches = _patch_repos()
-            mocks = [p.start() for p in repo_patches]
-            for m in mocks:
-                m.return_value = MagicMock(
-                    save_document=AsyncMock(),
-                    save_all_units=AsyncMock(),
-                    save_all_annotations=AsyncMock(),
-                    save_concept_map=AsyncMock(),
-                    save_graph=AsyncMock(),
-                    save_plan=AsyncMock(),
-                )
-
-            try:
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    process_resp = await client.post(f"/api/documents/{doc_id}/process")
-            finally:
-                for p in repo_patches:
-                    p.stop()
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                process_resp = await client.post(f"/api/documents/{doc_id}/process")
 
         assert process_resp.status_code == 200
 

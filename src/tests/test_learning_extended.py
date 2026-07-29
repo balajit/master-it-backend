@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -571,7 +570,7 @@ class TestProgressSquares:
         assert result[0].status == ProgressStatus.LOCKED
 
     def test_practiced_square(self) -> None:
-        from schemas import LessonResponse, PracticeResponse, SectionResponse
+        from schemas import PracticeResponse, SectionResponse
 
         practice = PracticeResponse(
             id=1,

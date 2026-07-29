@@ -23,6 +23,21 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+
+    can_fk_enrollment_to_user_id = False
+    if inspector.has_table("course_enrollments"):
+        pk = inspector.get_pk_constraint("course_enrollments")
+        pk_columns = list(pk.get("constrained_columns") or [])
+        if pk_columns == ["user_id"]:
+            can_fk_enrollment_to_user_id = True
+        else:
+            for unique in inspector.get_unique_constraints("course_enrollments"):
+                if list(unique.get("column_names") or []) == ["user_id"]:
+                    can_fk_enrollment_to_user_id = True
+                    break
+
     op.create_table(
         "item_progress",
         sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
@@ -37,12 +52,18 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.String(), nullable=True),
         sa.Column("created_at", sa.String(), nullable=False, server_default=""),
         sa.Column("updated_at", sa.String(), nullable=False, server_default=""),
-        sa.ForeignKeyConstraint(
-            ["enrollment_id"],
-            ["course_enrollments.user_id"],
-        ),
         sa.PrimaryKeyConstraint("id"),
     )
+
+    if can_fk_enrollment_to_user_id:
+        op.create_foreign_key(
+            "item_progress_enrollment_id_fkey",
+            "item_progress",
+            "course_enrollments",
+            ["enrollment_id"],
+            ["user_id"],
+        )
+
     op.create_index(
         "idx_item_progress_enrollment_id", "item_progress", ["enrollment_id"]
     )

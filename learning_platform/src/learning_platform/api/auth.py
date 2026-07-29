@@ -9,17 +9,14 @@ same error messages.
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import jwt
 from fastapi import Depends, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-# Fail loudly at import time if the secret is not configured — consistent
-# with src/auth.py which uses os.environ["JWT_SECRET"] (raises KeyError).
-_raw_secret: str = os.environ.get("JWT_SECRET", "")
-JWT_SECRET: str = _raw_secret
+from learning_platform.config import get_settings
+
 ALGORITHM: str = "HS256"
 
 bearer_scheme = HTTPBearer()
@@ -31,10 +28,11 @@ def decode_token(token: str) -> dict[str, Any]:
     Raises ``HTTPException(401)`` on expiry or invalid signature.
     Raises ``HTTPException(500)`` if ``JWT_SECRET`` is not set.
     """
-    if not JWT_SECRET:
+    jwt_secret = get_settings().jwt_secret.strip()
+    if not jwt_secret:
         raise HTTPException(status_code=500, detail="JWT_SECRET not configured")
     try:
-        return jwt.decode(token, JWT_SECRET, algorithms=[ALGORITHM])
+        return jwt.decode(token, jwt_secret, algorithms=[ALGORITHM])
     except jwt.ExpiredSignatureError as err:
         raise HTTPException(status_code=401, detail="Token expired") from err
     except jwt.InvalidTokenError as err:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -51,17 +50,28 @@ class StudyPlanRepository(BaseRepository[StudyPlanRow]):
             description=plan.description,
             total_estimated_minutes=plan.total_estimated_minutes,
             total_lessons=plan.total_lessons,
-            created_at=datetime.now(timezone.utc).isoformat(),
             metadata_json=plan.metadata,
         )
         await self.save(plan_row)
 
-        for m in plan.milestones:
-            await self._milestone_repo._save_milestone(m, plan_id)
-        for lesson in plan.lessons:
-            await self._lesson_repo._save_lesson(lesson, plan_id)
-        for cp in plan.checkpoints:
-            await self._checkpoint_repo._save_checkpoint(cp, plan_id)
+        milestone_rows = [
+            self._milestone_repo._milestone_to_row(milestone, plan_id)
+            for milestone in plan.milestones
+        ]
+        lesson_rows = [
+            self._lesson_repo._lesson_to_row(lesson, plan_id) for lesson in plan.lessons
+        ]
+        checkpoint_rows = [
+            self._checkpoint_repo._checkpoint_to_row(checkpoint, plan_id)
+            for checkpoint in plan.checkpoints
+        ]
+
+        if milestone_rows:
+            await self._milestone_repo.save_all(milestone_rows)
+        if lesson_rows:
+            await self._lesson_repo.save_all(lesson_rows)
+        if checkpoint_rows:
+            await self._checkpoint_repo.save_all(checkpoint_rows)
 
     async def find_by_document(self, document_id: UUID) -> StudyPlan | None:
         """Load the study plan for a document."""
@@ -111,7 +121,13 @@ class LessonRepository(BaseRepository[LessonRow]):
         super().__init__(session)
 
     async def _save_lesson(self, lesson: Lesson, plan_id: UUID) -> UUID:
-        row = LessonRow(
+        row = self._lesson_to_row(lesson, plan_id)
+        await self.save(row)
+        return row.id
+
+    @staticmethod
+    def _lesson_to_row(lesson: Lesson, plan_id: UUID) -> LessonRow:
+        return LessonRow(
             id=lesson.id,
             study_plan_id=plan_id,
             milestone_id=lesson.milestone_id,
@@ -126,8 +142,6 @@ class LessonRepository(BaseRepository[LessonRow]):
             prerequisites_json=[str(uid) for uid in lesson.prerequisites],
             metadata_json=lesson.metadata,
         )
-        await self.save(row)
-        return row.id
 
     async def find_by_plan(self, plan_id: UUID) -> list[Lesson]:
         stmt = select(LessonRow).where(LessonRow.study_plan_id == plan_id)
@@ -167,7 +181,13 @@ class MilestoneRepository(BaseRepository[MilestoneRow]):
         super().__init__(session)
 
     async def _save_milestone(self, milestone: Milestone, plan_id: UUID) -> UUID:
-        row = MilestoneRow(
+        row = self._milestone_to_row(milestone, plan_id)
+        await self.save(row)
+        return row.id
+
+    @staticmethod
+    def _milestone_to_row(milestone: Milestone, plan_id: UUID) -> MilestoneRow:
+        return MilestoneRow(
             id=milestone.id,
             study_plan_id=plan_id,
             order=milestone.order,
@@ -177,8 +197,6 @@ class MilestoneRepository(BaseRepository[MilestoneRow]):
             lesson_ids_json=[str(uid) for uid in milestone.lesson_ids],
             metadata_json=milestone.metadata,
         )
-        await self.save(row)
-        return row.id
 
     async def find_by_plan(self, plan_id: UUID) -> list[Milestone]:
         stmt = select(MilestoneRow).where(MilestoneRow.study_plan_id == plan_id)
@@ -213,7 +231,13 @@ class CheckpointRepository(BaseRepository[CheckpointRow]):
         super().__init__(session)
 
     async def _save_checkpoint(self, cp: Checkpoint, plan_id: UUID) -> UUID:
-        row = CheckpointRow(
+        row = self._checkpoint_to_row(cp, plan_id)
+        await self.save(row)
+        return row.id
+
+    @staticmethod
+    def _checkpoint_to_row(cp: Checkpoint, plan_id: UUID) -> CheckpointRow:
+        return CheckpointRow(
             id=cp.id,
             study_plan_id=plan_id,
             milestone_id=cp.milestone_id,
@@ -224,8 +248,6 @@ class CheckpointRepository(BaseRepository[CheckpointRow]):
             lesson_ids_json=[str(uid) for uid in cp.lesson_ids],
             metadata_json=cp.metadata,
         )
-        await self.save(row)
-        return row.id
 
     async def find_by_plan(self, plan_id: UUID) -> list[Checkpoint]:
         stmt = select(CheckpointRow).where(CheckpointRow.study_plan_id == plan_id)

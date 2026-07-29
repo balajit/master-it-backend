@@ -32,26 +32,17 @@ class ConceptRepository(BaseRepository[ConceptRow]):
 
     async def save_concept_map(self, concept_map: ConceptMap, document_id: UUID) -> None:
         """Persist all concepts and relationships in a ``ConceptMap``."""
-        for concept in concept_map.concepts:
-            await self._save_concept(concept, document_id)
-        for rel in concept_map.relationships:
-            await self._rel_repo._save_relationship(rel, document_id)
-
-    async def _save_concept(self, concept: Concept, document_id: UUID) -> UUID:
-        row = ConceptRow(
-            id=concept.id,
-            document_id=document_id,
-            name=concept.name,
-            category=concept.category.value,
-            importance=concept.importance,
-            mention_count=concept.mention_count,
-            aliases_json=concept.aliases,
-            source_node_ids_json=[str(uid) for uid in concept.source_node_ids],
-            source_unit_ids_json=[str(uid) for uid in concept.source_unit_ids],
-            metadata_json=concept.metadata,
-        )
-        await self.save(row)
-        return row.id
+        concept_rows = [
+            self._concept_to_row(concept, document_id) for concept in concept_map.concepts
+        ]
+        relationship_rows = [
+            self._rel_repo._relationship_to_row(rel, document_id)
+            for rel in concept_map.relationships
+        ]
+        if concept_rows:
+            await self.save_all(concept_rows)
+        if relationship_rows:
+            await self._rel_repo.save_all(relationship_rows)
 
     async def find_by_document(self, document_id: UUID) -> ConceptMap:
         """Load all concepts and relationships for a document as a ``ConceptMap``."""
@@ -84,6 +75,21 @@ class ConceptRepository(BaseRepository[ConceptRow]):
             metadata=row.metadata_json or {},
         )
 
+    @staticmethod
+    def _concept_to_row(concept: Concept, document_id: UUID) -> ConceptRow:
+        return ConceptRow(
+            id=concept.id,
+            document_id=document_id,
+            name=concept.name,
+            category=concept.category.value,
+            importance=concept.importance,
+            mention_count=concept.mention_count,
+            aliases_json=concept.aliases,
+            source_node_ids_json=[str(uid) for uid in concept.source_node_ids],
+            source_unit_ids_json=[str(uid) for uid in concept.source_unit_ids],
+            metadata_json=concept.metadata,
+        )
+
 
 class ConceptRelationshipRepository(BaseRepository[ConceptRelationshipRow]):
     """Persists and retrieves concept-to-concept relationships."""
@@ -93,8 +99,12 @@ class ConceptRelationshipRepository(BaseRepository[ConceptRelationshipRow]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
 
-    async def _save_relationship(self, rel: ConceptRelationship, document_id: UUID) -> UUID:
-        row = ConceptRelationshipRow(
+    def _relationship_to_row(
+        self,
+        rel: ConceptRelationship,
+        document_id: UUID,
+    ) -> ConceptRelationshipRow:
+        return ConceptRelationshipRow(
             document_id=document_id,
             source_concept_id=rel.source_id,
             target_concept_id=rel.target_id,
@@ -102,6 +112,9 @@ class ConceptRelationshipRepository(BaseRepository[ConceptRelationshipRow]):
             weight=rel.weight,
             metadata_json=rel.metadata,
         )
+
+    async def _save_relationship(self, rel: ConceptRelationship, document_id: UUID) -> UUID:
+        row = self._relationship_to_row(rel, document_id)
         await self.save(row)
         return row.id
 

@@ -54,6 +54,7 @@ from learning_platform.models.sequence import (
     StudyPlan,
 )
 from learning_platform.pipeline.orchestrator import PipelineResult
+from learning_platform.service import get_service
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -62,8 +63,12 @@ from learning_platform.pipeline.orchestrator import PipelineResult
 def settings() -> Settings:
     """Minimal settings for test app."""
     return Settings(
+        environment="test",
         database_url="sqlite+aiosqlite:///:memory:",
         debug=True,
+        s3_access_key="minioadmin",
+        s3_secret_key="minioadmin",
+        jwt_secret="test-jwt-secret",
     )
 
 
@@ -257,21 +262,6 @@ async def _mock_get_session() -> AsyncGenerator[AsyncMock, None]:
     yield session
 
 
-_DOC_REPOS = [
-    "learning_platform.api.routes.documents.DocumentRepository",
-    "learning_platform.api.routes.documents.LearningUnitRepository",
-    "learning_platform.api.routes.documents.AnnotationRepository",
-    "learning_platform.api.routes.documents.ConceptRepository",
-    "learning_platform.api.routes.documents.KnowledgeGraphRepository",
-    "learning_platform.api.routes.documents.StudyPlanRepository",
-]
-
-
-def _patch_repos() -> list[object]:
-    """Return a list of patch contexts for all document route repositories."""
-    return [patch(path) for path in _DOC_REPOS]
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # Health endpoint
 # ══════════════════════════════════════════════════════════════════════════════
@@ -434,26 +424,10 @@ class TestDocumentProcess:
 
             mock_path_cls.side_effect = _path_factory
 
-            repo_patches = _patch_repos()
-            mocks = [p.start() for p in repo_patches]
-            for m in mocks:
-                m.return_value = MagicMock(
-                    save_document=AsyncMock(),
-                    save_all_units=AsyncMock(),
-                    save_all_annotations=AsyncMock(),
-                    save_concept_map=AsyncMock(),
-                    save_graph=AsyncMock(),
-                    save_plan=AsyncMock(),
-                )
-
-            try:
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    resp = await client.post(f"/api/documents/{doc_id}/process")
-            finally:
-                for p in repo_patches:
-                    p.stop()
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
 
         assert resp.status_code == 200
         data = resp.json()
@@ -465,6 +439,54 @@ class TestDocumentProcess:
         assert data["graph_edges"] == 1
         assert data["lessons"] == 1
         assert data["milestones"] == 1
+
+    @pytest.mark.asyncio
+    async def test_process_uses_service_path(self, app, tmp_path: Path) -> None:
+        doc_id = uuid4()
+        result = _make_pipeline_result(doc_id)
+
+        upload_dir = tmp_path / "uploads" / str(doc_id)
+        upload_dir.mkdir(parents=True)
+        (upload_dir / "test.pdf").write_bytes(b"fake")
+
+        mock_session = AsyncMock()
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield mock_session
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_service] = lambda: mock_service
+        app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
+
+        assert resp.status_code == 200
+        mock_service.process.assert_awaited_once()
+        call_args = mock_service.process.call_args
+        assert call_args.args[0] == str(upload_dir / "test.pdf")
+        assert call_args.kwargs["session"] is mock_session
+        assert call_args.kwargs["orchestrator"] is mock_orchestrator
+        assert call_args.kwargs["doc_id"] == doc_id
+        assert call_args.kwargs["owner_sub"] == "1"
+        assert call_args.kwargs["dedupe_by_source"] is False
 
     @pytest.mark.asyncio
     async def test_process_missing_document_returns_404(self, app, tmp_path: Path) -> None:
@@ -657,26 +679,10 @@ class TestDocumentEnrich:
 
             mock_path_cls.side_effect = _path_factory
 
-            repo_patches = _patch_repos()
-            mocks = [p.start() for p in repo_patches]
-            for m in mocks:
-                m.return_value = MagicMock(
-                    save_document=AsyncMock(),
-                    save_all_units=AsyncMock(),
-                    save_all_annotations=AsyncMock(),
-                    save_concept_map=AsyncMock(),
-                    save_graph=AsyncMock(),
-                    save_plan=AsyncMock(),
-                )
-
-            try:
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    resp = await client.post(f"/api/documents/{doc_id}/enrich")
-            finally:
-                for p in repo_patches:
-                    p.stop()
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/enrich")
 
         assert resp.status_code == 200
         assert resp.json()["units_count"] == 1
@@ -707,6 +713,54 @@ class TestDocumentEnrich:
                 resp = await client.post(f"/api/documents/{doc_id}/enrich")
 
         assert resp.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_enrich_uses_service_path_when_not_cached(self, app, tmp_path: Path) -> None:
+        doc_id = uuid4()
+        result = _make_pipeline_result(doc_id)
+
+        upload_dir = tmp_path / "uploads" / str(doc_id)
+        upload_dir.mkdir(parents=True)
+        (upload_dir / "test.pdf").write_bytes(b"fake")
+
+        mock_session = AsyncMock()
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield mock_session
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_service] = lambda: mock_service
+        app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/enrich")
+
+        assert resp.status_code == 200
+        mock_service.process.assert_awaited_once()
+        call_args = mock_service.process.call_args
+        assert call_args.args[0] == str(upload_dir / "test.pdf")
+        assert call_args.kwargs["session"] is mock_session
+        assert call_args.kwargs["orchestrator"] is mock_orchestrator
+        assert call_args.kwargs["doc_id"] == doc_id
+        assert call_args.kwargs["owner_sub"] == "1"
+        assert call_args.kwargs["dedupe_by_source"] is False
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -961,7 +1015,7 @@ class TestCoursesEndpoint:
         async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
             mock_session = AsyncMock()
             mock_result = MagicMock()
-            mock_result.scalars.return_value.all.return_value = []
+            mock_result.mappings.return_value.all.return_value = []
             mock_session.execute = AsyncMock(return_value=mock_result)
             yield mock_session
 
@@ -977,13 +1031,14 @@ class TestCoursesEndpoint:
 
     @pytest.mark.asyncio
     async def test_list_courses_with_data(self, app) -> None:
-        mock_row = MagicMock()
-        mock_row.id = uuid4()
-        mock_row.title = "Python 101"
-        mock_row.description = "Learn Python"
-
         mock_result = MagicMock()
-        mock_result.scalars.return_value.all.return_value = [mock_row]
+        mock_result.mappings.return_value.all.return_value = [
+            {
+                "id": uuid4(),
+                "title": "Python 101",
+                "description": "Learn Python",
+            }
+        ]
 
         async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
             mock_session = AsyncMock()
@@ -1002,7 +1057,7 @@ class TestCoursesEndpoint:
         assert data["courses"][0]["description"] == "Learn Python"
 
     @pytest.mark.asyncio
-    async def test_list_courses_db_error_returns_empty(self, app) -> None:
+    async def test_list_courses_db_error_returns_500(self, app) -> None:
         async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
             mock_session = AsyncMock()
             mock_session.execute = AsyncMock(side_effect=RuntimeError("DB down"))
@@ -1010,10 +1065,12 @@ class TestCoursesEndpoint:
 
         app.dependency_overrides[get_session] = _mock_session_gen
 
-        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+        async with AsyncClient(
+            transport=ASGITransport(app=app, raise_app_exceptions=False),
+            base_url="http://test",
+        ) as client:
             resp = await client.get("/api/courses/")
 
-        assert resp.status_code == 200
+        assert resp.status_code == 500
         data = resp.json()
-        assert data["courses"] == []
-        assert data["count"] == 0
+        assert data["detail"] == "Failed to fetch courses"

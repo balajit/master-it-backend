@@ -24,13 +24,14 @@ import asyncio
 import hashlib
 import logging
 from pathlib import Path
+from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.api.deps import get_pipeline_orchestrator
 from learning_platform.cache import pipeline_cache
 from learning_platform.pipeline.events import EventType, PipelineEvent
-from learning_platform.pipeline.orchestrator import PipelineResult
+from learning_platform.pipeline.orchestrator import PipelineOrchestrator, PipelineResult
 
 _LOG = logging.getLogger(__name__)
 
@@ -60,6 +61,11 @@ class LearningPlatformService:
         file_path: str,
         session: AsyncSession | None = None,
         document_process_id: int | None = None,
+        *,
+        orchestrator: PipelineOrchestrator | None = None,
+        doc_id: UUID | None = None,
+        owner_sub: str | None = None,
+        dedupe_by_source: bool = True,
     ) -> PipelineResult:
         """Run the full pipeline on *file_path* and cache the result.
 
@@ -72,6 +78,14 @@ class LearningPlatformService:
             persisted immediately.  When ``None``, only the cache is populated.
         document_process_id:
             Optional ``lp_document_process`` ID to link pipeline logs to.
+        orchestrator:
+            Optional orchestrator override, used by API tests and DI paths.
+        doc_id:
+            Optional document ID to use as the cache and persistence key.
+        owner_sub:
+            Optional owner subject to persist on the canonical document row.
+        dedupe_by_source:
+            When ``True``, allow source-name dedupe based on pipeline logs.
 
         Returns
         -------
@@ -79,8 +93,6 @@ class LearningPlatformService:
             The complete pipeline output (document, units, concepts, graph,
             study plan, pages, events).
         """
-        from uuid import UUID
-
         from learning_platform.infrastructure.persistence.repositories.annotation import (
             AnnotationRepository,
         )
@@ -103,16 +115,15 @@ class LearningPlatformService:
             StudyPlanRepository,
         )
 
-        orchestrator = get_pipeline_orchestrator()
+        orchestrator = orchestrator or get_pipeline_orchestrator()
+        doc_id_uuid: UUID = doc_id or UUID(stable_doc_id(file_path)[:32])
 
         # ── Duplicate check ──────────────────────────────────────────────
-        if session is not None:
+        if session is not None and dedupe_by_source:
             source_name = Path(file_path).name
             log_repo = PipelineLogRepository(session)
             already_done = await log_repo.has_success_by_source(source_name)
             if already_done:
-                doc_id_str = stable_doc_id(file_path)
-                doc_id_uuid = UUID(doc_id_str[:32])
                 cached = pipeline_cache.get(str(doc_id_uuid))
                 if cached is not None:
                     _LOG.info("Skipping already-processed file (cache hit): %s", file_path)
@@ -145,7 +156,11 @@ class LearningPlatformService:
                 return
             collected.append(event)
 
-        orchestrator._event_bus.subscribe(collector)
+        event_bus = getattr(orchestrator, "_event_bus", None)
+        subscribed = False
+        if event_bus is not None and hasattr(event_bus, "subscribe"):
+            event_bus.subscribe(collector)
+            subscribed = True
         try:
             run_async = getattr(orchestrator, "run_async", None)
             if run_async is not None and asyncio.iscoroutinefunction(run_async):
@@ -164,10 +179,8 @@ class LearningPlatformService:
                 await session.commit()
             raise
         finally:
-            orchestrator._event_bus.unsubscribe(collector)
-
-        doc_id_str = stable_doc_id(file_path)
-        doc_id_uuid = UUID(doc_id_str[:32])
+            if subscribed and event_bus is not None and hasattr(event_bus, "unsubscribe"):
+                event_bus.unsubscribe(collector)
 
         pipeline_cache.set(str(doc_id_uuid), result)
         _LOG.info("Pipeline result cached for doc_id=%s (file=%s)", doc_id_uuid, file_path)
@@ -180,7 +193,7 @@ class LearningPlatformService:
             graph_repo = KnowledgeGraphRepository(session)
             plan_repo = StudyPlanRepository(session)
 
-            await doc_repo.save_document(result.document, doc_id=doc_id_uuid)
+            await doc_repo.save_document(result.document, doc_id=doc_id_uuid, owner_sub=owner_sub)
             await unit_repo.save_all_units(result.units, doc_id_uuid)
             await ann_repo.save_all_annotations(result.annotations, doc_id_uuid)
             await concept_repo.save_concept_map(result.concepts, doc_id_uuid)
@@ -196,7 +209,7 @@ class LearningPlatformService:
                 )
 
             await session.commit()
-            _LOG.info("Pipeline result persisted for doc_id=%s", doc_id_str)
+            _LOG.info("Pipeline result persisted for doc_id=%s", doc_id_uuid)
 
         return result
 

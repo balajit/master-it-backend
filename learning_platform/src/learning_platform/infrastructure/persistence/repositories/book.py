@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from uuid import UUID
 
 from sqlalchemy import select
@@ -104,9 +105,46 @@ class BookRepository:
         if not chapter_rows:
             return None
 
+        chapter_ids = [chapter.id for chapter in chapter_rows]
+        lessons_by_chapter = await self._find_lessons_by_chapter_ids(chapter_ids)
+        lesson_ids = [lesson.id for lessons in lessons_by_chapter.values() for lesson in lessons]
+        pages_by_lesson = await self._find_pages_by_lesson_ids(lesson_ids)
+        page_ids = [page.id for pages in pages_by_lesson.values() for page in pages]
+        items_by_page = await self._find_items_by_page_ids(page_ids)
+
         chapters: list[BookChapter] = []
         for chapter_row in sorted(chapter_rows, key=lambda r: r.order):
-            lessons = await self._load_lessons(chapter_row.id)
+            lesson_rows = sorted(lessons_by_chapter.get(chapter_row.id, []), key=lambda r: r.order)
+            lessons: list[BookLesson] = []
+            for lesson_row in lesson_rows:
+                page_rows = sorted(pages_by_lesson.get(lesson_row.id, []), key=lambda r: r.order)
+                pages: list[BookPage] = []
+                for page_row in page_rows:
+                    item_rows = sorted(items_by_page.get(page_row.id, []), key=lambda r: r.order)
+                    items: list[ContentItem] = []
+                    for item_row in item_rows:
+                        item = self._row_to_item(item_row)
+                        if item is not None:
+                            items.append(item)
+                    pages.append(
+                        BookPage(
+                            id=page_row.id,
+                            page_number=page_row.page_number,
+                            order=page_row.order,
+                            items=items,
+                            metadata=page_row.metadata_json or {},
+                        )
+                    )
+                lessons.append(
+                    BookLesson(
+                        id=lesson_row.id,
+                        unit_id=lesson_row.unit_id,
+                        title=lesson_row.title,
+                        order=lesson_row.order,
+                        pages=pages,
+                        metadata=lesson_row.metadata_json or {},
+                    )
+                )
             chapters.append(
                 BookChapter(
                     id=chapter_row.id,
@@ -179,6 +217,48 @@ class BookRepository:
         stmt = select(BookLessonRow).where(BookLessonRow.chapter_id == chapter_id)
         result = await self._session.execute(stmt)
         return list(result.scalars().all())
+
+    async def _find_lessons_by_chapter_ids(
+        self,
+        chapter_ids: list[UUID],
+    ) -> dict[UUID, list[BookLessonRow]]:
+        if not chapter_ids:
+            return {}
+        stmt = select(BookLessonRow).where(BookLessonRow.chapter_id.in_(chapter_ids))
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+        grouped: dict[UUID, list[BookLessonRow]] = defaultdict(list)
+        for row in rows:
+            grouped[row.chapter_id].append(row)
+        return dict(grouped)
+
+    async def _find_pages_by_lesson_ids(
+        self,
+        lesson_ids: list[UUID],
+    ) -> dict[UUID, list[BookPageRow]]:
+        if not lesson_ids:
+            return {}
+        stmt = select(BookPageRow).where(BookPageRow.lesson_id.in_(lesson_ids))
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+        grouped: dict[UUID, list[BookPageRow]] = defaultdict(list)
+        for row in rows:
+            grouped[row.lesson_id].append(row)
+        return dict(grouped)
+
+    async def _find_items_by_page_ids(
+        self,
+        page_ids: list[UUID],
+    ) -> dict[UUID, list[BookItemRow]]:
+        if not page_ids:
+            return {}
+        stmt = select(BookItemRow).where(BookItemRow.page_id.in_(page_ids))
+        result = await self._session.execute(stmt)
+        rows = list(result.scalars().all())
+        grouped: dict[UUID, list[BookItemRow]] = defaultdict(list)
+        for row in rows:
+            grouped[row.page_id].append(row)
+        return dict(grouped)
 
     async def _load_lessons(self, chapter_id: UUID) -> list[BookLesson]:
         lesson_rows = await self._find_lesson_rows(chapter_id)

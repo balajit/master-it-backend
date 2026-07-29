@@ -24,33 +24,66 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     """Add surrogate id PK to course_enrollments; fix item_progress FK."""
+    bind = op.get_bind()
+
+    def _column_exists(table: str, column: str) -> bool:
+        return any(c["name"] == column for c in sa.inspect(bind).get_columns(table))
+
+    def _fk_exists(table: str, name: str) -> bool:
+        return any(
+            fk.get("name") == name for fk in sa.inspect(bind).get_foreign_keys(table)
+        )
+
+    def _pk_name(table: str) -> str | None:
+        return sa.inspect(bind).get_pk_constraint(table).get("name")
+
+    def _pk_columns(table: str) -> list[str]:
+        return list(
+            sa.inspect(bind).get_pk_constraint(table).get("constrained_columns") or []
+        )
+
+    def _unique_exists(table: str, name: str) -> bool:
+        return any(
+            uc.get("name") == name
+            for uc in sa.inspect(bind).get_unique_constraints(table)
+        )
+
     # 1. Drop the FK from item_progress that references course_enrollments.user_id
-    with op.batch_alter_table("item_progress", schema=None) as batch_op:
-        batch_op.drop_constraint("item_progress_enrollment_id_fkey", type_="foreignkey")
+    if _fk_exists("item_progress", "item_progress_enrollment_id_fkey"):
+        with op.batch_alter_table("item_progress", schema=None) as batch_op:
+            batch_op.drop_constraint(
+                "item_progress_enrollment_id_fkey", type_="foreignkey"
+            )
 
     # 2. Drop the composite PK on course_enrollments
-    with op.batch_alter_table("course_enrollments", schema=None) as batch_op:
-        batch_op.drop_constraint("course_enrollments_pkey", type_="primary")
+    current_pk_name = _pk_name("course_enrollments")
+    current_pk_columns = _pk_columns("course_enrollments")
+    if current_pk_columns != ["id"] and current_pk_name is not None:
+        with op.batch_alter_table("course_enrollments", schema=None) as batch_op:
+            batch_op.drop_constraint(current_pk_name, type_="primary")
 
     # 3. Add surrogate id column
-    op.add_column(
-        "course_enrollments",
-        sa.Column("id", sa.Integer(), autoincrement=True, nullable=False),
-    )
-
-    # 4. Populate id for existing rows (uses a sequence-backed expression)
-    op.execute(
-        """
-        WITH numbered AS (
-            SELECT ctid, row_number() OVER () AS rn
-            FROM course_enrollments
+    if not _column_exists("course_enrollments", "id"):
+        op.add_column(
+            "course_enrollments",
+            sa.Column("id", sa.Integer(), autoincrement=True, nullable=True),
         )
-        UPDATE course_enrollments ce
-        SET id = n.rn
-        FROM numbered n
-        WHERE ce.ctid = n.ctid
-        """
-    )
+
+    # 4. Populate id for rows where it is still NULL
+    if _column_exists("course_enrollments", "id"):
+        op.execute(
+            """
+            WITH numbered AS (
+                SELECT ctid, row_number() OVER () AS rn
+                FROM course_enrollments
+                WHERE id IS NULL
+            )
+            UPDATE course_enrollments ce
+            SET id = n.rn
+            FROM numbered n
+            WHERE ce.ctid = n.ctid
+            """
+        )
 
     # 5. Create the sequence and tie it to the column
     op.execute("CREATE SEQUENCE IF NOT EXISTS course_enrollments_id_seq")
@@ -63,22 +96,28 @@ def upgrade() -> None:
     op.execute(
         "ALTER SEQUENCE course_enrollments_id_seq OWNED BY course_enrollments.id"
     )
+    op.execute("ALTER TABLE course_enrollments ALTER COLUMN id SET NOT NULL")
 
     # 6. Add PK on id
-    with op.batch_alter_table("course_enrollments", schema=None) as batch_op:
-        batch_op.create_primary_key("course_enrollments_pkey", ["id"])
-        batch_op.create_unique_constraint(
-            "uq_enrollment_user_course", ["user_id", "course_id"]
-        )
+    if _pk_columns("course_enrollments") != ["id"]:
+        with op.batch_alter_table("course_enrollments", schema=None) as batch_op:
+            batch_op.create_primary_key("course_enrollments_pkey", ["id"])
+
+    if not _unique_exists("course_enrollments", "uq_enrollment_user_course"):
+        with op.batch_alter_table("course_enrollments", schema=None) as batch_op:
+            batch_op.create_unique_constraint(
+                "uq_enrollment_user_course", ["user_id", "course_id"]
+            )
 
     # 7. Restore FK on item_progress pointing to the new id column
-    with op.batch_alter_table("item_progress", schema=None) as batch_op:
-        batch_op.create_foreign_key(
-            "item_progress_enrollment_id_fkey",
-            "course_enrollments",
-            ["enrollment_id"],
-            ["id"],
-        )
+    if not _fk_exists("item_progress", "item_progress_enrollment_id_fkey"):
+        with op.batch_alter_table("item_progress", schema=None) as batch_op:
+            batch_op.create_foreign_key(
+                "item_progress_enrollment_id_fkey",
+                "course_enrollments",
+                ["enrollment_id"],
+                ["id"],
+            )
 
 
 def downgrade() -> None:

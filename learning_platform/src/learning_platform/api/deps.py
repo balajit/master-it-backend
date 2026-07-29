@@ -7,6 +7,7 @@ from collections.abc import AsyncGenerator
 from pathlib import Path
 from typing import Any
 
+from fastapi import Request
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from learning_platform.config import Settings, get_settings
@@ -50,7 +51,7 @@ def _ensure_upload_dir(settings: Settings) -> Path:
     """Return the upload directory, creating it if needed."""
     global _upload_dir
     if _upload_dir is None:
-        _upload_dir = Path(settings.s3_bucket) / "uploads"
+        _upload_dir = Path(settings.upload_path)
         _upload_dir.mkdir(parents=True, exist_ok=True)
     return _upload_dir
 
@@ -58,8 +59,11 @@ def _ensure_upload_dir(settings: Settings) -> Path:
 # ── Settings ────────────────────────────────────────────────────────────────
 
 
-def get_settings_dependency() -> Settings:
+def get_settings_dependency(request: Request) -> Settings:
     """FastAPI dependency for application settings."""
+    app_settings = getattr(request.app.state, "settings", None)
+    if isinstance(app_settings, Settings):
+        return app_settings
     return get_settings()
 
 
