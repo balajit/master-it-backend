@@ -203,3 +203,48 @@ async def test_registry_entries_visible_in_db(
         assert rows[0].status == "pending"
         assert rows[1].source == "8/test.docx"
         assert rows[1].status == "pending"
+
+
+@pytest.mark.asyncio
+async def test_mark_processing_handles_detached_row(session_factory) -> None:
+    """Regression: mark_processing should work with detached ORM rows.
+
+    Poller state transitions can cross session boundaries.  This test ensures
+    repository methods re-attach rows before mutation.
+    """
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry("11/detached.pdf", "/tmp/11/detached.pdf")
+        await session.commit()
+
+    # `row` is now detached (previous session closed).
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        await repo.mark_processing(row)
+        await session.commit()
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        loaded = await repo.find_by_source("11/detached.pdf")
+        assert loaded is not None
+        assert loaded.status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_sync_registry_skips_unsafe_paths(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    reg = temp_upload_dir / "registry.txt"
+    reg.write_text("../escape.pdf\n/sneaky.pdf\n10/ok.pdf\n")
+
+    poller = FilePoller(upload_path=str(temp_upload_dir), session_factory=session_factory)
+    await poller._sync_registry_to_db()
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        entries = await repo.find_pending()
+        sources = {e.source for e in entries}
+        assert "10/ok.pdf" in sources
+        assert "../escape.pdf" not in sources
+        assert "/sneaky.pdf" not in sources

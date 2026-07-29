@@ -8,12 +8,13 @@ to an optional ``EventBus``.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any, TypeVar
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from learning_platform.pipeline.events import EventType, PipelineEvent
 
@@ -71,6 +72,7 @@ def with_retry(
     policy: RetryPolicy | None = None,
     stage_name: str = "",
     event_fn: Callable[[PipelineEvent], None] | None = None,
+    pipeline_id: UUID | None = None,
 ) -> Callable[..., RetryResult]:
     """Return a wrapper that retries *fn* according to *policy*.
 
@@ -137,6 +139,7 @@ def with_retry(
                                 "delay": delay,
                                 "event_id": str(uuid4()),
                             },
+                            pipeline_id=pipeline_id or uuid4(),
                         )
                     )
 
@@ -151,3 +154,78 @@ def with_retry(
         )
 
     return wrapper  # type: ignore[return-value]
+
+
+def with_retry_async(
+    fn: F,
+    policy: RetryPolicy | None = None,
+    stage_name: str = "",
+    event_fn: Callable[[PipelineEvent], None] | None = None,
+    pipeline_id: UUID | None = None,
+) -> Callable[..., Awaitable[RetryResult]]:
+    """Return an async wrapper that retries *fn* according to *policy*.
+
+    The wrapped callable ``fn`` is executed in a worker thread using
+    ``asyncio.to_thread`` so event-loop threads are never blocked by
+    synchronous stage work. Backoff delays use ``asyncio.sleep``.
+    """
+    if policy is None:
+        policy = RetryPolicy()
+
+    async def wrapper(*args: Any, **kwargs: Any) -> RetryResult:
+        last_error: Exception | None = None
+        total_start = time.monotonic()
+
+        for attempt in range(1, policy.max_retries + 2):
+            try:
+                value = await asyncio.to_thread(fn, *args, **kwargs)
+                elapsed = time.monotonic() - total_start
+                return RetryResult(
+                    value=value,
+                    attempts=attempt,
+                    total_seconds=elapsed,
+                )
+            except Exception as exc:
+                last_error = exc
+                if attempt > policy.max_retries:
+                    break
+
+                delay = min(
+                    policy.base_delay * (policy.backoff_factor ** (attempt - 1)),
+                    policy.max_delay,
+                )
+                _LOG.warning(
+                    "Stage '%s' attempt %d failed: %s — retrying in %.2fs",
+                    stage_name,
+                    attempt,
+                    exc,
+                    delay,
+                )
+
+                if event_fn is not None:
+                    event_fn(
+                        PipelineEvent(
+                            event_type=EventType.STAGE_RETRYING,
+                            stage=stage_name,
+                            data={
+                                "attempt": attempt,
+                                "max_retries": policy.max_retries,
+                                "error": str(exc),
+                                "delay": delay,
+                                "event_id": str(uuid4()),
+                            },
+                            pipeline_id=pipeline_id or uuid4(),
+                        )
+                    )
+
+                await asyncio.sleep(delay)
+
+        elapsed = time.monotonic() - total_start
+        return RetryResult(
+            value=None,
+            attempts=policy.max_retries + 1,
+            total_seconds=elapsed,
+            error=last_error,
+        )
+
+    return wrapper

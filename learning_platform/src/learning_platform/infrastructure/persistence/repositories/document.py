@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from pydantic import TypeAdapter
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
@@ -23,7 +24,12 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
     def __init__(self, session: AsyncSession) -> None:
         super().__init__(session)
 
-    async def save_document(self, doc: CanonicalDocument, doc_id: UUID | None = None) -> UUID:
+    async def save_document(
+        self,
+        doc: CanonicalDocument,
+        doc_id: UUID | None = None,
+        owner_sub: str | None = None,
+    ) -> UUID:
         """Serialize and persist a ``CanonicalDocument``.  Returns its ID.
 
         When *doc_id* is provided it is used as the primary key; otherwise
@@ -35,6 +41,7 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
             id=doc_id,
             source=doc.source,
             title=doc.title,
+            owner_sub=owner_sub,
             metadata_json=doc.metadata.model_dump(),
             nodes_json=self._serialize_nodes(doc.nodes),
             created_at=datetime.now(timezone.utc).isoformat(),
@@ -48,6 +55,12 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
         if row is None:
             return None
         return self._to_domain(row)
+
+    async def find_owner_sub(self, doc_id: UUID) -> str | None:
+        """Return owner subject for a document, or ``None`` if not owned/public."""
+        stmt = select(CanonicalDocumentRow.owner_sub).where(CanonicalDocumentRow.id == doc_id)
+        result = await self._session.execute(stmt)
+        return result.scalar_one_or_none()
 
     async def delete_by_id(self, doc_id: UUID) -> bool:
         """Delete a document by ID.  Returns True if found."""

@@ -118,18 +118,41 @@ class LearningPlatformService:
                     _LOG.info("Skipping already-processed file (cache hit): %s", file_path)
                     return cached
                 _LOG.info("Skipping already-processed file, re-caching: %s", file_path)
-                result = await asyncio.to_thread(orchestrator.run, file_path)
+                run_async = getattr(orchestrator, "run_async", None)
+                if run_async is not None and asyncio.iscoroutinefunction(run_async):
+                    maybe_result = run_async(file_path)
+                    result = (
+                        await maybe_result if asyncio.iscoroutine(maybe_result) else maybe_result
+                    )
+                else:
+                    result = await asyncio.to_thread(orchestrator.run, file_path)
                 pipeline_cache.set(str(doc_id_uuid), result)
                 return result
 
         collected: list[PipelineEvent] = []
+        active_pipeline_id: str | None = None
 
         def collector(event: PipelineEvent) -> None:
+            nonlocal active_pipeline_id
+            if (
+                event.event_type == EventType.PIPELINE_STARTED
+                and event.data.get("source") == file_path
+            ):
+                active_pipeline_id = str(event.pipeline_id)
+            if active_pipeline_id is None:
+                return
+            if str(event.pipeline_id) != active_pipeline_id:
+                return
             collected.append(event)
 
         orchestrator._event_bus.subscribe(collector)
         try:
-            result: PipelineResult = await asyncio.to_thread(orchestrator.run, file_path)
+            run_async = getattr(orchestrator, "run_async", None)
+            if run_async is not None and asyncio.iscoroutinefunction(run_async):
+                maybe_result = run_async(file_path)
+                result = await maybe_result if asyncio.iscoroutine(maybe_result) else maybe_result
+            else:
+                result = await asyncio.to_thread(orchestrator.run, file_path)
         except Exception:
             if session is not None and collected:
                 await self._persist_pipeline_logs(

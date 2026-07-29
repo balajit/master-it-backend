@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+import pytest
+
 from learning_platform.models.annotation import (
     DefinitionAnnotation,
     KeyTermAnnotation,
@@ -301,9 +303,20 @@ class TestEdgeCases:
                 raise RuntimeError("boom")
 
         doc = _doc(_para("Text."))
-        extractor = ConceptExtractor([FailingStrategy()])  # type: ignore[arg-type]
+        extractor = ConceptExtractor([FailingStrategy()], fail_fast=False)  # type: ignore[arg-type]
         cmap = extractor.extract(doc, [], [])
         assert cmap.concepts == []
+
+    def test_strategy_failure_fail_fast_raises(self) -> None:
+        class FailingStrategy:
+            def extract(self, document, annotations, units):
+                raise RuntimeError("boom")
+
+        doc = _doc(_para("Text."))
+        extractor = ConceptExtractor([FailingStrategy()], fail_fast=True)  # type: ignore[arg-type]
+
+        with pytest.raises(RuntimeError, match="Strategy FailingStrategy failed"):
+            extractor.extract(doc, [], [])
 
     def test_concept_aliases_preserved(self) -> None:
         c = Concept(

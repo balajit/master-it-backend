@@ -96,7 +96,7 @@ class Detector(Protocol):
     ``EnrichmentEngine`` merges into a final enrichment layer.
     """
 
-    def detect(self, document: CanonicalDocument) -> list: ...
+    def detect(self, document: CanonicalDocument) -> list[Annotation]: ...
 
 
 @runtime_checkable

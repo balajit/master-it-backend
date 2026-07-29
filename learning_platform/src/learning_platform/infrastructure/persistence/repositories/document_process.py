@@ -46,28 +46,34 @@ class DocumentProcessRepository(BaseRepository[DocumentProcessRow]):
             retry_count=0,
             max_retries=MAX_RETRIES,
         )
-        self._session.add(row)
+        # Use merge so the row is always attached to the current session,
+        # even if callers pass detached instances in future refactors.
+        row = await self._session.merge(row)
         await self._session.flush()
         _LOG.info("Created document_process entry: source=%s id=%d", source, row.id)
         return row
 
     async def mark_processing(self, row: DocumentProcessRow) -> None:
+        row = await self._session.merge(row)
         row.status = "processing"
         row.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self._session.flush()
 
     async def mark_completed(self, row: DocumentProcessRow) -> None:
+        row = await self._session.merge(row)
         row.status = "completed"
         row.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self._session.flush()
 
     async def mark_failed(self, row: DocumentProcessRow, error_message: str) -> None:
+        row = await self._session.merge(row)
         row.status = "failed"
         row.error_message = error_message
         row.updated_at = datetime.now(timezone.utc).replace(tzinfo=None)
         await self._session.flush()
 
     async def mark_retry(self, row: DocumentProcessRow, error_message: str) -> None:
+        row = await self._session.merge(row)
         row.status = "pending"
         row.retry_count += 1
         row.error_message = error_message

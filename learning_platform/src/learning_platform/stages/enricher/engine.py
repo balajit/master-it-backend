@@ -19,11 +19,22 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Sequence
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
 
 from learning_platform.models.annotation import Annotation
 from learning_platform.models.document import CanonicalDocument
 
+if TYPE_CHECKING:
+    from learning_platform.config import Settings
+
 _LOG = logging.getLogger(__name__)
+
+
+@runtime_checkable
+class _DetectorProtocol(Protocol):
+    """Typed detector contract used by ``EnrichmentEngine``."""
+
+    def detect(self, document: CanonicalDocument) -> list[Annotation]: ...
 
 
 def _annotation_key(annotation: Annotation) -> tuple[str, str]:
@@ -36,22 +47,50 @@ class EnrichmentEngine:
 
     Parameters
     ----------
-    detectors : Sequence[Detector] | None
+    detectors : Sequence[_DetectorProtocol] | None
         Detectors to execute.  When ``None`` the engine starts empty
         and detectors must be added via ``add_detector()``.
+    fail_fast : bool
+        When ``True``, detector exceptions raise immediately. When
+        ``False``, failures are logged and processing continues.
     """
 
-    def __init__(self, detectors: Sequence[object] | None = None) -> None:
-        self._detectors: list[object] = list(detectors) if detectors is not None else []
+    def __init__(
+        self,
+        detectors: Sequence[_DetectorProtocol] | None = None,
+        *,
+        fail_fast: bool = False,
+    ) -> None:
+        self._detectors: list[_DetectorProtocol] = list(detectors) if detectors is not None else []
+        self._fail_fast = fail_fast
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: Settings,
+        detectors: Sequence[_DetectorProtocol] | None = None,
+    ) -> EnrichmentEngine:
+        """Build an engine with environment-aware failure policy.
+
+        Policy A:
+        - debug=False => fail-fast
+        - debug=True  => best-effort
+        """
+        return cls(detectors=detectors, fail_fast=not settings.debug)
 
     @property
-    def detectors(self) -> list[object]:
+    def detectors(self) -> list[_DetectorProtocol]:
         """Return a copy of the current detector list."""
         return list(self._detectors)
 
-    def add_detector(self, detector: object) -> None:
+    def add_detector(self, detector: _DetectorProtocol) -> None:
         """Register a detector for future ``enrich()`` calls."""
         self._detectors.append(detector)
+
+    @property
+    def fail_fast(self) -> bool:
+        """Return whether detector errors fail the stage."""
+        return self._fail_fast
 
     def enrich(self, document: CanonicalDocument) -> list[Annotation]:
         """Run all detectors and return merged, deduplicated annotations.
@@ -72,10 +111,12 @@ class EnrichmentEngine:
             detector_name = type(detector).__name__
             _LOG.debug("Running detector: %s", detector_name)
             try:
-                found = detector.detect(document)  # type: ignore[union-attr]
+                found = detector.detect(document)
                 _LOG.debug("  → %d annotations from %s", len(found), detector_name)
                 all_annotations.extend(found)
-            except Exception:
+            except Exception as exc:
+                if self._fail_fast:
+                    raise RuntimeError(f"Detector {detector_name} failed") from exc
                 _LOG.exception("Detector %s failed", detector_name)
 
         merged = self._deduplicate(all_annotations)

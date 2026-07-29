@@ -33,6 +33,10 @@ class TestBase:
         table_names = sorted(Base.metadata.tables.keys())
         expected = [
             "lp_annotations",
+            "lp_book_chapter",
+            "lp_book_item",
+            "lp_book_lesson",
+            "lp_book_page",
             "lp_checkpoints",
             "lp_concept_relationships",
             "lp_concepts",
@@ -50,7 +54,7 @@ class TestBase:
         assert table_names == expected
 
     def test_total_table_count(self) -> None:
-        assert len(Base.metadata.tables) == 14
+        assert len(Base.metadata.tables) == 18
 
 
 class TestCanonicalDocumentRow:
@@ -62,12 +66,14 @@ class TestCanonicalDocumentRow:
             id=uuid.uuid4(),
             source="test.pdf",
             title="Test Doc",
+            owner_sub="1",
             metadata_json={"key": "val"},
             nodes_json=[{"id": "abc"}],
             created_at="2025-01-01T00:00:00Z",
         )
         assert row.source == "test.pdf"
         assert row.title == "Test Doc"
+        assert row.owner_sub == "1"
         assert row.metadata_json == {"key": "val"}
 
 

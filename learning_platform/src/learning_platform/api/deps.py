@@ -28,6 +28,7 @@ from learning_platform.pipeline.orchestrator import PipelineOrchestrator
 from learning_platform.pipeline.plugins import PluginRegistry
 from learning_platform.poller import FilePoller
 from learning_platform.stages.concept_extractor import ConceptExtractor
+from learning_platform.stages.enricher.engine import EnrichmentEngine
 from learning_platform.stages.enricher.semantic import SemanticEnricher
 from learning_platform.stages.graph_builder.graph import NetworkxGraphBuilder
 from learning_platform.stages.normalizer.structural import StructuralNormalizer
@@ -106,12 +107,15 @@ def get_pipeline_orchestrator() -> PipelineOrchestrator:
     """
     global _orchestrator
     if _orchestrator is None:
+        settings = get_settings()
         _orchestrator = PipelineOrchestrator(
             parser=DoclingAdapter(),
             normalizer=StructuralNormalizer(),
-            enricher=SemanticEnricher(),
+            enricher=SemanticEnricher(
+                engine=EnrichmentEngine.from_settings(settings),
+            ),
             unit_builder=LearningUnitBuilder(),
-            concept_extractor=ConceptExtractor(),
+            concept_extractor=ConceptExtractor.from_settings(settings),
             graph_builder=NetworkxGraphBuilder(),
             sequence_builder=TopologicalSequenceBuilder(),
             event_bus=SimpleEventBus(),

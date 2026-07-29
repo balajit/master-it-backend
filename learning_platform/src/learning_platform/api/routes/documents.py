@@ -13,6 +13,7 @@ Typical workflow:
 from __future__ import annotations
 
 import asyncio
+import inspect
 import logging
 import os
 import shutil
@@ -56,9 +57,12 @@ from learning_platform.infrastructure.persistence.repositories.learning_unit imp
 from learning_platform.infrastructure.persistence.repositories.sequence import StudyPlanRepository
 from learning_platform.models.document import DocumentNode
 from learning_platform.pipeline.orchestrator import PipelineOrchestrator
+from learning_platform.security import InvalidPathError, resolve_safe_path, sanitize_filename
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+_OWNER_MARKER_FILENAME = ".owner_sub"
 
 
 # ── Request / response schemas ───────────────────────────────────────────────
@@ -110,6 +114,102 @@ def _build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
     )
 
 
+def _user_subject(user: dict[str, Any]) -> str:
+    """Return a stable user subject identifier for ownership checks."""
+    sub = user.get("sub")
+    if isinstance(sub, str) and sub:
+        return sub
+    user_id = user.get("id")
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Invalid user identity")
+    return str(user_id)
+
+
+def _owner_marker_path(upload_dir: Path) -> Path:
+    """Return the owner marker file path under an upload directory."""
+    return upload_dir / _OWNER_MARKER_FILENAME
+
+
+def _read_upload_owner_sub(upload_dir: Path) -> str | None:
+    """Read owner subject from upload marker file, if present."""
+    marker_path = _owner_marker_path(upload_dir)
+    if not marker_path.exists():
+        return None
+    owner_sub = marker_path.read_text(encoding="utf-8").strip()
+    return owner_sub or None
+
+
+def _write_upload_owner_sub(upload_dir: Path, owner_sub: str) -> None:
+    """Persist owner subject marker for a newly uploaded document."""
+    marker_path = _owner_marker_path(upload_dir)
+    marker_path.write_text(owner_sub, encoding="utf-8")
+
+
+def _resolve_uploaded_source(upload_dir: Path, doc_id: UUID) -> Path:
+    """Return the first safe uploaded file path for the given document."""
+    safe_candidates: list[Path] = []
+    for file_path in upload_dir.iterdir():
+        if not file_path.is_file() or file_path.name == _OWNER_MARKER_FILENAME:
+            continue
+        try:
+            resolved = resolve_safe_path(upload_dir, file_path.name)
+        except InvalidPathError:
+            logger.warning(
+                "Skipping unsafe file entry in upload dir for doc_id=%s: %s",
+                doc_id,
+                file_path,
+            )
+            continue
+        if resolved.is_file():
+            safe_candidates.append(resolved)
+
+    if not safe_candidates:
+        raise HTTPException(status_code=404, detail=f"No uploaded file found for {doc_id}")
+
+    return safe_candidates[0]
+
+
+def _authorize_upload_owner(upload_dir: Path, user: dict[str, Any]) -> None:
+    """Authorize access to a pre-processed upload directory.
+
+    Policy:
+    - no owner marker => public (available to all authenticated users)
+    - owner marker exists => owner-only access
+    """
+    owner_sub = _read_upload_owner_sub(upload_dir)
+    if owner_sub is None:
+        return
+    if owner_sub != _user_subject(user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+async def _authorize_persisted_document_owner(
+    session: AsyncSession,
+    doc_id: UUID,
+    user: dict[str, Any],
+) -> None:
+    """Authorize access to a persisted document by owner.
+
+    Policy:
+    - missing persisted document row => no ownership check here
+    - row with owner_sub == NULL => public
+    - row with owner_sub set => owner-only access
+    """
+    repo = DocumentRepository(session)
+    maybe_row = repo.find_by_id(doc_id)
+    if inspect.isawaitable(maybe_row):
+        row = await maybe_row
+    else:
+        row = None
+    if row is None:
+        return
+    owner_sub = getattr(row, "owner_sub", None)
+    if not isinstance(owner_sub, str) or not owner_sub:
+        return
+    if owner_sub != _user_subject(user):
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
 # ── Endpoints ───────────────────────────────────────────────────────────────
 
 
@@ -134,15 +234,22 @@ async def upload_document(
     if not file.filename:
         raise HTTPException(status_code=400, detail="No filename provided")
 
+    try:
+        safe_filename = sanitize_filename(file.filename)
+    except InvalidPathError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     doc_id = uuid4()
+    owner_sub = _user_subject(user)
     dest_dir = Path("uploads") / str(doc_id)
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / file.filename
+    _write_upload_owner_sub(dest_dir, owner_sub)
+    dest = dest_dir / safe_filename
 
     with dest.open("wb") as fh:
         shutil.copyfileobj(file.file, fh)
 
-    return UploadResponse(doc_id=doc_id, filename=file.filename)
+    return UploadResponse(doc_id=doc_id, filename=safe_filename)
 
 
 @router.post(
@@ -172,14 +279,16 @@ async def process_document(
     if not upload_dir.exists():
         raise HTTPException(status_code=404, detail=f"Uploaded file not found for {doc_id}")
 
-    # Find the first file in the upload directory.
-    candidates = [f for f in upload_dir.iterdir() if f.is_file()]
-    if not candidates:
-        raise HTTPException(status_code=404, detail=f"No uploaded file found for {doc_id}")
-    source = str(candidates[0])
+    _authorize_upload_owner(upload_dir, user)
+    source = str(_resolve_uploaded_source(upload_dir, doc_id))
 
     try:
-        result = await asyncio.to_thread(orchestrator.run, source)
+        run_async = getattr(orchestrator, "run_async", None)
+        if run_async is not None and inspect.iscoroutinefunction(run_async):
+            maybe_result = run_async(source)
+            result = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
+        else:
+            result = await asyncio.to_thread(orchestrator.run, source)
     except Exception as exc:
         raise HTTPException(
             status_code=500,
@@ -195,7 +304,11 @@ async def process_document(
     graph_repo = KnowledgeGraphRepository(session)
     plan_repo = StudyPlanRepository(session)
 
-    await doc_repo.save_document(result.document, doc_id=doc_id)
+    await doc_repo.save_document(
+        result.document,
+        doc_id=doc_id,
+        owner_sub=_user_subject(user),
+    )
     await unit_repo.save_all_units(result.units, doc_id)
     await ann_repo.save_all_annotations(result.annotations, doc_id)
     await concept_repo.save_concept_map(result.concepts, doc_id)
@@ -230,6 +343,8 @@ async def view_document_tree(
     user: dict = Depends(get_current_user),
 ) -> DocumentTreeResponse:
     """View the canonical document tree for a processed document."""
+    await _authorize_persisted_document_owner(session, doc_id, user)
+
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         doc = cached.document
@@ -271,6 +386,8 @@ async def enrich_document(
     user: dict = Depends(get_current_user),
 ) -> DocumentProcessResponse:
     """Return cached result if available, otherwise run the full pipeline."""
+    await _authorize_persisted_document_owner(session, doc_id, user)
+
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         return DocumentProcessResponse(
@@ -289,13 +406,16 @@ async def enrich_document(
     upload_dir = Path("uploads") / str(doc_id)
     if not upload_dir.exists():
         raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-    candidates = [f for f in upload_dir.iterdir() if f.is_file()]
-    if not candidates:
-        raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
-    source = str(candidates[0])
+    _authorize_upload_owner(upload_dir, user)
+    source = str(_resolve_uploaded_source(upload_dir, doc_id))
 
     try:
-        result = await asyncio.to_thread(orchestrator.run, source)
+        run_async = getattr(orchestrator, "run_async", None)
+        if run_async is not None and inspect.iscoroutinefunction(run_async):
+            maybe_result = run_async(source)
+            result = await maybe_result if inspect.isawaitable(maybe_result) else maybe_result
+        else:
+            result = await asyncio.to_thread(orchestrator.run, source)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
 
@@ -308,7 +428,11 @@ async def enrich_document(
     graph_repo = KnowledgeGraphRepository(session)
     plan_repo = StudyPlanRepository(session)
 
-    await doc_repo.save_document(result.document, doc_id=doc_id)
+    await doc_repo.save_document(
+        result.document,
+        doc_id=doc_id,
+        owner_sub=_user_subject(user),
+    )
     await unit_repo.save_all_units(result.units, doc_id)
     await ann_repo.save_all_annotations(result.annotations, doc_id)
     await concept_repo.save_concept_map(result.concepts, doc_id)
@@ -343,6 +467,8 @@ async def view_learning_units(
     user: dict = Depends(get_current_user),
 ) -> UnitsListResponse:
     """View all learning units for a document."""
+    await _authorize_persisted_document_owner(session, doc_id, user)
+
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         units = cached.units
@@ -389,6 +515,8 @@ async def view_concept_graph(
     user: dict = Depends(get_current_user),
 ) -> ConceptGraphResponse:
     """View the concept graph for a document."""
+    await _authorize_persisted_document_owner(session, doc_id, user)
+
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         cmap = cached.concepts
@@ -447,6 +575,8 @@ async def view_study_plan(
     user: dict = Depends(get_current_user),
 ) -> StudyPlanResponse:
     """View the study plan for a document."""
+    await _authorize_persisted_document_owner(session, doc_id, user)
+
     cached = pipeline_cache.get(str(doc_id))
     if cached is not None:
         plan = cached.study_plan
@@ -514,12 +644,15 @@ async def view_study_plan(
 )
 async def export_json(
     doc_id: UUID,
+    session: AsyncSession = Depends(get_session),  # type: ignore[assignment]
     user: dict = Depends(get_current_user),
 ) -> dict[str, Any]:
     """Download the full pipeline output as JSON."""
     from learning_platform.infrastructure.persistence.exporters.json_exporter import (
         JsonExporter,
     )
+
+    await _authorize_persisted_document_owner(session, doc_id, user)
 
     cached = pipeline_cache.get(str(doc_id))
     if cached is None:

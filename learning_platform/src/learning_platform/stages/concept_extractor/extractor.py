@@ -36,6 +36,7 @@ from learning_platform.models.learning_unit import LearningUnit
 from .strategy import ConceptExtractionStrategy
 
 if TYPE_CHECKING:
+    from learning_platform.config import Settings
     from learning_platform.models.page_context import PageContext
 
 _LOG = logging.getLogger(__name__)
@@ -50,12 +51,35 @@ class ConceptExtractor:
         Ordered list of strategies to execute.  When ``None`` the
         extractor starts empty and strategies must be added via
         ``add_strategy()``.
+    fail_fast : bool
+        When ``True``, strategy exceptions raise immediately. When
+        ``False``, failures are logged and processing continues.
     """
 
-    def __init__(self, strategies: Sequence[ConceptExtractionStrategy] | None = None) -> None:
+    def __init__(
+        self,
+        strategies: Sequence[ConceptExtractionStrategy] | None = None,
+        *,
+        fail_fast: bool = False,
+    ) -> None:
         self._strategies: list[ConceptExtractionStrategy] = (
             list(strategies) if strategies is not None else []
         )
+        self._fail_fast = fail_fast
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: Settings,
+        strategies: Sequence[ConceptExtractionStrategy] | None = None,
+    ) -> ConceptExtractor:
+        """Build extractor with environment-aware failure policy.
+
+        Policy A:
+        - debug=False => fail-fast
+        - debug=True  => best-effort
+        """
+        return cls(strategies=strategies, fail_fast=not settings.debug)
 
     @property
     def strategies(self) -> list[ConceptExtractionStrategy]:
@@ -65,6 +89,11 @@ class ConceptExtractor:
     def add_strategy(self, strategy: ConceptExtractionStrategy) -> None:
         """Register a strategy for future ``extract()`` calls."""
         self._strategies.append(strategy)
+
+    @property
+    def fail_fast(self) -> bool:
+        """Return whether strategy errors fail the stage."""
+        return self._fail_fast
 
     def extract(
         self,
@@ -97,7 +126,9 @@ class ConceptExtractor:
                 found = strategy.extract(document, annotations, units)
                 _LOG.debug("  → %d concepts from %s", len(found), name)
                 raw_concepts.extend(found)
-            except Exception:
+            except Exception as exc:
+                if self._fail_fast:
+                    raise RuntimeError(f"Strategy {name} failed") from exc
                 _LOG.exception("Strategy %s failed", name)
 
         merged = self._deduplicate(raw_concepts)
@@ -171,7 +202,11 @@ class ConceptExtractor:
                         page.page_number,
                     )
                     raw_concepts.extend(found)
-                except Exception:
+                except Exception as exc:
+                    if self._fail_fast:
+                        raise RuntimeError(
+                            f"Strategy {name} failed on page {page.page_number}"
+                        ) from exc
                     _LOG.exception("Strategy %s failed on page %d", name, page.page_number)
 
         merged = self._deduplicate(raw_concepts)

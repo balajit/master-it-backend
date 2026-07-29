@@ -3,7 +3,6 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -11,6 +10,8 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 if TYPE_CHECKING:
     from learning_platform.service import LearningPlatformService
+
+from learning_platform.security import InvalidPathError, resolve_safe_path
 
 _LOG = logging.getLogger(__name__)
 
@@ -102,10 +103,15 @@ class FilePoller:
                     rel_path: str = line.strip()
                     if not rel_path:
                         continue
+                    try:
+                        safe_abs = resolve_safe_path(Path(self._upload_path), rel_path)
+                    except InvalidPathError:
+                        _LOG.warning("Skipping unsafe registry path: %s", rel_path)
+                        continue
                     existing = await repo.find_by_source(rel_path)
                     if existing is not None:
                         continue
-                    abs_path: str = os.path.join(self._upload_path, rel_path)
+                    abs_path: str = str(safe_abs)
                     await repo.create_entry(rel_path, abs_path)
             await session.commit()
 

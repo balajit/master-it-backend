@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from learning_platform.models.document import (
     CanonicalDocument,
     DocumentMetadata,
@@ -381,9 +383,19 @@ class TestEnrichmentEngine:
                 raise RuntimeError("boom")
 
         doc = _doc(_para("Hello"))
-        engine = EnrichmentEngine(detectors=[BrokenDetector()])
+        engine = EnrichmentEngine(detectors=[BrokenDetector()], fail_fast=False)
         anns = engine.enrich(doc)
         assert anns == []
+
+    def test_detector_failure_fail_fast_raises(self) -> None:
+        class BrokenDetector:
+            def detect(self, document: CanonicalDocument) -> list:
+                raise RuntimeError("boom")
+
+        doc = _doc(_para("Hello"))
+        engine = EnrichmentEngine(detectors=[BrokenDetector()], fail_fast=True)
+        with pytest.raises(RuntimeError, match="Detector BrokenDetector failed"):
+            engine.enrich(doc)
 
     def test_returns_annotation_types(self) -> None:
         doc = _doc(

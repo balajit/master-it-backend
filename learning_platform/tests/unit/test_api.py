@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 from collections.abc import AsyncGenerator
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 from uuid import UUID, uuid4
 
@@ -361,6 +362,39 @@ class TestDocumentUpload:
         assert resp.status_code == 201
         assert resp.json()["filename"] == "data.bin"
 
+    @pytest.mark.asyncio
+    async def test_upload_rejects_path_traversal_filename(self, app, tmp_path: Path) -> None:
+        app.dependency_overrides[get_session] = _mock_get_session
+        upload_base = tmp_path / "uploads"
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return upload_base
+                return original_path(p)
+
+            mock_path.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/documents/upload",
+                    files={
+                        "file": (
+                            "../../etc/passwd",
+                            io.BytesIO(b"x"),
+                            "application/octet-stream",
+                        )
+                    },
+                )
+
+        assert resp.status_code == 400
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Document Process
@@ -462,6 +496,38 @@ class TestDocumentProcess:
         assert resp.status_code == 404
         assert "not found" in resp.json()["detail"].lower()
 
+    @pytest.mark.asyncio
+    async def test_process_forbidden_when_upload_owner_mismatch(self, app, tmp_path: Path) -> None:
+        doc_id = uuid4()
+        upload_dir = tmp_path / "uploads" / str(doc_id)
+        upload_dir.mkdir(parents=True)
+        (upload_dir / "test.pdf").write_bytes(b"fake")
+        (upload_dir / ".owner_sub").write_text("another-user", encoding="utf-8")
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield AsyncMock()
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+
+        with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
+            original_path = Path
+
+            def _path_factory(p: str | Path) -> Path:
+                if isinstance(p, original_path):
+                    return p
+                if p == "uploads":
+                    return tmp_path / "uploads"
+                return original_path(p)
+
+            mock_path_cls.side_effect = _path_factory
+
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/process")
+
+        assert resp.status_code == 403
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 # Document Tree
@@ -511,6 +577,33 @@ class TestDocumentTree:
                 resp = await client.get(f"/api/documents/{doc_id}/tree")
 
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_tree_forbidden_when_owner_mismatch(self, app, _clear_cache: None) -> None:
+        doc_id = uuid4()
+
+        mock_repo = AsyncMock()
+        mock_repo.find_by_id = AsyncMock(return_value=SimpleNamespace(owner_sub="1"))
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield AsyncMock()
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": 2,
+            "email": "other@test.com",
+        }
+
+        with patch(
+            "learning_platform.api.routes.documents.DocumentRepository",
+            return_value=mock_repo,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get(f"/api/documents/{doc_id}/tree")
+
+        assert resp.status_code == 403
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -587,6 +680,33 @@ class TestDocumentEnrich:
 
         assert resp.status_code == 200
         assert resp.json()["units_count"] == 1
+
+    @pytest.mark.asyncio
+    async def test_enrich_forbidden_when_owner_mismatch(self, app, _clear_cache: None) -> None:
+        doc_id = uuid4()
+
+        mock_repo = AsyncMock()
+        mock_repo.find_by_id = AsyncMock(return_value=SimpleNamespace(owner_sub="owner-123"))
+
+        async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
+            yield AsyncMock()
+
+        app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": 1,
+            "email": "other@test.com",
+        }
+
+        with patch(
+            "learning_platform.api.routes.documents.DocumentRepository",
+            return_value=mock_repo,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.post(f"/api/documents/{doc_id}/enrich")
+
+        assert resp.status_code == 403
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -798,6 +918,34 @@ class TestJsonExport:
             resp = await client.get(f"/api/documents/{doc_id}/export/json")
 
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_export_json_forbidden_when_owner_mismatch(
+        self, app, _clear_cache: None
+    ) -> None:
+        doc_id = uuid4()
+        result = _make_pipeline_result(doc_id)
+        pipeline_cache.set(str(doc_id), result)
+
+        mock_repo = AsyncMock()
+        mock_repo.find_by_id = AsyncMock(return_value=SimpleNamespace(owner_sub="owner-1"))
+
+        app.dependency_overrides[get_session] = _mock_get_session
+        app.dependency_overrides[get_current_user] = lambda: {
+            "id": 999,
+            "email": "other@test.com",
+        }
+
+        with patch(
+            "learning_platform.api.routes.documents.DocumentRepository",
+            return_value=mock_repo,
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get(f"/api/documents/{doc_id}/export/json")
+
+        assert resp.status_code == 403
 
 
 # ══════════════════════════════════════════════════════════════════════════════

@@ -593,21 +593,28 @@ class TestPipelineRetries:
 
     def test_retry_result_recorded(self) -> None:
         policy = RetryPolicy(max_retries=2, base_delay=0.0, backoff_factor=1.0)
-        orch = _build_orchestrator(parser=FailingParser(), retry_policy=policy)
+        bus = SimpleEventBus()
+        received: list[PipelineEvent] = []
+        bus.subscribe(received.append)
+        orch = _build_orchestrator(parser=FailingParser(), retry_policy=policy, event_bus=bus)
         with pytest.raises(RuntimeError):
             orch.run("input.pdf")
-        assert "parser" in orch._retry_results
-        rr = orch._retry_results["parser"]
-        assert rr.attempts == 3  # 1 initial + 2 retries
-        assert rr.error is not None
+        failed_events = [
+            e for e in received if e.event_type == EventType.STAGE_FAILED and e.stage == "parser"
+        ]
+        assert len(failed_events) == 1
+        assert failed_events[0].data["attempts"] == 3  # 1 initial + 2 retries
+        assert failed_events[0].data["error"]
 
     def test_retry_events_emitted(self) -> None:
         policy = RetryPolicy(max_retries=2, base_delay=0.0, backoff_factor=1.0)
         bus = SimpleEventBus()
+        received: list[PipelineEvent] = []
+        bus.subscribe(received.append)
         orch = _build_orchestrator(parser=FailingParser(), retry_policy=policy, event_bus=bus)
         with pytest.raises(RuntimeError):
             orch.run("input.pdf")
-        retry_events = [e for e in orch._events if e.event_type == EventType.STAGE_RETRYING]
+        retry_events = [e for e in received if e.event_type == EventType.STAGE_RETRYING]
         assert len(retry_events) == 2
 
     def test_no_retry_when_policy_is_none(self) -> None:
@@ -626,25 +633,34 @@ class TestPipelineFailure:
     """Pipeline-level failure handling."""
 
     def test_pipeline_failed_event_on_exception(self) -> None:
-        orch = _build_orchestrator(parser=FailingParser())
+        bus = SimpleEventBus()
+        received: list[PipelineEvent] = []
+        bus.subscribe(received.append)
+        orch = _build_orchestrator(parser=FailingParser(), event_bus=bus)
         with pytest.raises(RuntimeError):
             orch.run("bad.pdf")
-        failed = [e for e in orch._events if e.event_type == EventType.PIPELINE_FAILED]
+        failed = [e for e in received if e.event_type == EventType.PIPELINE_FAILED]
         assert len(failed) == 1
         assert "error" in failed[0].data
 
     def test_pipeline_started_event_emitted_before_failure(self) -> None:
-        orch = _build_orchestrator(parser=FailingParser())
+        bus = SimpleEventBus()
+        received: list[PipelineEvent] = []
+        bus.subscribe(received.append)
+        orch = _build_orchestrator(parser=FailingParser(), event_bus=bus)
         with pytest.raises(RuntimeError):
             orch.run("bad.pdf")
-        started = [e for e in orch._events if e.event_type == EventType.PIPELINE_STARTED]
+        started = [e for e in received if e.event_type == EventType.PIPELINE_STARTED]
         assert len(started) == 1
 
     def test_partial_stages_not_completed(self) -> None:
-        orch = _build_orchestrator(parser=FailingParser())
+        bus = SimpleEventBus()
+        received: list[PipelineEvent] = []
+        bus.subscribe(received.append)
+        orch = _build_orchestrator(parser=FailingParser(), event_bus=bus)
         with pytest.raises(RuntimeError):
             orch.run("bad.pdf")
-        completed = [e for e in orch._events if e.event_type == EventType.STAGE_COMPLETED]
+        completed = [e for e in received if e.event_type == EventType.STAGE_COMPLETED]
         assert len(completed) == 0
 
 
