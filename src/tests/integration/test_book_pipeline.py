@@ -145,6 +145,53 @@ class TestBookAssembler:
         )
         return [chapter_unit, lesson_unit]
 
+    def _make_paragraph_only_document(
+        self, page_count: int, title: str = "Fallback Doc"
+    ) -> Any:
+        """Build a document with paragraph-only content across pages.
+
+        Used to exercise page-first fallback chunking when heading anchors
+        are unavailable.
+        """
+        from learning_platform.models.document import (
+            CanonicalDocument,
+            DocumentMetadata,
+            DocumentNode,
+            Paragraph,
+            StyledText,
+            TextRun,
+        )
+
+        nodes = []
+        seq = 0
+        for page in range(1, page_count + 1):
+            nodes.append(
+                DocumentNode(
+                    id=uuid4(),
+                    content=Paragraph(
+                        text=StyledText(
+                            runs=[
+                                TextRun(
+                                    text=f"Page {page} paragraph body for fallback chunking."
+                                )
+                            ]
+                        )
+                    ),
+                    page=page,
+                    seq=seq,
+                )
+            )
+            seq += 1
+
+        doc = CanonicalDocument(
+            source="fallback.pdf",
+            title=title,
+            metadata=DocumentMetadata(title=title, page_count=page_count),
+            nodes=nodes,
+        )
+        doc.node_map = {n.id: n for n in doc.nodes}
+        return doc
+
     def test_assembler_produces_chapter_lesson_page_structure(self) -> None:
         from learning_platform.stages.book_assembler.assembler import BookAssembler
 
@@ -174,7 +221,11 @@ class TestBookAssembler:
         assert isinstance(book.chapters, list)
 
     def test_assembler_single_chapter_fallback_no_module_units(self) -> None:
-        """When only LESSON-type units exist, they go into a synthetic chapter."""
+        """Page-first assembly still returns at least one chapter/lesson.
+
+        Unit hierarchy no longer drives segmentation, but should still map IDs
+        where overlap exists.
+        """
         from learning_platform.models.learning_unit import LearningUnit, UnitType
         from learning_platform.stages.book_assembler.assembler import BookAssembler
 
@@ -189,7 +240,36 @@ class TestBookAssembler:
         book = assembler.assemble([lesson_only], doc)
 
         assert len(book.chapters) == 1
-        assert len(book.chapters[0].lessons) == 1
+        assert len(book.chapters[0].lessons) >= 1
+
+    def test_fallback_lessons_use_five_pages_with_adaptive_window(self) -> None:
+        """No heading anchors -> lessons chunk to 5 pages with adaptive +/-1."""
+        from learning_platform.stages.book_assembler.assembler import BookAssembler
+
+        doc = self._make_paragraph_only_document(page_count=11)
+        assembler = BookAssembler()
+
+        book = assembler.assemble([], doc)
+
+        lessons = [lesson for chapter in book.chapters for lesson in chapter.lessons]
+        assert len(lessons) >= 2
+
+        page_lengths = [len(lesson.pages) for lesson in lessons]
+        assert all(4 <= length <= 6 for length in page_lengths)
+        assert sum(page_lengths) == 11
+
+    def test_fallback_chapters_group_five_lessons(self) -> None:
+        """No chapter anchors -> chapters are grouped in batches of 5 lessons."""
+        from learning_platform.stages.book_assembler.assembler import BookAssembler
+
+        doc = self._make_paragraph_only_document(page_count=30)
+        assembler = BookAssembler()
+
+        book = assembler.assemble([], doc)
+
+        assert len(book.chapters) == 2
+        assert len(book.chapters[0].lessons) == 5
+        assert len(book.chapters[1].lessons) == 1
 
     def test_items_have_correct_types(self) -> None:
         """Paragraph nodes → TextItem, Heading nodes → HeadingItem."""
