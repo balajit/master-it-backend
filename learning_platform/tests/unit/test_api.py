@@ -404,12 +404,15 @@ class TestDocumentProcess:
         (upload_dir / "test.pdf").write_bytes(b"fake")
 
         mock_session = AsyncMock()
-        mock_orchestrator = MagicMock(run=MagicMock(return_value=result))
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
 
         async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
             yield mock_session
 
         app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_service] = lambda: mock_service
         app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
 
         with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:
@@ -659,12 +662,15 @@ class TestDocumentEnrich:
         (upload_dir / "test.pdf").write_bytes(b"fake")
 
         mock_session = AsyncMock()
-        mock_orchestrator = MagicMock(run=MagicMock(return_value=result))
+        mock_service = MagicMock()
+        mock_service.process = AsyncMock(return_value=result)
+        mock_orchestrator = MagicMock()
 
         async def _mock_session_gen() -> AsyncGenerator[AsyncMock, None]:
             yield mock_session
 
         app.dependency_overrides[get_session] = _mock_session_gen
+        app.dependency_overrides[get_service] = lambda: mock_service
         app.dependency_overrides[get_pipeline_orchestrator] = lambda: mock_orchestrator
 
         with patch("learning_platform.api.routes.documents.Path") as mock_path_cls:

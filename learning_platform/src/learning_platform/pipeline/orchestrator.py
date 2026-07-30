@@ -27,6 +27,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 from uuid import UUID, uuid4
@@ -60,6 +61,13 @@ if TYPE_CHECKING:
     )
 
 _LOG = logging.getLogger(__name__)
+
+_RESUME_START_STAGES: tuple[str, ...] = (
+    "parser",
+    "page_grouping",
+    "graph_builder",
+    "sequence_builder",
+)
 
 
 @dataclass(frozen=True)
@@ -220,7 +228,72 @@ class PipelineOrchestrator:
             self._event_bus.unsubscribe(collector)
 
     async def run_async(self, source: str) -> PipelineResult:
-        """Async variant of ``run`` using non-blocking retries and stage execution."""
+        """Async variant of ``run`` using non-blocking retries and stage execution.
+
+        Parameters
+        ----------
+        source:
+            Input file path.
+        start_stage:
+            Resume entry stage. Supported values are
+            ``parser``, ``page_grouping``, ``graph_builder``, and
+            ``sequence_builder``.
+        resume_document:
+            Normalized document checkpoint for resume runs.
+        resume_units:
+            Unit checkpoint for graph/sequence resume runs.
+        resume_annotations:
+            Annotation checkpoint for graph/sequence resume runs.
+        resume_concepts:
+            Concept checkpoint for graph/sequence resume runs.
+        resume_graph:
+            Graph checkpoint for sequence-only resume runs.
+        checkpoint_hook:
+            Optional callback invoked after key checkpoints are produced.
+        """
+        return await self._run_async_internal(source)
+
+    async def run_async_resumable(
+        self,
+        source: str,
+        *,
+        start_stage: str = "parser",
+        resume_document: CanonicalDocument | None = None,
+        resume_units: list[LearningUnit] | None = None,
+        resume_annotations: list[Annotation] | None = None,
+        resume_concepts: ConceptMap | None = None,
+        resume_graph: KnowledgeGraph | None = None,
+        checkpoint_hook: (Callable[[str, dict[str, Any]], Awaitable[None] | None] | None) = None,
+    ) -> PipelineResult:
+        """Run asynchronously with optional stateful resume checkpoints."""
+        return await self._run_async_internal(
+            source,
+            start_stage=start_stage,
+            resume_document=resume_document,
+            resume_units=resume_units,
+            resume_annotations=resume_annotations,
+            resume_concepts=resume_concepts,
+            resume_graph=resume_graph,
+            checkpoint_hook=checkpoint_hook,
+        )
+
+    async def _run_async_internal(
+        self,
+        source: str,
+        *,
+        start_stage: str = "parser",
+        resume_document: CanonicalDocument | None = None,
+        resume_units: list[LearningUnit] | None = None,
+        resume_annotations: list[Annotation] | None = None,
+        resume_concepts: ConceptMap | None = None,
+        resume_graph: KnowledgeGraph | None = None,
+        checkpoint_hook: (Callable[[str, dict[str, Any]], Awaitable[None] | None] | None) = None,
+    ) -> PipelineResult:
+        """Internal async runner shared by fresh and resumable paths."""
+        if start_stage not in _RESUME_START_STAGES:
+            allowed = ", ".join(_RESUME_START_STAGES)
+            raise ValueError(f"Unsupported start_stage '{start_stage}'. Allowed: {allowed}")
+
         run_state = _RunState(pipeline_id=uuid4())
         collector = self._make_event_collector(run_state)
         self._event_bus.subscribe(collector)
@@ -232,42 +305,141 @@ class PipelineOrchestrator:
         pipeline_start = time.monotonic()
 
         try:
-            document = await self._run_stage_async("parser", self._parser.parse, run_state, source)
+            pages: list[PageContext] = []
 
-            document = await self._run_stage_async(
-                "normalizer",
-                self._normalizer.normalize,
-                run_state,
-                document,
-            )
+            if start_stage == "parser":
+                document = await self._run_stage_async(
+                    "parser", self._parser.parse, run_state, source
+                )
 
-            pages = await self._run_stage_async(
-                "page_grouping", build_page_contexts, run_state, document
-            )
+                document = await self._run_stage_async(
+                    "normalizer",
+                    self._normalizer.normalize,
+                    run_state,
+                    document,
+                )
+                await self._invoke_checkpoint_hook(
+                    checkpoint_hook,
+                    "normalizer",
+                    {"document": document},
+                )
 
-            pages = await self._run_stage_async(
-                "enricher", self._enricher.enrich_pages, run_state, pages
-            )
+                pages = await self._run_stage_async(
+                    "page_grouping", build_page_contexts, run_state, document
+                )
 
-            units = await self._run_stage_async(
-                "unit_builder", self._unit_builder.build_pages, run_state, pages
-            )
+                pages = await self._run_stage_async(
+                    "enricher", self._enricher.enrich_pages, run_state, pages
+                )
 
-            concepts = await self._run_stage_async(
-                "concept_extractor",
-                self._concept_extractor.extract_pages,
-                run_state,
-                pages,
-                units,
-            )
+                units = await self._run_stage_async(
+                    "unit_builder", self._unit_builder.build_pages, run_state, pages
+                )
 
-            graph = await self._run_stage_async(
-                "graph_builder",
-                self._graph_builder.build,
-                run_state,
-                units,
-                concepts,
-            )
+                concepts = await self._run_stage_async(
+                    "concept_extractor",
+                    self._concept_extractor.extract_pages,
+                    run_state,
+                    pages,
+                    units,
+                )
+
+                annotations = [ann for p in pages for ann in p.annotations]
+                await self._invoke_checkpoint_hook(
+                    checkpoint_hook,
+                    "concept_extractor",
+                    {
+                        "document": document,
+                        "units": units,
+                        "annotations": annotations,
+                        "concepts": concepts,
+                    },
+                )
+            elif start_stage == "page_grouping":
+                if resume_document is None:
+                    raise ValueError("resume_document is required when start_stage=page_grouping")
+
+                document = resume_document
+                pages = await self._run_stage_async(
+                    "page_grouping", build_page_contexts, run_state, document
+                )
+
+                pages = await self._run_stage_async(
+                    "enricher", self._enricher.enrich_pages, run_state, pages
+                )
+
+                units = await self._run_stage_async(
+                    "unit_builder", self._unit_builder.build_pages, run_state, pages
+                )
+
+                concepts = await self._run_stage_async(
+                    "concept_extractor",
+                    self._concept_extractor.extract_pages,
+                    run_state,
+                    pages,
+                    units,
+                )
+
+                annotations = [ann for p in pages for ann in p.annotations]
+                await self._invoke_checkpoint_hook(
+                    checkpoint_hook,
+                    "concept_extractor",
+                    {
+                        "document": document,
+                        "units": units,
+                        "annotations": annotations,
+                        "concepts": concepts,
+                    },
+                )
+            elif start_stage == "graph_builder":
+                if resume_document is None:
+                    raise ValueError("resume_document is required when start_stage=graph_builder")
+                if resume_units is None or resume_concepts is None:
+                    raise ValueError(
+                        "resume_units and resume_concepts are required when start_stage=graph_builder"
+                    )
+
+                document = resume_document
+                units = list(resume_units)
+                concepts = resume_concepts
+                annotations = list(resume_annotations or [])
+            else:
+                if resume_document is None:
+                    raise ValueError(
+                        "resume_document is required when start_stage=sequence_builder"
+                    )
+                if resume_units is None or resume_concepts is None or resume_graph is None:
+                    raise ValueError(
+                        "resume_units, resume_concepts, and resume_graph are required when start_stage=sequence_builder"
+                    )
+
+                document = resume_document
+                units = list(resume_units)
+                concepts = resume_concepts
+                annotations = list(resume_annotations or [])
+
+            if start_stage != "sequence_builder":
+                graph = await self._run_stage_async(
+                    "graph_builder",
+                    self._graph_builder.build,
+                    run_state,
+                    units,
+                    concepts,
+                )
+                await self._invoke_checkpoint_hook(
+                    checkpoint_hook,
+                    "graph_builder",
+                    {
+                        "document": document,
+                        "units": units,
+                        "annotations": annotations,
+                        "concepts": concepts,
+                        "graph": graph,
+                    },
+                )
+            else:
+                graph = resume_graph
+                assert graph is not None
 
             study_plan = await self._run_stage_async(
                 "sequence_builder",
@@ -275,8 +447,6 @@ class PipelineOrchestrator:
                 run_state,
                 graph,
             )
-
-            annotations: list[Annotation] = [ann for p in pages for ann in p.annotations]
 
             elapsed = time.monotonic() - pipeline_start
             self._emit(
@@ -324,6 +494,18 @@ class PipelineOrchestrator:
             raise
         finally:
             self._event_bus.unsubscribe(collector)
+
+    @staticmethod
+    async def _invoke_checkpoint_hook(
+        checkpoint_hook: Callable[[str, dict[str, Any]], Awaitable[None] | None] | None,
+        stage_name: str,
+        payload: dict[str, Any],
+    ) -> None:
+        if checkpoint_hook is None:
+            return
+        maybe_awaitable = checkpoint_hook(stage_name, payload)
+        if asyncio.iscoroutine(maybe_awaitable):
+            await maybe_awaitable
 
     def _run_stage(self, stage_name: str, fn: Any, run_state: _RunState, *args: Any) -> Any:
         """Run a single stage with logging, events, and optional retry."""

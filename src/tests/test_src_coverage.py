@@ -20,9 +20,13 @@ import sys
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
+from uuid import UUID
 
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport, AsyncClient
+
+from schemas import DocumentBookProcess
 
 # Ensure JWT_SECRET is set before any src/ module is imported.
 os.environ.setdefault("JWT_SECRET", "test-secret-for-coverage-suite")
@@ -308,20 +312,22 @@ class TestDocumentProcess:
         assert resp.status_code == 400
 
     @pytest.mark.asyncio
-    async def test_process_pipeline_error_returns_500(
+    async def test_process_enqueue_error_returns_500(
         self, authed_app, tmp_path: Path
     ) -> None:
         fake_pdf = tmp_path / "doc.pdf"
         fake_pdf.write_bytes(b"fake")
-        mock_lp = MagicMock()
-        mock_lp.process = AsyncMock(side_effect=RuntimeError("pipeline boom"))
         with (
             patch(
                 "routers.documents.get_document",
                 new_callable=AsyncMock,
                 return_value={"storage_path": str(fake_pdf)},
             ),
-            patch("routers.documents.get_service", return_value=mock_lp),
+            patch(
+                "routers.documents._ensure_lp_document_process",
+                new_callable=AsyncMock,
+                side_effect=RuntimeError("enqueue boom"),
+            ),
         ):
             async with AsyncClient(
                 transport=ASGITransport(app=authed_app), base_url="http://test"
@@ -330,54 +336,406 @@ class TestDocumentProcess:
         assert resp.status_code == 500
 
     @pytest.mark.asyncio
-    async def test_process_success_returns_200_with_counts(
+    async def test_process_new_start_returns_202(
         self, authed_app, tmp_path: Path
     ) -> None:
         fake_pdf = tmp_path / "doc.pdf"
         fake_pdf.write_bytes(b"fake")
 
-        from learning_platform.models.concept import ConceptMap
-        from learning_platform.models.knowledge_graph import KnowledgeGraph
-        from learning_platform.models.sequence import StudyPlan
-        from learning_platform.pipeline.orchestrator import PipelineResult
-        from learning_platform.models.document import CanonicalDocument
+        class _Row:
+            id = 77
+            status = "pending"
+            retry_count = 0
+            max_retries = 3
 
-        doc = CanonicalDocument(source=str(fake_pdf), title="My Doc", nodes=[])
-        doc.rebuild_index()
-        result = PipelineResult(
-            document=doc,
-            annotations=[],
-            units=[],
-            concepts=ConceptMap(),
-            graph=KnowledgeGraph(nodes=[], edges=[]),
-            study_plan=StudyPlan(
-                title="",
-                description="",
-                lessons=[],
-                milestones=[],
-                checkpoints=[],
-                total_estimated_minutes=0,
-                total_lessons=0,
-            ),
-        )
-        mock_lp = MagicMock()
-        mock_lp.process = AsyncMock(return_value=result)
-        # Patch the singleton directly — get_service() returns the singleton,
-        # so patching _service ensures mock_lp is returned regardless of DI caching.
-        with patch("learning_platform.service._service", mock_lp):
-            with patch(
+        with (
+            patch(
                 "routers.documents.get_document",
                 new_callable=AsyncMock,
                 return_value={"storage_path": str(fake_pdf)},
-            ):
-                async with AsyncClient(
-                    transport=ASGITransport(app=authed_app), base_url="http://test"
-                ) as client:
-                    resp = await client.post("/api/documents/doc-abc/process")
+            ),
+            patch(
+                "routers.documents._ensure_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=(_Row(), False),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+            patch("routers.documents.asyncio.create_task", return_value=None),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process")
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["document_id"] == "doc-abc"
+        assert data["lp_doc_id"] == "lp-doc-id"
+        assert data["already_started"] is False
+        assert data["status"] == "pending"
+        assert data["can_retry"] is False
+        assert data["latest_process_run"]["process_id"] == 77
+        assert data["latest_process_run"]["status"] == "pending"
+
+    @pytest.mark.asyncio
+    async def test_process_already_started_returns_200(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        class _Row:
+            id = 12
+            status = "processing"
+            retry_count = 1
+            max_retries = 3
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._ensure_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=(_Row(), True),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process")
+
         assert resp.status_code == 200
         data = resp.json()
-        assert "doc_id" in data
-        assert data["units_count"] == 0
+        assert data["document_id"] == "doc-abc"
+        assert data["already_started"] is True
+        assert data["status"] == "processing"
+        assert data["latest_process_run"]["process_id"] == 12
+
+    @pytest.mark.asyncio
+    async def test_process_already_started_completed_but_book_pending_returns_processing(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        class _Row:
+            id = 12
+            status = "completed"
+            retry_count = 0
+            max_retries = 3
+            abs_path = ""
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._ensure_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=(_Row(), True),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+            patch(
+                "routers.documents._load_book_process_summary",
+                new_callable=AsyncMock,
+                return_value=DocumentBookProcess(
+                    status="processing",
+                    retry_count=0,
+                    max_retries=3,
+                    error_message=None,
+                    updated_at="",
+                ),
+            ),
+            patch(
+                "routers.documents._load_pipeline_stage_details",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "routers.documents._load_process_runs",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "processing"
+        assert data["message"].lower().startswith("primary pipeline completed")
+        assert data["latest_process_run"]["process_id"] == 12
+
+    @pytest.mark.asyncio
+    async def test_process_response_includes_grouped_process_runs(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        class _Row:
+            id = 77
+            status = "pending"
+            retry_count = 0
+            max_retries = 3
+            run_mode = "process"
+            created_at = ""
+            updated_at = ""
+            error_message = None
+            abs_path = ""
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._ensure_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=(_Row(), False),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+            patch("routers.documents.asyncio.create_task", return_value=None),
+            patch(
+                "routers.documents._load_process_runs",
+                new_callable=AsyncMock,
+                return_value=[
+                    {
+                        "process_id": 70,
+                        "run_mode": "process",
+                        "status": "failed",
+                        "retry_count": 0,
+                        "max_retries": 3,
+                        "error_message": "boom",
+                        "created_at": "t0",
+                        "updated_at": "t1",
+                        "stages": [
+                            {
+                                "stage": "pipeline",
+                                "result": "error",
+                                "output": "boom",
+                                "created_at": "t1",
+                            }
+                        ],
+                    },
+                    {
+                        "process_id": 77,
+                        "run_mode": "retry",
+                        "status": "processing",
+                        "retry_count": 1,
+                        "max_retries": 3,
+                        "error_message": None,
+                        "created_at": "t2",
+                        "updated_at": "t3",
+                        "stages": [
+                            {
+                                "stage": "graph_builder",
+                                "result": "success",
+                                "output": "",
+                                "created_at": "t3",
+                            }
+                        ],
+                    },
+                ],
+            ),
+            patch(
+                "routers.documents._load_pipeline_stage_details",
+                new_callable=AsyncMock,
+                return_value=[],
+            ),
+            patch(
+                "routers.documents._load_book_process_summary",
+                new_callable=AsyncMock,
+                return_value=None,
+            ),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process")
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert "process_id" not in data
+        assert "process_runs" in data
+        assert len(data["process_runs"]) == 2
+        assert data["latest_process_run"]["process_id"] == 77
+        assert data["latest_process_run"]["run_mode"] == "retry"
+        assert data["process_runs"][0]["run_mode"] == "process"
+        assert data["process_runs"][1]["run_mode"] == "retry"
+
+
+class TestDocumentProcessRetry:
+    """POST /api/documents/{document_id}/process/retry"""
+
+    @pytest.mark.asyncio
+    async def test_retry_not_found_returns_404(self, authed_app) -> None:
+        with patch(
+            "routers.documents.get_document", new_callable=AsyncMock, return_value=None
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/retry")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_retry_success_returns_202(self, authed_app, tmp_path: Path) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        class _Row:
+            id = 99
+            status = "pending"
+            retry_count = 0
+            max_retries = 3
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._retry_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=_Row(),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+            patch("routers.documents.asyncio.create_task", return_value=None),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/retry")
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["document_id"] == "doc-abc"
+        assert data["lp_doc_id"] == "lp-doc-id"
+        assert data["already_started"] is False
+        assert data["status"] == "pending"
+        assert data["latest_process_run"]["process_id"] == 99
+
+    @pytest.mark.asyncio
+    async def test_retry_conflict_returns_409(self, authed_app, tmp_path: Path) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._retry_lp_document_process",
+                new_callable=AsyncMock,
+                side_effect=HTTPException(
+                    status_code=409,
+                    detail="Document processing is already pending or in progress",
+                ),
+            ),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/retry")
+
+        assert resp.status_code == 409
+
+
+class TestDocumentReprocess:
+    """POST /api/documents/{document_id}/process/reprocess"""
+
+    @pytest.mark.asyncio
+    async def test_reprocess_not_found_returns_404(self, authed_app) -> None:
+        with patch(
+            "routers.documents.get_document", new_callable=AsyncMock, return_value=None
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/reprocess")
+        assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_reprocess_success_returns_202(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        class _Row:
+            id = 101
+            status = "pending"
+            retry_count = 0
+            max_retries = 3
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._reprocess_lp_document_process",
+                new_callable=AsyncMock,
+                return_value=_Row(),
+            ),
+            patch("routers.documents.stable_doc_id", return_value="lp-doc-id"),
+            patch("routers.documents.asyncio.create_task", return_value=None),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/reprocess")
+
+        assert resp.status_code == 202
+        data = resp.json()
+        assert data["document_id"] == "doc-abc"
+        assert data["lp_doc_id"] == "lp-doc-id"
+        assert data["already_started"] is False
+        assert data["status"] == "pending"
+        assert data["latest_process_run"]["process_id"] == 101
+
+    @pytest.mark.asyncio
+    async def test_reprocess_conflict_returns_409(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        fake_pdf = tmp_path / "doc.pdf"
+        fake_pdf.write_bytes(b"fake")
+
+        with (
+            patch(
+                "routers.documents.get_document",
+                new_callable=AsyncMock,
+                return_value={"storage_path": str(fake_pdf)},
+            ),
+            patch(
+                "routers.documents._reprocess_lp_document_process",
+                new_callable=AsyncMock,
+                side_effect=HTTPException(
+                    status_code=409,
+                    detail="Document processing is already pending or in progress",
+                ),
+            ),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post("/api/documents/doc-abc/process/reprocess")
+
+        assert resp.status_code == 409
 
 
 class TestDocumentViews:
@@ -444,6 +802,42 @@ class TestDocumentViews:
         finally:
             authed_app.dependency_overrides.pop(_gs, None)
         assert resp.status_code == 404
+
+    @pytest.mark.asyncio
+    async def test_tree_uses_persistence_fallback(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        from routers.documents import get_service as _gs
+
+        lp, result = self._stub_lp(tmp_path)
+        lp.get_cached = MagicMock(return_value=None)
+        authed_app.dependency_overrides[_gs] = lambda: lp
+        try:
+            with (
+                patch(
+                    "routers.documents.get_document",
+                    new_callable=AsyncMock,
+                    return_value={"storage_path": str(tmp_path / "x.pdf")},
+                ),
+                patch(
+                    "routers.documents.load_pipeline_result_from_persistence",
+                    new_callable=AsyncMock,
+                    return_value=result,
+                ) as load_mock,
+                patch(
+                    "routers.documents.lp_doc_uuid_from_storage_path",
+                    return_value=UUID("12345678-1234-5678-1234-567812345678"),
+                ),
+            ):
+                async with AsyncClient(
+                    transport=ASGITransport(app=authed_app), base_url="http://test"
+                ) as client:
+                    resp = await client.get("/api/documents/doc-abc/tree")
+        finally:
+            authed_app.dependency_overrides.pop(_gs, None)
+
+        assert resp.status_code == 200
+        load_mock.assert_awaited_once()
 
     @pytest.mark.asyncio
     async def test_tree_cached_200(self, authed_app, tmp_path: Path) -> None:

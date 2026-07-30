@@ -15,7 +15,8 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
+from uuid import uuid4
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -23,10 +24,14 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 from learning_platform.config import get_settings
 from learning_platform.infrastructure.persistence.engine import create_engine
 from learning_platform.infrastructure.persistence.models import Base
+from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
+from learning_platform.infrastructure.persistence.repositories.book_process import (
+    BookProcessRepository,
+)
 from learning_platform.infrastructure.persistence.repositories.document_process import (
     DocumentProcessRepository,
 )
-from learning_platform.poller import FilePoller
+from learning_platform.poller import BookProcessPoller, FilePoller
 
 pytestmark = pytest.mark.server
 
@@ -293,9 +298,128 @@ async def test_process_pending_uses_service_process(
     assert await_args.args[0] == str(abs_path)
     assert "session" in await_args.kwargs
     assert await_args.kwargs["document_process_id"] == row_id
+    assert await_args.kwargs["dedupe_by_source"] is False
 
     async with session_factory() as session:
         repo = DocumentProcessRepository(session)
         completed = await repo.find_by_id(row_id)
         assert completed is not None
-        assert completed.status == "completed"
+        assert completed.status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_process_pending_requeues_stuck_processing_rows(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    rel_path = "13/stuck.pdf"
+    abs_path = temp_upload_dir / rel_path
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(b"fake")
+
+    mock_service = SimpleNamespace(process=AsyncMock(return_value=SimpleNamespace()))
+    poller = FilePoller(
+        upload_path=str(temp_upload_dir),
+        session_factory=session_factory,
+        service=mock_service,
+    )
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry(rel_path, str(abs_path))
+        await repo.mark_processing(row)
+        row_id = row.id
+        await session.commit()
+
+    await poller._process_pending()
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        completed = await repo.find_by_id(row_id)
+        assert completed is not None
+        assert completed.status == "processing"
+        assert completed.run_mode == "retry"
+
+
+@pytest.mark.asyncio
+async def test_process_pending_does_not_reprocess_after_initial_run(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    rel_path = "15/no-rerun.pdf"
+    abs_path = temp_upload_dir / rel_path
+    abs_path.parent.mkdir(parents=True, exist_ok=True)
+    abs_path.write_bytes(b"fake")
+
+    mock_service = SimpleNamespace(process=AsyncMock(return_value=SimpleNamespace()))
+    poller = FilePoller(
+        upload_path=str(temp_upload_dir),
+        session_factory=session_factory,
+        service=mock_service,
+    )
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry(rel_path, str(abs_path))
+        row_id = row.id
+        await session.commit()
+
+    await poller._process_pending()
+    await poller._process_pending()
+
+    assert mock_service.process.await_count == 1
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        row = await repo.find_by_id(row_id)
+        assert row is not None
+        assert row.status == "processing"
+
+
+@pytest.mark.asyncio
+async def test_book_process_completion_marks_document_process_completed(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    rel_path = "14/book-finalize.pdf"
+    abs_path = str(temp_upload_dir / rel_path)
+    doc_id = uuid4()
+
+    async with session_factory() as session:
+        session.add(
+            CanonicalDocumentRow(
+                id=doc_id,
+                source=abs_path,
+                title="Book Finalize",
+                metadata_json={},
+                nodes_json={},
+            )
+        )
+
+        doc_repo = DocumentProcessRepository(session)
+        doc_proc = await doc_repo.create_entry(rel_path, abs_path)
+        await doc_repo.mark_processing(doc_proc)
+
+        book_repo = BookProcessRepository(session)
+        await book_repo.create_entry(str(doc_id))
+        await session.commit()
+
+        doc_process_id = doc_proc.id
+
+    poller = BookProcessPoller(session_factory=session_factory)
+    with patch(
+        "learning_platform.pipeline.book_pipeline.BookPipeline.run",
+        new=AsyncMock(return_value=SimpleNamespace()),
+    ):
+        await poller._process_pending()
+
+    async with session_factory() as session:
+        doc_repo = DocumentProcessRepository(session)
+        doc_proc = await doc_repo.find_by_id(doc_process_id)
+        assert doc_proc is not None
+        assert doc_proc.status == "completed"
+
+        book_repo = BookProcessRepository(session)
+        book_proc = await book_repo.find_by_document_id(str(doc_id))
+        assert book_proc is not None
+        assert book_proc.status == "completed"

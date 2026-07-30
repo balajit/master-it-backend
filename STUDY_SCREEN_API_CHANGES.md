@@ -220,7 +220,7 @@ independently. Create an Alembic migration for this column addition.
 1. Check whether Alembic is configured (`alembic.ini` exists — it does).
 2. Run: `uv run alembic revision --autogenerate -m "add_unit_about_column"`
 3. Review the generated migration file to confirm it adds `about TEXT DEFAULT ''` to `units`.
-4. Apply: `uv run alembic upgrade head`
+4. Apply: `./scripts/migrate.sh testing`
 
 If autogenerate does not detect the change (SQLite quirks), write the migration manually using
 `op.add_column('units', sa.Column('about', sa.Text(), nullable=True, server_default=''))`.
@@ -364,7 +364,7 @@ in `PracticeResponse` (already added in Change 2 — this change provides the da
        sa.Column('practice_type', sa.String(), nullable=True, server_default='practice')
    )
    ```
-3. Apply: `uv run alembic upgrade head`
+3. Apply: `./scripts/migrate.sh testing`
 
 **In `src/services/learning.py`**, read the column when constructing `PracticeResponse`:
 
@@ -402,7 +402,7 @@ timestamp column to the `user_lesson_progress` table.
        sa.Column('last_accessed_at', sa.String(), nullable=True)
    )
    ```
-3. Apply: `uv run alembic upgrade head`
+3. Apply: `./scripts/migrate.sh testing`
 
 **Update `src/routers/v1.py` — `update_lesson_progress_v1` (`PATCH /api/v1/users/me/lessons/{lesson_id}`):**
 

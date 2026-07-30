@@ -62,30 +62,33 @@ class BookRepository:
                 metadata_json=chapter.metadata or None,
             )
             self._session.add(chapter_row)
+            await self._session.flush()
 
             for lesson in chapter.lessons:
                 lesson_row = BookLessonRow(
                     id=lesson.id,
-                    chapter_id=chapter.id,
+                    chapter_id=chapter_row.id,
                     unit_id=lesson.unit_id,
                     title=lesson.title,
                     order=lesson.order,
                     metadata_json=lesson.metadata or None,
                 )
                 self._session.add(lesson_row)
+                await self._session.flush()
 
                 for page in lesson.pages:
                     page_row = BookPageRow(
                         id=page.id,
-                        lesson_id=lesson.id,
+                        lesson_id=lesson_row.id,
                         page_number=page.page_number,
                         order=page.order,
                         metadata_json=page.metadata or None,
                     )
                     self._session.add(page_row)
+                    await self._session.flush()
 
                     for item in page.items:
-                        item_row = self._item_to_row(item, page.id)
+                        item_row = self._item_to_row(item, page_row.id)
                         self._session.add(item_row)
 
         await self._session.flush()

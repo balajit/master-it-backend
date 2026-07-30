@@ -58,6 +58,8 @@ class FilePoller:
             self._service = get_service()
         self._task: asyncio.Task[None] | None = None
         self._stop_event = asyncio.Event()
+        self._process_lock = asyncio.Lock()
+        self._processing_recovery_done = False
 
     # ── Lifecycle ────────────────────────────────────────────────────────────
 
@@ -146,19 +148,54 @@ class FilePoller:
             DocumentProcessRepository,
         )
 
+        async with self._process_lock:
+            if not self._processing_recovery_done:
+                await self._recover_processing_rows_after_restart()
+
+            async with self._session_factory() as session:
+                repo = DocumentProcessRepository(session)
+                pending = await repo.find_pending()
+
+            for row in pending:
+                await self._try_process(row)
+
+    async def _recover_processing_rows_after_restart(self) -> None:
+        """Requeue in-flight processing rows once at poller startup.
+
+        This recovery is intentionally one-time. Running it repeatedly causes
+        active in-progress jobs to be reset to pending and reprocessed.
+        """
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        recovered_count = 0
         async with self._session_factory() as session:
             repo = DocumentProcessRepository(session)
-            pending = await repo.find_pending()
+            processing = await repo.find_processing()
+            for row in processing:
+                if getattr(row, "last_completed_stage", None) == "pipeline":
+                    # Primary pipeline already completed; row is waiting on BookPipeline.
+                    continue
+                await repo.requeue_processing_after_restart(
+                    row,
+                    "Recovered processing row after restart",
+                )
+                recovered_count += 1
 
-        for row in pending:
-            await self._try_process(row)
+            if recovered_count > 0:
+                await session.commit()
+
+        self._processing_recovery_done = True
+        if recovered_count > 0:
+            _LOG.info("Recovered %d in-flight processing rows", recovered_count)
 
     async def _try_process(self, row: object) -> None:
         """Run the pipeline on a single ``DocumentProcessRow``.
 
         State transitions:
 
-        * ``pending`` → ``processing`` → ``completed`` (success)
+        * ``pending`` → ``processing`` (primary pipeline success; waits on BookPipeline)
         * ``pending`` → ``processing`` → ``pending`` + retry (failure, retries remain)
         * ``pending`` → ``processing`` → ``failed`` (failure, max retries exceeded)
         """
@@ -167,11 +204,14 @@ class FilePoller:
         )
 
         proc = row  # type: ignore[var-annotated]
+        proc_id = getattr(proc, "id", None)
+        if not isinstance(proc_id, int):
+            return
 
         async with self._session_factory() as session:
             repo = DocumentProcessRepository(session)
             # Re-fetch within this session to ensure clean state
-            proc = await repo.find_by_id(proc.id)
+            proc = await repo.find_by_id(proc_id)
             if proc is None or proc.status != "pending":
                 return
 
@@ -183,24 +223,31 @@ class FilePoller:
                 await self._service.process(
                     proc.abs_path,
                     session=session,
-                    document_process_id=proc.id,
+                    document_process_id=proc_id,
+                    dedupe_by_source=False,
                 )
         except Exception:
             _LOG.exception("Processing failed: %s", proc.abs_path)
             async with self._session_factory() as session:
                 repo = DocumentProcessRepository(session)
-                proc = await repo.find_by_id(proc.id)
+                proc = await repo.find_by_id(proc_id)
                 if proc is None:
                     return
                 if proc.retry_count + 1 >= proc.max_retries:
-                    await repo.mark_failed(proc, "Max retries exceeded")
+                    await repo.mark_failed(
+                        proc,
+                        proc.error_message or "Max retries exceeded",
+                    )
                     _LOG.warning(
                         "Document failed after %d retries: %s",
                         proc.max_retries,
                         proc.abs_path,
                     )
                 else:
-                    await repo.mark_retry(proc, "Pipeline error, will retry")
+                    await repo.mark_retry(
+                        proc,
+                        proc.error_message or "Pipeline error, will retry",
+                    )
                     _LOG.info(
                         "Retry %d/%d for %s",
                         proc.retry_count,
@@ -210,13 +257,11 @@ class FilePoller:
                 await session.commit()
             return
 
-        async with self._session_factory() as session:
-            repo = DocumentProcessRepository(session)
-            proc = await repo.find_by_id(proc.id)
-            if proc is not None:
-                await repo.mark_completed(proc)
-                await session.commit()
-                _LOG.info("Processing completed: %s", proc.abs_path)
+        _LOG.info(
+            "Primary pipeline completed for process_id=%s path=%s; awaiting book pipeline",
+            proc_id,
+            proc.abs_path,
+        )
 
 
 class BookProcessPoller:
@@ -293,6 +338,9 @@ class BookProcessPoller:
         from learning_platform.infrastructure.persistence.repositories.book_process import (
             BookProcessRepository,
         )
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
         from learning_platform.pipeline.book_pipeline import BookPipeline
 
         proc = row  # type: ignore[var-annotated]
@@ -314,11 +362,28 @@ class BookProcessPoller:
             _LOG.exception("Book assembly failed for document %s", proc.document_id)
             async with self._session_factory() as session:
                 repo = BookProcessRepository(session)
+                doc_proc_repo = DocumentProcessRepository(session)
                 proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
                 if proc is None:
                     return
+
+                doc_uuid = None
+                try:
+                    doc_uuid = UUID(proc.document_id)
+                except Exception:
+                    doc_uuid = None
+
+                doc_proc_row = None
+                if doc_uuid is not None:
+                    doc_proc_row = await doc_proc_repo.find_latest_by_document_id(doc_uuid)
+
                 if proc.retry_count + 1 >= proc.max_retries:
                     await repo.mark_failed(proc, "Max retries exceeded")
+                    if doc_proc_row is not None:
+                        await doc_proc_repo.mark_failed(
+                            doc_proc_row,
+                            "BookPipeline failed: max retries exceeded",
+                        )
                     _LOG.warning(
                         "Book assembly failed after %d retries for document %s",
                         proc.max_retries,
@@ -326,6 +391,11 @@ class BookProcessPoller:
                     )
                 else:
                     await repo.mark_retry(proc, "BookPipeline error, will retry")
+                    if doc_proc_row is not None:
+                        await doc_proc_repo.mark_book_pending(
+                            doc_proc_row,
+                            "BookPipeline error, will retry",
+                        )
                     _LOG.info(
                         "Retry %d/%d for document %s",
                         proc.retry_count,
@@ -337,9 +407,22 @@ class BookProcessPoller:
 
         async with self._session_factory() as session:
             repo = BookProcessRepository(session)
+            doc_proc_repo = DocumentProcessRepository(session)
             proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
             if proc is not None:
                 await repo.mark_completed(proc)
+
+                doc_uuid = None
+                try:
+                    doc_uuid = UUID(proc.document_id)
+                except Exception:
+                    doc_uuid = None
+
+                if doc_uuid is not None:
+                    doc_proc_row = await doc_proc_repo.find_latest_by_document_id(doc_uuid)
+                    if doc_proc_row is not None:
+                        await doc_proc_repo.mark_completed(doc_proc_row)
+
                 await session.commit()
                 _LOG.info(
                     "Book assembly completed for document %s",

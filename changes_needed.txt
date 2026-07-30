@@ -137,7 +137,7 @@ No database column exists yet. Add a practice_type column to the practices table
 "quiz" | "practice" | "project" | "self_test":
 1. Create an Alembic migration: uv run alembic revision --autogenerate -m "add_practice_type_column"
 2. Migration should add: op.add_column('practices', sa.Column('practice_type', sa.String(), nullable=True, server_default='practice'))
-3. Apply: uv run alembic upgrade head
+3. Apply: ./scripts/migrate.sh testing
 4. Surface as activity_type in PracticeResponse — read from practice["practice_type"] in the service, default "practice" if null.
 Change 10 — Clarify: sidebar children (nested lessons) not needed from backend
 The SidebarItemData.children nesting in the placeholder data is a UI-only concern. The

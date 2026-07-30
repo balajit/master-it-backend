@@ -189,6 +189,106 @@ class TestDocumentRepository:
         repo = DocumentRepository(session)
         assert await repo.delete_by_id(uuid.uuid4()) is False
 
+    async def test_save_existing_doc_id_updates_row(self, session: AsyncSession) -> None:
+        doc_id = _make_doc_id()
+        repo = DocumentRepository(session)
+
+        original = _make_document(doc_id)
+        original.source = "original.pdf"
+        original.title = "Original"
+        await repo.save_document(original, doc_id=doc_id)
+
+        updated = _make_document(doc_id)
+        updated.source = "updated.pdf"
+        updated.title = "Updated"
+        await repo.save_document(updated, doc_id=doc_id)
+
+        loaded = await repo.find_document(doc_id)
+        assert loaded is not None
+        assert loaded.source == "updated.pdf"
+        assert loaded.title == "Updated"
+
+
+class TestDocumentProcessRepository:
+    async def test_create_retry_entry_copies_resume_state(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        base = await repo.create_entry("source.pdf", "/tmp/source.pdf")
+        await repo.mark_completed(base)
+        base.status = "failed"
+        await repo.record_stage_completed(base, "concept_extractor")
+        await repo.update_resume_state(base, resume_state={"normalized_document": {"source": "x"}})
+        await repo.record_stage_failed(base, "graph_builder", "boom")
+
+        retry = await repo.create_retry_entry(base)
+
+        assert retry.run_mode == "retry"
+        assert retry.retry_count == base.retry_count
+        assert retry.last_completed_stage == "concept_extractor"
+        assert retry.failed_stage == "graph_builder"
+        assert retry.resume_state_json == {"normalized_document": {"source": "x"}}
+
+    async def test_resolve_resume_from_row_retry_graph_stage(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry("source.pdf", "/tmp/source.pdf", run_mode="retry")
+        row.last_completed_stage = "concept_extractor"
+        row.resume_state_json = {"units": []}
+
+        stage, payload = repo.resolve_resume_from_row(row)
+        assert stage == "graph_builder"
+        assert payload == {"units": []}
+
+    async def test_resolve_resume_from_row_reprocess_forces_parser(
+        self, session: AsyncSession
+    ) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry("source.pdf", "/tmp/source.pdf", run_mode="reprocess")
+        row.last_completed_stage = "graph_builder"
+        row.resume_state_json = {"units": ["stale"]}
+
+        stage, payload = repo.resolve_resume_from_row(row)
+        assert stage == "parser"
+        assert payload == {}
+
+    async def test_requeue_processing_after_restart_marks_retry(
+        self, session: AsyncSession
+    ) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry("source.pdf", "/tmp/source.pdf")
+        await repo.mark_processing(row)
+        await repo.requeue_processing_after_restart(row, "Recovered")
+
+        assert row.status == "pending"
+        assert row.run_mode == "retry"
+        assert row.error_message == "Recovered"
+
+    async def test_mark_book_pending_sets_processing(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row = await repo.create_entry("source.pdf", "/tmp/source.pdf")
+        await repo.mark_book_pending(row, "BookPipeline error, will retry")
+
+        assert row.status == "processing"
+        assert row.error_message == "BookPipeline error, will retry"
+
 
 # ── LearningUnitRepository ───────────────────────────────────────────────────
 

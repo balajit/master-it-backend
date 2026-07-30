@@ -43,12 +43,31 @@ from services.mapping import (
     reset_mapping_configuration,
     save_mapping_configuration,
 )
+from services.lp_results import (
+    load_pipeline_result_from_persistence,
+    lp_doc_uuid_from_external_id,
+)
 
 router: APIRouter = APIRouter(
     prefix="/api/documents",
     tags=["mapping"],
 )
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+async def _ensure_cached_lp_result(doc_id: str) -> bool:
+    lp_doc_uuid = lp_doc_uuid_from_external_id(doc_id)
+    if lp_doc_uuid is None:
+        return False
+
+    try:
+        loaded = await load_pipeline_result_from_persistence(lp_doc_uuid)
+    except Exception:
+        logger.exception(
+            "Failed loading persisted LP mapping input for doc_id=%s", doc_id
+        )
+        return False
+    return loaded is not None
 
 
 def _progress_context_from_user(
@@ -315,6 +334,11 @@ async def get_mapping(
         experience = generate_study_experience(doc_id, progress, config)
         return _study_experience_to_response(doc_id, experience, config)
     except ValueError as e:
+        if await _ensure_cached_lp_result(doc_id):
+            config = get_mapping_configuration(doc_id)
+            progress = _progress_context_from_user(user, doc_id)
+            experience = generate_study_experience(doc_id, progress, config)
+            return _study_experience_to_response(doc_id, experience, config)
         raise HTTPException(status_code=404, detail=str(e))
 
 
@@ -424,4 +448,8 @@ async def preview_mapping(
         experience = generate_preview(doc_id, config)
         return _study_experience_to_response(doc_id, experience, config)
     except ValueError as e:
+        if await _ensure_cached_lp_result(doc_id):
+            config = get_mapping_configuration(doc_id)
+            experience = generate_preview(doc_id, config)
+            return _study_experience_to_response(doc_id, experience, config)
         raise HTTPException(status_code=404, detail=str(e))

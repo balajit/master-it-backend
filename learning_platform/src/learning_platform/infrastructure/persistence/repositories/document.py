@@ -33,9 +33,24 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
 
         When *doc_id* is provided it is used as the primary key; otherwise
         the first document node's ID is used.
+
+        If a document row already exists for the same ID, it is updated in
+        place so reruns do not hit primary-key collisions.
         """
         if doc_id is None:
             doc_id = doc.nodes[0].id if doc.nodes else UUID(int=0)
+
+        existing = await self.find_by_id(doc_id)
+        if existing is not None:
+            existing.source = doc.source
+            existing.title = doc.title
+            if owner_sub is not None:
+                existing.owner_sub = owner_sub
+            existing.metadata_json = doc.metadata.model_dump()
+            existing.nodes_json = self._serialize_nodes(doc.nodes)
+            await self.save(existing)
+            return existing.id
+
         row = CanonicalDocumentRow(
             id=doc_id,
             source=doc.source,

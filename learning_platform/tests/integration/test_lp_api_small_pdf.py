@@ -487,6 +487,7 @@ class TestSharedProcessPath:
 
         mock_row = SimpleNamespace(id=10, status="pending", abs_path=str(tmp_path / "poller.pdf"))
         mock_repo = MagicMock()
+        mock_repo.find_processing = AsyncMock(return_value=[])
         mock_repo.find_pending = AsyncMock(return_value=[mock_row])
         mock_repo.find_by_id = AsyncMock(side_effect=[mock_row, mock_row])
         mock_repo.mark_processing = AsyncMock()

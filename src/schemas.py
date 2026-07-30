@@ -788,6 +788,53 @@ class DocumentProcessResponse(BaseModel):
     milestones: int
 
 
+class DocumentProcessStage(BaseModel):
+    """A persisted pipeline stage update."""
+
+    stage: str
+    result: str
+    output: str = ""
+    created_at: str = ""
+
+
+class DocumentBookProcess(BaseModel):
+    """Book pipeline process status summary."""
+
+    status: str
+    retry_count: int
+    max_retries: int
+    error_message: str | None = None
+    updated_at: str = ""
+
+
+class DocumentProcessRun(BaseModel):
+    """One process run grouped by mode (process/retry/reprocess)."""
+
+    process_id: int
+    run_mode: str
+    status: str
+    retry_count: int
+    max_retries: int
+    error_message: str | None = None
+    created_at: str = ""
+    updated_at: str = ""
+    stages: List[DocumentProcessStage] = Field(default_factory=list)
+
+
+class DocumentProcessStartResponse(BaseModel):
+    """Response for kickoff/retry processing endpoints."""
+
+    document_id: str
+    lp_doc_id: str
+    status: str
+    already_started: bool
+    can_retry: bool
+    message: str
+    latest_process_run: DocumentProcessRun
+    process_runs: List[DocumentProcessRun] = Field(default_factory=list)
+    book_pipeline: DocumentBookProcess | None = None
+
+
 class DocumentTreeResponse(BaseModel):
     """Response for GET /api/documents/{document_id}/tree."""
 

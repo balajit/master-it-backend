@@ -46,3 +46,5 @@ Standardize LP persistence contracts as follows:
 - Migration validation scripts:
   - `scripts/check_migrations.py`
   - `scripts/migration_smoke_test.py`
+- Migration execution wrapper:
+  - `scripts/migrate.sh`

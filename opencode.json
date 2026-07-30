@@ -15,5 +15,6 @@
         }
       }
     }
-  }
+  },
+  "mcp": { "crystaldba-postgres": { "type": "local", "command": [ "docker", "run", "-i", "--rm", "--network", "master-it-backend_default", "-e", "DATABASE_URI=postgresql://postgres_user:secure_password_here@host.docker.internal:5433/learning_platform_testing", "crystaldba/postgres-mcp:latest", "--access-mode=restricted" ], "enabled": true } }
 }

@@ -8,7 +8,7 @@ Steps performed:
   1. Validate required environment variables / .env file
   2. Start the correct Postgres container via docker-compose (unless --skip-docker)
   3. Wait for Postgres to accept connections (up to 30 s)
-  4. Run all Alembic migrations (uv run alembic upgrade head)
+  4. Run migrations via scripts/migrate.sh for the selected environment
   5. Seed roles, permissions, and role-permission assignments
   6. Seed sample courses (dev/test only)
   7. Assign SuperUser role to designated email addresses
@@ -133,10 +133,11 @@ async def _wait_for_postgres(database_url: str, timeout: int = 30) -> None:
 # ── Alembic migration ─────────────────────────────────────────────────────────
 
 
-def _run_migrations() -> None:
-    print("[alembic] Running migrations …")
+def _run_migrations(env: str) -> None:
+    target = "testing" if env == "test" else "production"
+    print(f"[migrate] Running migrations via scripts/migrate.sh {target} …")
     result = subprocess.run(
-        ["uv", "run", "alembic", "upgrade", "head"],
+        ["bash", "scripts/migrate.sh", target],
         cwd=str(ROOT),
         capture_output=True,
         text=True,
@@ -144,8 +145,8 @@ def _run_migrations() -> None:
     print(result.stdout.strip())
     if result.returncode != 0:
         print(result.stderr)
-        sys.exit("[alembic] Migration failed.")
-    print("[alembic] Migrations complete.")
+        sys.exit("[migrate] Migration failed.")
+    print("[migrate] Migrations complete.")
 
 
 # ── Seed helpers ──────────────────────────────────────────────────────────────
@@ -400,7 +401,7 @@ async def main(args: argparse.Namespace) -> None:
     await _wait_for_postgres(database_url)
 
     # Step 3 — Alembic migrations
-    _run_migrations()
+    _run_migrations(args.env)
 
     # Step 4 — Seed
     print("\n[seed] Seeding roles and permissions …")

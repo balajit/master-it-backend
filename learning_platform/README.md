@@ -91,19 +91,24 @@ uv run pytest learning_platform/tests
 
 ### Migrations
 
-Use the DB URL from `.env.testing`:
+Use the migration wrapper script:
 
 ```bash
-DATABASE_URL="$(uv run python -c "from dotenv import dotenv_values; print((dotenv_values('.env.testing').get('DATABASE_URL') or '').strip())")" uv run alembic upgrade head
-DATABASE_URL="$(uv run python -c "from dotenv import dotenv_values; print((dotenv_values('.env.testing').get('DATABASE_URL') or '').strip())")" uv run python scripts/check_migrations.py --check-current
-DATABASE_URL="$(uv run python -c "from dotenv import dotenv_values; print((dotenv_values('.env.testing').get('DATABASE_URL') or '').strip())")" uv run python scripts/migration_smoke_test.py
+./scripts/migrate.sh testing
+./scripts/migrate.sh production
+./scripts/migrate.sh
 ```
 
 Expected result:
 
-- `alembic upgrade head` completes without errors.
-- `check_migrations.py --check-current` reports a single head at current revision.
-- `migration_smoke_test.py` reports successful upgrade/downgrade cycle.
+- Migrations apply successfully for the selected environment(s).
+
+Optional validation commands:
+
+```bash
+DATABASE_URL="$(uv run python -c "from dotenv import dotenv_values; print((dotenv_values('.env.testing').get('DATABASE_URL') or '').strip())")" uv run python scripts/check_migrations.py --check-current
+DATABASE_URL="$(uv run python -c "from dotenv import dotenv_values; print((dotenv_values('.env.testing').get('DATABASE_URL') or '').strip())")" uv run python scripts/migration_smoke_test.py
+```
 
 ## Dependency Map
 

@@ -20,6 +20,7 @@ paths share the same ``pipeline_cache`` singleton.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import portalocker
@@ -28,7 +29,8 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+from sqlalchemy.exc import IntegrityError
 
 from auth import get_current_user
 from database import (
@@ -45,16 +47,23 @@ from learning_platform.service import (
     stable_doc_id,
 )
 from schemas import (
+    DocumentBookProcess,
     Document,
     DocumentConceptsResponse,
     DocumentConcept,
     DocumentExportResponse,
-    DocumentProcessResponse,
+    DocumentProcessRun,
+    DocumentProcessStage,
+    DocumentProcessStartResponse,
     DocumentStudyPlanSummary,
     DocumentTreeResponse,
     DocumentUnit,
     DocumentUnitsResponse,
     DocumentUploadResponse,
+)
+from services.lp_results import (
+    load_pipeline_result_from_persistence,
+    lp_doc_uuid_from_storage_path,
 )
 
 router: APIRouter = APIRouter(prefix="/api", tags=["documents"])
@@ -69,11 +78,481 @@ MAX_UPLOAD_BYTES: int = int(
 _SAFE_FILENAME_RE: re.Pattern[str] = re.compile(r"[^a-zA-Z0-9._-]")
 
 
+async def _load_result_or_404(
+    *,
+    storage_path: str,
+    lp: LearningPlatformService,
+) -> Any:
+    lp_doc_id = stable_doc_id(storage_path)
+    lp_doc_uuid = lp_doc_uuid_from_storage_path(storage_path)
+
+    cached = lp.get_cached(lp_doc_id)
+    if cached is not None:
+        return cached
+
+    cached = lp.get_cached(str(lp_doc_uuid))
+    if cached is not None:
+        return cached
+
+    try:
+        loaded = await load_pipeline_result_from_persistence(lp_doc_uuid)
+    except Exception:
+        logger.exception("Failed loading persisted LP result for %s", lp_doc_uuid)
+        loaded = None
+    if loaded is None:
+        raise HTTPException(
+            status_code=404, detail="Document not processed — call /process first"
+        )
+    return loaded
+
+
 def _sanitize_filename(name: str) -> str:
     """Strip path separators and dangerous characters from an uploaded filename."""
     base: str = Path(name).name
     safe: str = _SAFE_FILENAME_RE.sub("_", base)
     return safe or "unnamed"
+
+
+def _relative_source(storage_path: str) -> str:
+    """Compute an upload-root relative source path used by LP queue rows."""
+    resolved_storage = Path(storage_path).resolve()
+    resolved_upload_root = Path(UPLOAD_PATH).resolve()
+    try:
+        return resolved_storage.relative_to(resolved_upload_root).as_posix()
+    except ValueError:
+        return resolved_storage.name
+
+
+async def _ensure_lp_document_process(storage_path: str) -> tuple[Any, bool]:
+    """Ensure an LP queue row exists for *storage_path*.
+
+    Returns (row, already_started).
+    """
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.repositories.document_process import (
+        DocumentProcessRepository,
+    )
+
+    resolved_storage_path = str(Path(storage_path).resolve())
+    source = _relative_source(storage_path)
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        existing = await repo.find_active_by_abs_path(resolved_storage_path)
+        if existing is not None:
+            return existing, True
+
+        latest = await repo.find_latest_by_abs_path(resolved_storage_path)
+        if latest is not None:
+            return latest, True
+
+        try:
+            created = await repo.create_entry(
+                source=source, abs_path=resolved_storage_path
+            )
+            await session.commit()
+            return created, False
+        except IntegrityError:
+            await session.rollback()
+            active = await repo.find_active_by_abs_path(resolved_storage_path)
+            if active is not None:
+                return active, True
+            raise
+
+
+async def _retry_lp_document_process(storage_path: str) -> Any:
+    """Create a new pending LP queue row for explicit retry of a failed run."""
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.repositories.document_process import (
+        DocumentProcessRepository,
+    )
+
+    resolved_storage_path = str(Path(storage_path).resolve())
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        active = await repo.find_active_by_abs_path(resolved_storage_path)
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Document processing is already pending or in progress",
+            )
+
+        latest = await repo.find_latest_by_abs_path(resolved_storage_path)
+        if latest is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Document processing has not been started for this document",
+            )
+
+        if latest.status != "failed":
+            raise HTTPException(
+                status_code=409,
+                detail="Retry is only allowed when processing is failed",
+            )
+
+        try:
+            retry_row = await repo.create_retry_entry(latest)
+            await session.commit()
+            return retry_row
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Document processing is already pending or in progress",
+            ) from exc
+
+
+async def _reprocess_lp_document_process(storage_path: str) -> Any:
+    """Create a new pending LP queue row for explicit reprocessing."""
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.repositories.document_process import (
+        DocumentProcessRepository,
+    )
+
+    resolved_storage_path = str(Path(storage_path).resolve())
+    session_factory = get_session_factory()
+
+    async with session_factory() as session:
+        repo = DocumentProcessRepository(session)
+        active = await repo.find_active_by_abs_path(resolved_storage_path)
+        if active is not None:
+            raise HTTPException(
+                status_code=409,
+                detail="Document processing is already pending or in progress",
+            )
+
+        latest = await repo.find_latest_by_abs_path(resolved_storage_path)
+        if latest is None:
+            raise HTTPException(
+                status_code=404,
+                detail="Document processing has not been started for this document",
+            )
+
+        if latest.status not in {"completed", "failed"}:
+            raise HTTPException(
+                status_code=409,
+                detail="Document processing is not eligible for reprocess",
+            )
+
+        try:
+            reprocess_row = await repo.create_reprocess_entry(latest)
+            await session.commit()
+            return reprocess_row
+        except IntegrityError as exc:
+            await session.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail="Document processing is already pending or in progress",
+            ) from exc
+
+
+async def _kickoff_lp_processing() -> None:
+    """Kick the LP poller once so queued work starts quickly."""
+    from learning_platform.api.app import get_poller_instance
+
+    poller = get_poller_instance()
+    if poller is None:
+        return
+
+    try:
+        await poller._process_pending()
+    except Exception:
+        logger.exception("Failed to trigger LP processing kick")
+
+
+def _can_retry_from_status(status: str) -> bool:
+    """Return whether explicit user retry is currently allowed."""
+    return status == "failed"
+
+
+def _combined_status(
+    process_status: str,
+    book_status: str | None,
+) -> str:
+    """Collapse primary+book statuses into a single user-facing status."""
+    if book_status == "failed":
+        return "failed"
+    if book_status in {"pending", "processing"}:
+        return "processing"
+    return process_status
+
+
+def _message_for_started_process(
+    status: str,
+    process_status: str,
+    book_status: str | None,
+) -> str:
+    """Build user-facing message for already-started process calls."""
+    if process_status == "completed" and book_status in {"pending", "processing"}:
+        return "Primary pipeline completed; book pipeline is still running"
+    if book_status == "failed" or (
+        process_status == "completed" and status == "failed"
+    ):
+        return "Book pipeline failed; call /process/retry to retry"
+    if status == "completed":
+        return "Document processing already completed"
+    if status == "failed":
+        return "Document processing failed; call /process/retry to retry"
+    return "Document processing already started"
+
+
+def _format_datetime(value: Any) -> str:
+    """Format datetime-like values to ISO string for API output."""
+    if value is None:
+        return ""
+    iso = getattr(value, "isoformat", None)
+    if callable(iso):
+        return str(iso())
+    return str(value)
+
+
+async def _load_pipeline_stage_details(process_id: int) -> List[DocumentProcessStage]:
+    """Load persisted pipeline stage records for a process id."""
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.models.pipeline_log import (
+        PipelineLogRow,
+    )
+    from sqlalchemy import select
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        rows = (
+            (
+                await session.execute(
+                    select(PipelineLogRow)
+                    .where(PipelineLogRow.document_process_id == process_id)
+                    .order_by(PipelineLogRow.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return [
+        DocumentProcessStage(
+            stage=str(row.stage),
+            result=str(row.result),
+            output=str(row.output or ""),
+            created_at=_format_datetime(row.created_at),
+        )
+        for row in rows
+    ]
+
+
+async def _load_process_runs(abs_path: str) -> List[DocumentProcessRun]:
+    """Load all process runs for this file path with grouped stages."""
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.models.pipeline_log import (
+        PipelineLogRow,
+    )
+    from learning_platform.infrastructure.persistence.repositories.document_process import (
+        DocumentProcessRepository,
+    )
+    from sqlalchemy import select
+
+    session_factory = get_session_factory()
+    runs: List[DocumentProcessRun] = []
+
+    async with session_factory() as session:
+        proc_repo = DocumentProcessRepository(session)
+        rows = (
+            (
+                await session.execute(
+                    select(proc_repo.model_class)
+                    .where(proc_repo.model_class.abs_path == abs_path)
+                    .order_by(proc_repo.model_class.id.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+        for row in rows:
+            stage_rows = (
+                (
+                    await session.execute(
+                        select(PipelineLogRow)
+                        .where(PipelineLogRow.document_process_id == row.id)
+                        .order_by(PipelineLogRow.created_at.asc())
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            stages = [
+                DocumentProcessStage(
+                    stage=str(stage_row.stage),
+                    result=str(stage_row.result),
+                    output=str(stage_row.output or ""),
+                    created_at=_format_datetime(stage_row.created_at),
+                )
+                for stage_row in stage_rows
+            ]
+            if not stages:
+                stages = [
+                    DocumentProcessStage(
+                        stage="pipeline",
+                        result=str(row.status),
+                        output=str(row.error_message or ""),
+                        created_at=_format_datetime(row.updated_at),
+                    )
+                ]
+
+            runs.append(
+                DocumentProcessRun(
+                    process_id=int(row.id),
+                    run_mode=str(getattr(row, "run_mode", "process") or "process"),
+                    status=str(row.status),
+                    retry_count=int(row.retry_count),
+                    max_retries=int(row.max_retries),
+                    error_message=(
+                        str(row.error_message)
+                        if row.error_message is not None
+                        else None
+                    ),
+                    created_at=_format_datetime(row.created_at),
+                    updated_at=_format_datetime(row.updated_at),
+                    stages=stages,
+                )
+            )
+
+    return runs
+
+
+async def _load_book_process_summary(lp_doc_id: str) -> DocumentBookProcess | None:
+    """Load current book pipeline process summary for a document id."""
+    from learning_platform.api.deps import get_session_factory
+    from learning_platform.infrastructure.persistence.repositories.book_process import (
+        BookProcessRepository,
+    )
+
+    session_factory = get_session_factory()
+    async with session_factory() as session:
+        repo = BookProcessRepository(session)
+        row = await repo.find_by_document_id(lp_doc_id)
+        if row is None:
+            from uuid import UUID
+
+            try:
+                canonical_uuid_id = str(UUID(lp_doc_id[:32]))
+            except Exception:
+                canonical_uuid_id = ""
+            if canonical_uuid_id:
+                row = await repo.find_by_document_id(canonical_uuid_id)
+
+    if row is None:
+        return None
+
+    return DocumentBookProcess(
+        status=str(row.status),
+        retry_count=int(row.retry_count),
+        max_retries=int(row.max_retries),
+        error_message=str(row.error_message) if row.error_message is not None else None,
+        updated_at=_format_datetime(row.updated_at),
+    )
+
+
+async def _build_process_start_response(
+    *,
+    document_id: str,
+    storage_path: str,
+    process_row: Any,
+    already_started: bool,
+    message: str,
+) -> DocumentProcessStartResponse:
+    """Build a kickoff response with persisted stage/book details."""
+    lp_doc_id = stable_doc_id(storage_path)
+    response_message = message
+    status: str = str(process_row.status)
+    pipeline_stages: List[DocumentProcessStage] = []
+    process_runs: List[DocumentProcessRun] = []
+    book_pipeline: DocumentBookProcess | None = None
+
+    try:
+        pipeline_stages = await _load_pipeline_stage_details(int(process_row.id))
+    except Exception:
+        logger.exception(
+            "Failed loading pipeline stages for process_id=%s",
+            getattr(process_row, "id", ""),
+        )
+
+    try:
+        process_runs = await _load_process_runs(str(process_row.abs_path))
+    except Exception:
+        logger.exception(
+            "Failed loading process runs for abs_path=%s",
+            getattr(process_row, "abs_path", ""),
+        )
+
+    try:
+        book_pipeline = await _load_book_process_summary(lp_doc_id)
+    except Exception:
+        logger.exception(
+            "Failed loading book pipeline summary for lp_doc_id=%s", lp_doc_id
+        )
+
+    if book_pipeline is not None:
+        status = _combined_status(status, book_pipeline.status)
+
+    default_stage = DocumentProcessStage(
+        stage="pipeline",
+        result=str(getattr(process_row, "status", "pending")),
+        output=str(getattr(process_row, "error_message", "") or ""),
+        created_at=_format_datetime(getattr(process_row, "updated_at", "")),
+    )
+
+    if not pipeline_stages:
+        pipeline_stages = [default_stage]
+
+    if not process_runs:
+        process_runs = [
+            DocumentProcessRun(
+                process_id=int(process_row.id),
+                run_mode=str(getattr(process_row, "run_mode", "process") or "process"),
+                status=str(getattr(process_row, "status", "pending")),
+                retry_count=int(getattr(process_row, "retry_count", 0)),
+                max_retries=int(getattr(process_row, "max_retries", 3)),
+                error_message=(
+                    str(getattr(process_row, "error_message", ""))
+                    if getattr(process_row, "error_message", None) is not None
+                    else None
+                ),
+                created_at=_format_datetime(getattr(process_row, "created_at", "")),
+                updated_at=_format_datetime(getattr(process_row, "updated_at", "")),
+                stages=[default_stage],
+            )
+        ]
+
+    latest_process_run = process_runs[-1]
+
+    if (
+        book_pipeline is not None
+        and str(getattr(process_row, "status", "")) == "completed"
+        and status == "processing"
+    ):
+        response_message = "Primary pipeline completed; book pipeline is still running"
+    elif (
+        book_pipeline is not None
+        and str(getattr(process_row, "status", "")) == "completed"
+        and status == "failed"
+    ):
+        response_message = "Book pipeline failed; call /process/retry to retry"
+
+    return DocumentProcessStartResponse(
+        document_id=document_id,
+        lp_doc_id=lp_doc_id,
+        status=status,
+        already_started=already_started,
+        can_retry=_can_retry_from_status(status),
+        message=response_message,
+        latest_process_run=latest_process_run,
+        process_runs=process_runs,
+        book_pipeline=book_pipeline,
+    )
 
 
 # ── Document CRUD ────────────────────────────────────────────────────────────
@@ -188,20 +667,15 @@ async def delete_document_endpoint(
 
 @router.post(
     "/documents/{document_id}/process",
-    response_model=DocumentProcessResponse,
+    response_model=DocumentProcessStartResponse,
+    status_code=202,
 )
 async def process_document(
     document_id: str,
+    response: Response,
     user: Dict[str, Any] = Depends(get_current_user),
-    lp: LearningPlatformService = Depends(get_service),
-) -> DocumentProcessResponse:
-    """Trigger LP pipeline processing for an uploaded document.
-
-    Resolves the storage path from the DocumentModel and calls the LP
-    service directly — no HTTP round-trip, no duplicate app instance.
-    The pipeline result is stored in the shared ``pipeline_cache`` under
-    ``stable_doc_id(storage_path)`` so all subsequent reads hit the same key.
-    """
+) -> DocumentProcessStartResponse:
+    """Start LP processing if needed and return queue status immediately."""
     doc: Dict[str, Any] | None = await get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
@@ -211,22 +685,130 @@ async def process_document(
         raise HTTPException(status_code=400, detail=f"File not found: {storage_path}")
 
     try:
-        result = await lp.process(storage_path)
+        process_row, already_started = await _ensure_lp_document_process(storage_path)
+    except HTTPException:
+        raise
     except Exception as exc:
-        logger.error("Pipeline failed for document %s: %s", document_id, exc)
-        raise HTTPException(status_code=500, detail=f"Pipeline failed: {exc}") from exc
+        logger.error(
+            "Failed to enqueue document %s for processing: %s", document_id, exc
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to start processing"
+        ) from exc
 
-    lp_doc_id = stable_doc_id(storage_path)
+    if already_started:
+        response.status_code = 200
+    else:
+        asyncio.create_task(_kickoff_lp_processing())
 
-    return DocumentProcessResponse(
-        doc_id=lp_doc_id,
-        title=result.document.title,
-        units_count=len(result.units),
-        concepts_count=len(result.concepts.concepts),
-        graph_nodes=len(result.graph.nodes),
-        graph_edges=len(result.graph.edges),
-        lessons=result.study_plan.total_lessons,
-        milestones=len(result.study_plan.milestones),
+    process_status: str = str(process_row.status)
+    lp_doc_id: str = stable_doc_id(storage_path)
+    book_summary: DocumentBookProcess | None = None
+    try:
+        book_summary = await _load_book_process_summary(lp_doc_id)
+    except Exception:
+        logger.exception(
+            "Failed loading book pipeline summary for lp_doc_id=%s", lp_doc_id
+        )
+
+    status: str = _combined_status(
+        process_status,
+        book_summary.status if book_summary is not None else None,
+    )
+
+    if already_started:
+        message = _message_for_started_process(
+            status,
+            process_status,
+            book_summary.status if book_summary is not None else None,
+        )
+    else:
+        message = "Document processing started"
+
+    return await _build_process_start_response(
+        document_id=document_id,
+        storage_path=storage_path,
+        process_row=process_row,
+        already_started=already_started,
+        message=message,
+    )
+
+
+@router.post(
+    "/documents/{document_id}/process/retry",
+    response_model=DocumentProcessStartResponse,
+    status_code=202,
+)
+async def retry_document_processing(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> DocumentProcessStartResponse:
+    """Explicitly retry a failed document processing job."""
+    doc: Dict[str, Any] | None = await get_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    storage_path: str = doc["storage_path"]
+    if not Path(storage_path).exists():
+        raise HTTPException(status_code=400, detail=f"File not found: {storage_path}")
+
+    try:
+        process_row = await _retry_lp_document_process(storage_path)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to retry document %s processing: %s", document_id, exc)
+        raise HTTPException(
+            status_code=500, detail="Failed to retry processing"
+        ) from exc
+
+    asyncio.create_task(_kickoff_lp_processing())
+
+    return await _build_process_start_response(
+        document_id=document_id,
+        storage_path=storage_path,
+        process_row=process_row,
+        already_started=False,
+        message="Document processing retry started",
+    )
+
+
+@router.post(
+    "/documents/{document_id}/process/reprocess",
+    response_model=DocumentProcessStartResponse,
+    status_code=202,
+)
+async def reprocess_document(
+    document_id: str,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> DocumentProcessStartResponse:
+    """Explicitly reprocess a previously finished document processing job."""
+    doc: Dict[str, Any] | None = await get_document(document_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    storage_path: str = doc["storage_path"]
+    if not Path(storage_path).exists():
+        raise HTTPException(status_code=400, detail=f"File not found: {storage_path}")
+
+    try:
+        process_row = await _reprocess_lp_document_process(storage_path)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Failed to reprocess document %s: %s", document_id, exc)
+        raise HTTPException(
+            status_code=500, detail="Failed to reprocess document"
+        ) from exc
+
+    asyncio.create_task(_kickoff_lp_processing())
+
+    return await _build_process_start_response(
+        document_id=document_id,
+        storage_path=storage_path,
+        process_row=process_row,
+        already_started=False,
+        message="Document reprocessing started",
     )
 
 
@@ -241,12 +823,8 @@ async def get_document_tree(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    result = await _load_result_or_404(storage_path=doc["storage_path"], lp=lp)
     lp_doc_id = stable_doc_id(doc["storage_path"])
-    result = lp.get_cached(lp_doc_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail="Document not processed — call /process first"
-        )
 
     return DocumentTreeResponse(
         doc_id=lp_doc_id,
@@ -266,12 +844,8 @@ async def get_document_units(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    result = await _load_result_or_404(storage_path=doc["storage_path"], lp=lp)
     lp_doc_id = stable_doc_id(doc["storage_path"])
-    result = lp.get_cached(lp_doc_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail="Document not processed — call /process first"
-        )
 
     return DocumentUnitsResponse(
         doc_id=lp_doc_id,
@@ -302,12 +876,8 @@ async def get_document_concepts(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    result = await _load_result_or_404(storage_path=doc["storage_path"], lp=lp)
     lp_doc_id = stable_doc_id(doc["storage_path"])
-    result = lp.get_cached(lp_doc_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail="Document not processed — call /process first"
-        )
 
     return DocumentConceptsResponse(
         doc_id=lp_doc_id,
@@ -339,12 +909,8 @@ async def get_document_study_plan(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    result = await _load_result_or_404(storage_path=doc["storage_path"], lp=lp)
     lp_doc_id = stable_doc_id(doc["storage_path"])
-    result = lp.get_cached(lp_doc_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail="Document not processed — call /process first"
-        )
 
     return DocumentStudyPlanSummary(
         doc_id=lp_doc_id,
@@ -369,12 +935,8 @@ async def export_document_json(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
 
+    result = await _load_result_or_404(storage_path=doc["storage_path"], lp=lp)
     lp_doc_id = stable_doc_id(doc["storage_path"])
-    result = lp.get_cached(lp_doc_id)
-    if result is None:
-        raise HTTPException(
-            status_code=404, detail="Document not processed — call /process first"
-        )
 
     from learning_platform.infrastructure.persistence.exporters.json_exporter import (
         JsonExporter,

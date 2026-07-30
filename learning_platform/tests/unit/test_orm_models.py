@@ -6,11 +6,15 @@ import uuid
 
 from learning_platform.infrastructure.persistence.models.annotation import AnnotationRow
 from learning_platform.infrastructure.persistence.models.base import Base
+from learning_platform.infrastructure.persistence.models.book_process import BookProcessRow
 from learning_platform.infrastructure.persistence.models.concept import (
     ConceptRelationshipRow,
     ConceptRow,
 )
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
+from learning_platform.infrastructure.persistence.models.document_process import (
+    DocumentProcessRow,
+)
 from learning_platform.infrastructure.persistence.models.knowledge_graph import (
     GraphEdgeRow,
     GraphNodeRow,
@@ -37,6 +41,7 @@ class TestBase:
             "lp_book_item",
             "lp_book_lesson",
             "lp_book_page",
+            "lp_book_process",
             "lp_checkpoints",
             "lp_concept_relationships",
             "lp_concepts",
@@ -54,7 +59,7 @@ class TestBase:
         assert table_names == expected
 
     def test_total_table_count(self) -> None:
-        assert len(Base.metadata.tables) == 18
+        assert len(Base.metadata.tables) == 19
 
 
 class TestCanonicalDocumentRow:
@@ -75,6 +80,33 @@ class TestCanonicalDocumentRow:
         assert row.title == "Test Doc"
         assert row.owner_sub == "1"
         assert row.metadata_json == {"key": "val"}
+
+
+class TestBookProcessRow:
+    def test_table_name(self) -> None:
+        assert BookProcessRow.__tablename__ == "lp_book_process"
+
+
+class TestDocumentProcessRow:
+    def test_table_name(self) -> None:
+        assert DocumentProcessRow.__tablename__ == "lp_document_process"
+
+    def test_construction_with_resume_fields(self) -> None:
+        row = DocumentProcessRow(
+            source="7/sample.pdf",
+            abs_path="/tmp/7/sample.pdf",
+            status="pending",
+            run_mode="retry",
+            retry_count=1,
+            max_retries=3,
+            last_completed_stage="concept_extractor",
+            failed_stage="graph_builder",
+            resume_state_json={"normalized_document": {"source": "sample.pdf"}},
+        )
+        assert row.run_mode == "retry"
+        assert row.last_completed_stage == "concept_extractor"
+        assert row.failed_stage == "graph_builder"
+        assert row.resume_state_json is not None
 
 
 class TestLearningUnitRow:

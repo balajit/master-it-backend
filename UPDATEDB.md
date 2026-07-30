@@ -11,7 +11,7 @@ Two databases are affected:
 
 | Database | How tables are managed |
 |---|---|
-| **master-it** (PostgreSQL) | Alembic migrations — run `alembic upgrade head` |
+| **master-it** (PostgreSQL) | Alembic migrations via `./scripts/migrate.sh` |
 | **learning-platform** (same PostgreSQL instance) | SQLAlchemy `create_all` on app startup — no Alembic |
 
 ---
@@ -26,11 +26,15 @@ Two databases are affected:
 
 ## Step 1 — Apply master-it Alembic Migrations
 
-Two new migrations were added. Run them in order:
+Run migrations via the wrapper script:
 
 ```bash
 # From the project root
-DATABASE_URL=postgresql+asyncpg://... uv run alembic upgrade head
+./scripts/migrate.sh testing
+# or
+./scripts/migrate.sh production
+# or both
+./scripts/migrate.sh
 ```
 
 ### What the migrations create
@@ -149,6 +153,8 @@ To undo the master-it Alembic changes:
 # Roll back both new migrations
 DATABASE_URL=postgresql+asyncpg://... uv run alembic downgrade b2c3d4e5f6a7
 ```
+
+Note: `scripts/migrate.sh` is upgrade-only. Use raw Alembic commands for downgrade workflows.
 
 This removes `item_progress`, `lp_book_item`, `lp_book_page`,
 `lp_book_lesson`, and `lp_book_chapter` (in dependency order via CASCADE).

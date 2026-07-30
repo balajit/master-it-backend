@@ -25,6 +25,7 @@ from learning_platform.presentation.mappers.learning_experience import (
     create_learning_experience,
 )
 from learning_platform.presentation.models import StudyExperience
+from services.lp_results import lp_doc_uuid_from_external_id
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -138,6 +139,12 @@ def generate_study_experience(
         If no pipeline result is cached for this document.
     """
     cached_result: PipelineResult | None = pipeline_cache.get(doc_id)
+    if cached_result is None:
+        doc_uuid = lp_doc_uuid_from_external_id(doc_id)
+        if doc_uuid is not None:
+            cached_result = pipeline_cache.get(str(doc_uuid))
+            if cached_result is not None:
+                pipeline_cache.set(doc_id, cached_result)
     if cached_result is None:
         raise ValueError(f"No pipeline result cached for document {doc_id}")
 
