@@ -15,7 +15,13 @@ from routers.learning import router as learning_router
 from routers.mapping import router as mapping_router
 from routers.users import router as users_router
 from routers.v1 import router as v1_router
-from learning_platform.api.app import get_lp_app, start_poller, stop_poller
+from learning_platform.api.app import (
+    get_lp_app,
+    start_book_poller,
+    start_poller,
+    stop_book_poller,
+    stop_poller,
+)
 
 app = FastAPI(title="Master It API")
 
@@ -76,6 +82,9 @@ async def startup() -> None:
     logger.info("Starting file poller...")
     await start_poller()
     logger.info("File poller started.")
+    logger.info("Starting book process poller...")
+    await start_book_poller()
+    logger.info("Book process poller started.")
 
 
 @app.on_event("shutdown")
@@ -83,6 +92,9 @@ async def shutdown() -> None:
     logger.info("Stopping file poller...")
     await stop_poller()
     logger.info("File poller stopped.")
+    logger.info("Stopping book process poller...")
+    await stop_book_poller()
+    logger.info("Book process poller stopped.")
 
 
 @app.get("/health")

@@ -42,7 +42,7 @@ fi
 echo "Starting server in $ENV mode on http://localhost:$PORT ..."
 export $(grep -v '^#' "$ENV_FILE" | xargs)
 if [[ "$ENV" == "production" ]]; then
-    exec uv run python -m debugpy  --listen 5678 --wait-for-client -m uvicorn main:app --app-dir src --host 0.0.0.0 --port "$PORT" --workers 4
+    exec uv run python -m debugpy  --listen 5678 --wait-for-client -m uvicorn main:app --app-dir src --host 0.0.0.0 --port "$PORT" --workers 1
 else
     exec uv run python -m debugpy  --listen 5678 --wait-for-client -m fastapi dev src/main.py --port "$PORT"
 fi

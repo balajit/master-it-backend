@@ -6,12 +6,13 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from learning_platform.config import Settings, get_settings
-from learning_platform.poller import FilePoller
+from learning_platform.poller import BookProcessPoller, FilePoller
 
 load_dotenv()
 
 _app_instance: FastAPI | None = None
 _poller: FilePoller | None = None
+_book_poller: BookProcessPoller | None = None
 
 
 async def start_poller() -> None:
@@ -38,6 +39,31 @@ async def stop_poller() -> None:
 def get_poller_instance() -> FilePoller | None:
     """Return the poller singleton, or ``None`` if not started."""
     return _poller
+
+
+async def start_book_poller() -> None:
+    """Start the book process poller if not already running."""
+    global _book_poller
+    if _book_poller is not None:
+        return
+    from learning_platform.api.deps import get_session_factory
+
+    factory = get_session_factory()
+    _book_poller = BookProcessPoller(session_factory=factory)
+    await _book_poller.start()
+
+
+async def stop_book_poller() -> None:
+    """Stop the book process poller if running."""
+    global _book_poller
+    if _book_poller is not None:
+        await _book_poller.stop()
+        _book_poller = None
+
+
+def get_book_poller_instance() -> BookProcessPoller | None:
+    """Return the book poller singleton, or ``None`` if not started."""
+    return _book_poller
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

@@ -13,6 +13,8 @@ from learning_platform.infrastructure.persistence.models import Base as LpBase
 
 async def init_db() -> None:
     async with engine.begin() as conn:
+        # REDUNDANT: Alembic migrations now manage all tables. create_all is a
+        # no-op when tables already exist, kept only for backward compatibility.
         await conn.run_sync(Base.metadata.create_all)
         await conn.run_sync(LpBase.metadata.create_all)
 

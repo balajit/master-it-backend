@@ -8,6 +8,7 @@ from learning_platform.infrastructure.persistence.models.book import (
     BookLessonRow,
     BookPageRow,
 )
+from learning_platform.infrastructure.persistence.models.book_process import BookProcessRow
 from learning_platform.infrastructure.persistence.models.concept import (
     ConceptRelationshipRow,
     ConceptRow,
@@ -35,6 +36,7 @@ __all__ = [
     "BookItemRow",
     "BookLessonRow",
     "BookPageRow",
+    "BookProcessRow",
     "CanonicalDocumentRow",
     "CheckpointRow",
     "ConceptRelationshipRow",

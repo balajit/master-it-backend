@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import asyncio
 import os
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 from urllib.parse import urlparse, urlunparse
 
 from alembic import context
@@ -13,12 +15,23 @@ from sqlalchemy.ext.asyncio import async_engine_from_config, create_async_engine
 
 from database.base import Base
 
+# Ensure project root is on sys.path so learning_platform package is importable
+_project_root = str(Path(__file__).resolve().parent.parent)
+if _project_root not in sys.path:
+    sys.path.insert(0, _project_root)
+
+from learning_platform.infrastructure.persistence.models import Base as LpBase  # noqa: E402
+
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
+# Merge both metadata sets so Alembic tracks core + LP tables as one.
 target_metadata = Base.metadata
+for _table_name, _table in LpBase.metadata.tables.items():
+    if _table_name not in target_metadata:
+        target_metadata._add_table(_table_name, _table.schema, _table)
 
 DATABASE_URL: str = os.environ.get(
     "DATABASE_URL",

@@ -211,6 +211,19 @@ class LearningPlatformService:
             await session.commit()
             _LOG.info("Pipeline result persisted for doc_id=%s", doc_id_uuid)
 
+            # ── Pipeline 2: Book Assembly entry ──────────────────────────
+            from learning_platform.infrastructure.persistence.repositories.book_process import (
+                BookProcessRepository,
+            )
+
+            book_proc_repo = BookProcessRepository(session)
+            existing = await book_proc_repo.find_by_document_id(str(doc_id_uuid))
+            if existing is not None:
+                await book_proc_repo.reset_entry(existing)
+            else:
+                await book_proc_repo.create_entry(str(doc_id_uuid))
+            await session.commit()
+
         return result
 
     async def _persist_pipeline_logs(

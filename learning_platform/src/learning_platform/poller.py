@@ -3,8 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
 from pathlib import Path
 from typing import TYPE_CHECKING
+from uuid import UUID
 
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -17,6 +19,7 @@ from learning_platform.security import InvalidPathError, resolve_safe_path
 _LOG = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS: int = 10
+BOOK_POLL_INTERVAL_SECONDS: int = 30
 MAX_RETRIES: int = 3
 
 
@@ -88,39 +91,51 @@ class FilePoller:
     # ── registry.txt → lp_document_process ───────────────────────────────────
 
     async def _sync_registry_to_db(self) -> None:
-        """Read ``registry.txt`` and create ``lp_document_process`` rows for
-        any paths not yet tracked in the database."""
-        registry_exists = await run_in_threadpool(self._registry_path.exists)
-        if not registry_exists:
+        """Atomically swap the registry file and create ``lp_document_process`` rows
+        for any paths not yet tracked in the database."""
+        swap_path = self._registry_path.with_suffix(".txt.processing")
+
+        # Atomically rename the file so concurrent writes by register_document()
+        # either complete before the rename or create a fresh registry.txt.
+        try:
+            os.rename(self._registry_path, swap_path)
+        except FileNotFoundError:
             return
 
-        from learning_platform.infrastructure.persistence.repositories.document_process import (
-            DocumentProcessRepository,
-        )
+        try:
+            lines = await run_in_threadpool(self._read_file_lines, swap_path)
 
-        async with self._session_factory() as session:
-            repo = DocumentProcessRepository(session)
-            lines = await run_in_threadpool(self._read_registry_lines)
-            for line in lines:
-                rel_path: str = line.strip()
-                if not rel_path:
-                    continue
-                try:
-                    safe_abs = resolve_safe_path(Path(self._upload_path), rel_path)
-                except InvalidPathError:
-                    _LOG.warning("Skipping unsafe registry path: %s", rel_path)
-                    continue
-                existing = await repo.find_by_source(rel_path)
-                if existing is not None:
-                    continue
-                abs_path: str = str(safe_abs)
-                await repo.create_entry(rel_path, abs_path)
-            await session.commit()
+            from learning_platform.infrastructure.persistence.repositories import (
+                DocumentProcessRepository,
+            )
 
-    def _read_registry_lines(self) -> list[str]:
-        """Read registry file lines using blocking I/O in threadpool context."""
-        with open(self._registry_path, encoding="utf-8") as registry_file:
-            return registry_file.readlines()
+            async with self._session_factory() as session:
+                repo = DocumentProcessRepository(session)
+                for line in lines:
+                    rel_path: str = line.strip()
+                    if not rel_path:
+                        continue
+                    try:
+                        safe_abs = resolve_safe_path(Path(self._upload_path), rel_path)
+                    except InvalidPathError:
+                        _LOG.warning("Skipping unsafe registry path: %s", rel_path)
+                        continue
+                    existing = await repo.find_by_source(rel_path)
+                    if existing is not None:
+                        continue
+                    abs_path: str = str(safe_abs)
+                    await repo.create_entry(rel_path, abs_path)
+                await session.commit()
+        finally:
+            # Remove the swapped file regardless of outcome
+            if swap_path.exists():
+                os.remove(swap_path)
+
+    @staticmethod
+    def _read_file_lines(path: Path) -> list[str]:
+        """Read all lines from a file using blocking I/O in threadpool context."""
+        with open(path, encoding="utf-8") as f:
+            return f.readlines()
 
     # ── Process pending entries from DB ──────────────────────────────────────
 
@@ -202,3 +217,131 @@ class FilePoller:
                 await repo.mark_completed(proc)
                 await session.commit()
                 _LOG.info("Processing completed: %s", proc.abs_path)
+
+
+class BookProcessPoller:
+    """Picks up pending ``lp_book_process`` entries and runs ``BookPipeline``.
+
+    State machine::
+
+        lp_book_process (status=pending)
+                │
+                ▼
+            processing
+                │
+           ┌────┴────┐
+           ▼         ▼
+      completed  failed (< max)
+                     │
+                     └──→ pending (retry+1)
+    """
+
+    def __init__(
+        self,
+        session_factory: async_sessionmaker,
+        poll_interval: int = BOOK_POLL_INTERVAL_SECONDS,
+    ) -> None:
+        self._session_factory = session_factory
+        self._poll_interval = poll_interval
+        self._task: asyncio.Task[None] | None = None
+        self._stop_event = asyncio.Event()
+
+    # ── Lifecycle ────────────────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        _LOG.info(
+            "BookProcessPoller started (interval=%ds)",
+            self._poll_interval,
+        )
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        _LOG.info("BookProcessPoller stopping...")
+        self._stop_event.set()
+        if self._task:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
+
+    async def _run(self) -> None:
+        """Main polling loop."""
+        while not self._stop_event.is_set():
+            try:
+                await self._process_pending()
+            except Exception:
+                _LOG.exception("BookProcessPoller iteration failed")
+            await asyncio.sleep(self._poll_interval)
+
+    # ── Process pending entries ─────────────────────────────────────────────
+
+    async def _process_pending(self) -> None:
+        """Pick up pending book_process entries and assemble books."""
+        from learning_platform.infrastructure.persistence.repositories.book_process import (
+            BookProcessRepository,
+        )
+
+        async with self._session_factory() as session:
+            repo = BookProcessRepository(session)
+            pending = await repo.find_pending()
+
+        for row in pending:
+            await self._try_process(row)
+
+    async def _try_process(self, row: object) -> None:
+        """Run BookPipeline on a single ``BookProcessRow``."""
+        from learning_platform.infrastructure.persistence.repositories.book_process import (
+            BookProcessRepository,
+        )
+        from learning_platform.pipeline.book_pipeline import BookPipeline
+
+        proc = row  # type: ignore[var-annotated]
+
+        async with self._session_factory() as session:
+            repo = BookProcessRepository(session)
+            proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
+            if proc is None or proc.status != "pending":
+                return
+
+            await repo.mark_processing(proc)
+            await session.commit()
+
+        try:
+            async with self._session_factory() as session:
+                book_pipeline = BookPipeline(session)
+                await book_pipeline.run(UUID(proc.document_id))
+        except Exception:
+            _LOG.exception("Book assembly failed for document %s", proc.document_id)
+            async with self._session_factory() as session:
+                repo = BookProcessRepository(session)
+                proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
+                if proc is None:
+                    return
+                if proc.retry_count + 1 >= proc.max_retries:
+                    await repo.mark_failed(proc, "Max retries exceeded")
+                    _LOG.warning(
+                        "Book assembly failed after %d retries for document %s",
+                        proc.max_retries,
+                        proc.document_id,
+                    )
+                else:
+                    await repo.mark_retry(proc, "BookPipeline error, will retry")
+                    _LOG.info(
+                        "Retry %d/%d for document %s",
+                        proc.retry_count,
+                        proc.max_retries,
+                        proc.document_id,
+                    )
+                await session.commit()
+            return
+
+        async with self._session_factory() as session:
+            repo = BookProcessRepository(session)
+            proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
+            if proc is not None:
+                await repo.mark_completed(proc)
+                await session.commit()
+                _LOG.info(
+                    "Book assembly completed for document %s",
+                    proc.document_id,
+                )

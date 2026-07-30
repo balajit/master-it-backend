@@ -3,6 +3,9 @@
 from learning_platform.infrastructure.persistence.repositories.annotation import (
     AnnotationRepository,
 )
+from learning_platform.infrastructure.persistence.repositories.book_process import (
+    BookProcessRepository,
+)
 from learning_platform.infrastructure.persistence.repositories.concept import ConceptRepository
 from learning_platform.infrastructure.persistence.repositories.document import DocumentRepository
 from learning_platform.infrastructure.persistence.repositories.document_process import (
@@ -21,6 +24,7 @@ from learning_platform.infrastructure.persistence.repositories.sequence import S
 
 __all__ = [
     "AnnotationRepository",
+    "BookProcessRepository",
     "ConceptRepository",
     "DocumentProcessRepository",
     "DocumentRepository",
