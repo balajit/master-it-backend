@@ -48,6 +48,7 @@ class NodeType(StrEnum):
     EQUATION = "equation"
     CODE_BLOCK = "code_block"
     EXERCISE = "exercise"
+    QUESTION = "question"
     DEFINITION = "definition"
     NOTE = "note"
     CALLOUT = "callout"
@@ -103,6 +104,18 @@ class ExerciseType(StrEnum):
     SHORT_ANSWER = "short_answer"
     TRUE_FALSE = "true_false"
     PROBLEM = "problem"
+
+
+class QuestionType(StrEnum):
+    """Canonical question types extracted from structured document content."""
+
+    MULTIPLE_CHOICE = "multiple_choice"
+    TRUE_FALSE = "true_false"
+    FILL_IN_BLANK = "fill_in_blank"
+    SHORT_ANSWER = "short_answer"
+    MATCHING = "matching"
+    ORDERING = "ordering"
+    UNKNOWN = "unknown"
 
 
 class ListStyle(StrEnum):
@@ -414,6 +427,48 @@ class Exercise(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class QuestionOption(BaseModel):
+    """A single selectable option for multiple-choice style questions."""
+
+    label: str = ""
+    text: StyledText = Field(default_factory=StyledText)
+    is_correct: bool | None = None
+    explanation: str = ""
+
+
+class FillInBlank(BaseModel):
+    """Represents one fill-in-the-blank slot in a question."""
+
+    blank_id: int
+    placeholder: str = ""
+    answer: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuestionStatement(BaseModel):
+    """A numbered statement, typically used in true/false sections."""
+
+    number: int | None = None
+    text: StyledText = Field(default_factory=StyledText)
+    expected_answer: bool | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class Question(BaseModel):
+    """First-class canonical question content extracted from source documents."""
+
+    type: Literal["question"] = "question"
+    question_type: QuestionType = QuestionType.UNKNOWN
+    text: StyledText = Field(default_factory=StyledText)
+    options: list[QuestionOption] = Field(default_factory=list)
+    blanks: list[FillInBlank] = Field(default_factory=list)
+    statements: list[QuestionStatement] = Field(default_factory=list)
+    solution: str = ""
+    explanation: str = ""
+    points: float = 0.0
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class Definition(BaseModel):
     """A term-definition pair.
 
@@ -543,6 +598,7 @@ ContentBlock = Annotated[
     | Equation
     | CodeBlock
     | Exercise
+    | Question
     | Definition
     | Note
     | Callout

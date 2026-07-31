@@ -16,6 +16,8 @@ from learning_platform.models.document import (
     Heading,
     HeadingLevel,
     Paragraph,
+    Question,
+    QuestionType,
     StyledText,
     TableOfContents,
     TableOfContentsEntry,
@@ -418,3 +420,141 @@ class TestDoclingEndToEnd:
 
         toc_children = self._get_toc_children(root)
         assert len(toc_children) == 0, "Plain document should not get a TOC"
+
+
+class TestDoclingAdapterFormatSupport:
+    def test_supports_non_av_document_extensions(self) -> None:
+        adapter = DoclingAdapter()
+
+        assert adapter.supports("notes.docx")
+        assert adapter.supports("slides.pptx")
+        assert adapter.supports("sheet.xlsx")
+        assert adapter.supports("legacy.doc")
+        assert adapter.supports("book.epub")
+        assert adapter.supports("index.html")
+        assert adapter.supports("outline.adoc")
+        assert adapter.supports("data.xml")
+
+    def test_supports_image_extensions(self) -> None:
+        adapter = DoclingAdapter()
+
+        assert adapter.supports("photo.png")
+        assert adapter.supports("scan.jpg")
+        assert adapter.supports("diagram.webp")
+
+    def test_rejects_av_extensions(self) -> None:
+        adapter = DoclingAdapter()
+
+        assert not adapter.supports("voice.mp3")
+        assert not adapter.supports("movie.mp4")
+        assert not adapter.supports("track.wav")
+
+
+class TestQuestionPromotion:
+    def test_fill_in_blank_paragraph_is_mapped_to_question(self) -> None:
+        adapter = DoclingAdapter()
+
+        class _Item:
+            def __init__(self, text: str) -> None:
+                self.text = text
+                self.label = "text"
+                self.parent = None
+                self.prov = []
+                self.self_ref = "item:1"
+
+        node = adapter._make_paragraph_or_question(
+            _Item("The body has the six signs (1) ____ (2) ____"),
+            "/tmp/test.pdf",
+            "text",
+        )
+
+        assert isinstance(node.content, Question)
+        assert node.content.question_type == QuestionType.FILL_IN_BLANK
+        assert [blank.blank_id for blank in node.content.blanks] == [1, 2]
+
+    def test_true_false_numbered_line_is_mapped_to_question(self) -> None:
+        adapter = DoclingAdapter()
+
+        class _Item:
+            def __init__(self, text: str) -> None:
+                self.text = text
+                self.label = "checkbox_unselected"
+                self.parent = None
+                self.prov = []
+                self.self_ref = "item:2"
+
+        node = adapter._make_paragraph_or_question(
+            _Item("8. The body has 206 bones (T/F)"),
+            "/tmp/test.pdf",
+            "checkbox_unselected",
+        )
+
+        assert isinstance(node.content, Question)
+        assert node.content.question_type == QuestionType.TRUE_FALSE
+        assert len(node.content.statements) == 1
+        assert node.content.statements[0].number == 8
+        assert node.content.statements[0].text.plain_text.startswith("The body")
+
+    def test_question_mode_promotes_numbered_paragraphs(self) -> None:
+        adapter = DoclingAdapter()
+        root = DocumentNode(
+            id=uuid4(),
+            content=Paragraph(text=StyledText(runs=[TextRun(text="")])),
+            metadata={"role": "document_root"},
+            children=[
+                DocumentNode(
+                    id=uuid4(),
+                    content=Paragraph(
+                        text=StyledText(
+                            runs=[TextRun(text="Write true if true and false if false")]
+                        )
+                    ),
+                    metadata={"label": "text"},
+                ),
+                DocumentNode(
+                    id=uuid4(),
+                    content=Paragraph(
+                        text=StyledText(runs=[TextRun(text="9. Humans have three lungs")])
+                    ),
+                    metadata={"label": "checkbox_unselected"},
+                ),
+            ],
+        )
+
+        adapter._promote_question_nodes(root)
+        promoted = root.children[1].content
+        assert isinstance(promoted, Question)
+        assert promoted.question_type == QuestionType.TRUE_FALSE
+        assert promoted.statements[0].number == 9
+
+
+class TestPdfClassificationAndStrategy:
+    def test_ratio_classification(self) -> None:
+        adapter = DoclingAdapter(
+            pdf_classifier_digital_ratio=0.80,
+            pdf_classifier_scanned_ratio=0.20,
+        )
+
+        assert adapter._classify_pdf_text_ratio(0.90).value == "digital"
+        assert adapter._classify_pdf_text_ratio(0.10).value == "scanned"
+        assert adapter._classify_pdf_text_ratio(0.50).value == "mixed"
+
+    def test_ocr_strategy_auto(self) -> None:
+        adapter = DoclingAdapter(pdf_ocr_strategy="auto")
+
+        from learning_platform.stages.parser.docling_adapter import PdfDocumentClass
+
+        assert not adapter._should_enable_ocr(PdfDocumentClass.DIGITAL)
+        assert adapter._should_enable_ocr(PdfDocumentClass.SCANNED)
+        assert adapter._should_enable_ocr(PdfDocumentClass.MIXED)
+
+    def test_ocr_strategy_always_and_never(self) -> None:
+        from learning_platform.stages.parser.docling_adapter import PdfDocumentClass
+
+        always_adapter = DoclingAdapter(pdf_ocr_strategy="always")
+        never_adapter = DoclingAdapter(pdf_ocr_strategy="never")
+
+        assert always_adapter._should_enable_ocr(PdfDocumentClass.DIGITAL)
+        assert always_adapter._should_enable_ocr(PdfDocumentClass.SCANNED)
+        assert not never_adapter._should_enable_ocr(PdfDocumentClass.DIGITAL)
+        assert not never_adapter._should_enable_ocr(PdfDocumentClass.MIXED)

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Mapping
 from typing import Any, Dict, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import ValidationError
 
 from auth import get_current_user
 from database import (
@@ -21,10 +23,12 @@ from schemas import (
     Chapter,
     Course,
     CourseCreate,
+    CourseStudyPlanDocument,
     CourseStudyPlanResponse,
     Lesson,
     Page,
 )
+from services.lp_results import lp_doc_uuid_from_storage_path
 
 router: APIRouter = APIRouter(prefix="/api", tags=["courses"])
 logger: logging.Logger = logging.getLogger(__name__)
@@ -95,19 +99,66 @@ async def get_course_study_plan(
 
     documents = await get_documents_by_course(course_id)
 
-    # Collect chapters from all documents attached to this course.
-    # Multiple documents result in their chapters being concatenated.
+    # New shape: keep per-document plans and maintain a deprecated
+    # flattened chapters list for backward compatibility.
+    documents_payload: list[CourseStudyPlanDocument] = []
     all_chapters: list[Chapter] = []
     chapter_order_offset: int = 0
 
+    skipped_documents: list[str] = []
+
     for doc in documents:
-        doc_chapters = await _fetch_book_chapters(doc["id"], chapter_order_offset)
-        all_chapters.extend(doc_chapters)
+        document_id = str(doc.get("id") or "")
+        document_name = str(doc.get("filename") or "")
+        storage_path = str(doc.get("storage_path") or "").strip()
+        if not storage_path:
+            skipped_documents.append(document_id)
+            documents_payload.append(
+                CourseStudyPlanDocument(
+                    document_id=document_id,
+                    document_name=document_name,
+                    chapters=[],
+                )
+            )
+            continue
+
+        lp_doc_uuid = lp_doc_uuid_from_storage_path(storage_path)
+        doc_chapters = await _fetch_book_chapters(str(lp_doc_uuid), 0)
+
+        documents_payload.append(
+            CourseStudyPlanDocument(
+                document_id=document_id,
+                document_name=document_name,
+                chapters=doc_chapters,
+            )
+        )
+
+        if not doc_chapters:
+            skipped_documents.append(document_id)
+            continue
+
+        all_chapters.extend(
+            [
+                chapter.model_copy(
+                    update={"order": chapter.order + chapter_order_offset}
+                )
+                for chapter in doc_chapters
+            ]
+        )
         chapter_order_offset += len(doc_chapters)
+
+    if skipped_documents:
+        logger.info(
+            "Study plan for course %d skipped %d document(s) without book output: %s",
+            course_id,
+            len(skipped_documents),
+            ", ".join(skipped_documents),
+        )
 
     return CourseStudyPlanResponse(
         course_id=course_id,
         course_title=course["title"],
+        documents=documents_payload,
         chapters=all_chapters,
     )
 
@@ -120,57 +171,48 @@ async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[C
 
     Returns an empty list if no book has been assembled for the document yet.
     """
+    from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+    from learning_platform.config import Settings
+    from learning_platform.infrastructure.persistence.engine import create_engine
+    from learning_platform.infrastructure.persistence.repositories.book import (
+        BookRepository,
+    )
+    from learning_platform.infrastructure.persistence.session import (
+        create_session_factory,
+    )
+
+    settings = Settings()
+    engine = create_engine(settings)
+    factory: async_sessionmaker[AsyncSession] = create_session_factory(engine)
+
     try:
-        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-        from learning_platform.config import Settings
-        from learning_platform.infrastructure.persistence.engine import create_engine
-        from learning_platform.infrastructure.persistence.repositories.book import (
-            BookRepository,
-        )
-        from learning_platform.infrastructure.persistence.session import (
-            create_session_factory,
-        )
-
-        settings = Settings()
-        engine = create_engine(settings)
-        factory: async_sessionmaker[AsyncSession] = create_session_factory(engine)
-
         doc_uuid = UUID(doc_id_str)
 
         async with factory() as session:
             repo = BookRepository(session)
             book = await repo.find_by_document(doc_uuid)
 
-        await engine.dispose()
-
         if book is None:
             return []
 
-        # ── Collect all LP LearningUnit UUIDs from book lessons ──────────
-        # BookLesson.unit_id == StudyPlan.Lesson.unit_id == lp_learning_unit.id
-        # This is stored as LessonModel.plan_lesson_id during enrollment.
         plan_lesson_ids: list[str] = []
         for bc in book.chapters:
             for bl in bc.lessons:
                 if bl.unit_id is not None:
                     plan_lesson_ids.append(str(bl.unit_id))
 
-        # ── Batch-fetch master-it lesson rows by plan_lesson_id ───────────
         lesson_rows = await get_lessons_by_plan_ids(plan_lesson_ids)
-        # map: plan_lesson_id → lesson_dict
         plan_to_lesson: dict[str, dict] = {
             r["plan_lesson_id"]: r for r in lesson_rows if r.get("plan_lesson_id")
         }
 
-        # ── Batch-fetch sections to resolve unit_id ───────────────────────
         section_ids_seen: list[int] = list(
             {r["section_id"] for r in lesson_rows if r.get("section_id")}
         )
         section_rows = await get_sections_by_ids(section_ids_seen)
         section_to_unit: dict[int, int] = {s["id"]: s["unit_id"] for s in section_rows}
 
-        # ── Build chapters with integer PKs ──────────────────────────────
         chapters: list[Chapter] = []
         for bc in book.chapters:
             lessons: list[Lesson] = []
@@ -185,10 +227,10 @@ async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[C
                             page_number=bp.page_number,
                             order=bp.order,
                             items=[_serialize_item(item) for item in bp.items],
+                            metadata=bp.metadata or {},
                         )
                     )
 
-                # Resolve integer PKs
                 lesson_id: int | None = None
                 lesson_unit_id: int | None = None
                 if bl.unit_id is not None:
@@ -220,14 +262,46 @@ async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[C
                 )
             )
         return chapters
-
-    except Exception:
-        logger.debug("No book found for document %s", doc_id_str, exc_info=True)
-        return []
+    except ValidationError as exc:
+        logger.exception("Invalid book payload for document %s", doc_id_str)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to serialize study plan for document {doc_id_str}",
+        ) from exc
+    except ValueError as exc:
+        logger.exception("Invalid document UUID for study plan lookup: %s", doc_id_str)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Invalid LP document ID for study plan lookup: {doc_id_str}",
+        ) from exc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed loading study plan book for document %s", doc_id_str)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to load study plan for document {doc_id_str}",
+        ) from exc
+    finally:
+        await engine.dispose()
 
 
 def _serialize_item(item: object) -> dict:
     """Convert a ContentItem domain object to a dict for the API response."""
-    if hasattr(item, "model_dump"):
-        return item.model_dump()
+    model_dump = getattr(item, "model_dump", None)
+    if callable(model_dump):
+        raw_payload = model_dump(mode="json")
+        if not isinstance(raw_payload, Mapping):
+            return {}
+        payload = dict(raw_payload)
+        item_id = payload.get("id")
+        if item_id is not None:
+            payload["id"] = str(item_id)
+        return payload
+    if isinstance(item, dict):
+        payload = dict(item)
+        item_id = payload.get("id")
+        if item_id is not None:
+            payload["id"] = str(item_id)
+        return payload
     return {}

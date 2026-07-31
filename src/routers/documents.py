@@ -29,7 +29,7 @@ import uuid
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, Form, HTTPException, Response, UploadFile
 from sqlalchemy.exc import IntegrityError
 
 from auth import get_current_user
@@ -111,6 +111,76 @@ def _sanitize_filename(name: str) -> str:
     base: str = Path(name).name
     safe: str = _SAFE_FILENAME_RE.sub("_", base)
     return safe or "unnamed"
+
+
+def _normalize_sampled_filename(
+    name: str | None,
+    fallback_name: str,
+    start_page: int,
+    end_page: int,
+) -> str:
+    """Build a safe filename for a sampled PDF document."""
+    if name is not None and name.strip():
+        safe_name = _sanitize_filename(name.strip())
+        stem = Path(safe_name).stem
+        return f"{stem}.pdf"
+
+    fallback_safe = _sanitize_filename(fallback_name)
+    fallback_stem = Path(fallback_safe).stem or "unnamed"
+    if start_page == end_page:
+        return f"{fallback_stem}.sample-p{start_page}.pdf"
+    return f"{fallback_stem}.sample-p{start_page}-{end_page}.pdf"
+
+
+def _slice_pdf_to_page_range(content: bytes, start_page: int, end_page: int) -> bytes:
+    """Return a new PDF containing only the requested inclusive page range."""
+    if start_page < 1:
+        raise HTTPException(status_code=400, detail="sample_start_page must be >= 1")
+    if end_page < start_page:
+        raise HTTPException(
+            status_code=400,
+            detail="end_page must be greater than or equal to sample_start_page",
+        )
+
+    try:
+        import pymupdf
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="PDF sampling is unavailable: missing pymupdf dependency",
+        ) from exc
+
+    source_pdf = pymupdf.open(stream=content, filetype="pdf")
+    try:
+        total_pages: int = len(source_pdf)
+        if end_page > total_pages:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Requested page range {start_page}-{end_page} is out of range for a "
+                    f"{total_pages}-page PDF"
+                ),
+            )
+
+        sampled_pdf = pymupdf.open()
+        try:
+            sampled_pdf.insert_pdf(
+                source_pdf,
+                from_page=start_page - 1,
+                to_page=end_page - 1,
+            )
+            return sampled_pdf.tobytes(garbage=4, deflate=True)
+        finally:
+            sampled_pdf.close()
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Failed to slice sampled PDF page: %s", exc)
+        raise HTTPException(
+            status_code=400, detail="Unable to slice PDF sample page"
+        ) from exc
+    finally:
+        source_pdf.close()
 
 
 def _relative_source(storage_path: str) -> str:
@@ -573,6 +643,43 @@ def register_document(uploaded_file: str) -> None:
             portalocker.unlock(file)
 
 
+async def _save_uploaded_document(
+    *,
+    course_id: int,
+    file_name: str,
+    content: bytes,
+    content_type: str,
+    user_id: Any,
+) -> DocumentUploadResponse:
+    """Persist an uploaded file and attach it to a course."""
+    doc_id: str = uuid.uuid4().hex
+    course_dir: Path = Path(UPLOAD_PATH) / str(course_id)
+    course_dir.mkdir(parents=True, exist_ok=True)
+    storage_path: str = str(course_dir / file_name)
+
+    with open(storage_path, "wb") as f:
+        f.write(content)
+
+    doc: Dict[str, Any] = await create_document(
+        doc_id=doc_id,
+        filename=file_name,
+        storage_path=storage_path,
+        content_type=content_type,
+        size_bytes=len(content),
+    )
+    await attach_document_to_course(course_id, doc_id)
+
+    register_document(f"{course_id}/{file_name}")
+
+    logger.info(
+        "Document '%s' uploaded to course %d by user %s",
+        doc["filename"],
+        course_id,
+        user_id,
+    )
+    return DocumentUploadResponse(**doc)
+
+
 @router.post(
     "/courses/{course_id}/documents",
     status_code=201,
@@ -599,33 +706,71 @@ async def upload_document(
             detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
         )
 
-    doc_id: str = uuid.uuid4().hex
     safe_name: str = _sanitize_filename(file.filename or "unnamed")
-    course_dir: Path = Path(UPLOAD_PATH) / str(course_id)
-    course_dir.mkdir(parents=True, exist_ok=True)
-    storage_path: str = str(course_dir / safe_name)
-
-    with open(storage_path, "wb") as f:
-        f.write(content)
-
-    doc: Dict[str, Any] = await create_document(
-        doc_id=doc_id,
-        filename=safe_name,
-        storage_path=storage_path,
+    return await _save_uploaded_document(
+        course_id=course_id,
+        file_name=safe_name,
+        content=content,
         content_type=file.content_type or "application/octet-stream",
-        size_bytes=len(content),
+        user_id=user["id"],
     )
-    await attach_document_to_course(course_id, doc_id)
 
-    register_document(f"{course_id}/{safe_name}")
 
-    logger.info(
-        "Document '%s' uploaded to course %d by user %s",
-        doc["filename"],
-        course_id,
-        user["id"],
+@router.post(
+    "/courses/{course_id}/documents/upload_sample",
+    status_code=201,
+    response_model=DocumentUploadResponse,
+)
+async def upload_document_sample(
+    course_id: int,
+    file: UploadFile,
+    sample_start_page: int = Form(...),
+    sample_end_page: int | None = Form(default=None),
+    sampled_filename: str | None = Form(default=None),
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> DocumentUploadResponse:
+    """Upload a sampled single-page PDF as a separate document."""
+    course: Dict[str, Any] | None = await get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    content: bytes = await file.read()
+    if len(content) > MAX_UPLOAD_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large (max {MAX_UPLOAD_BYTES // (1024 * 1024)} MB)",
+        )
+
+    original_name = file.filename or "unnamed.pdf"
+    original_suffix = Path(original_name).suffix.lower()
+    if original_suffix != ".pdf":
+        raise HTTPException(
+            status_code=400,
+            detail="upload_sample only supports PDF uploads",
+        )
+
+    resolved_sample_end_page: int = (
+        sample_end_page if sample_end_page is not None else sample_start_page
     )
-    return DocumentUploadResponse(**doc)
+    sampled_content = _slice_pdf_to_page_range(
+        content,
+        sample_start_page,
+        resolved_sample_end_page,
+    )
+    sampled_name = _normalize_sampled_filename(
+        sampled_filename,
+        original_name,
+        sample_start_page,
+        resolved_sample_end_page,
+    )
+
+    return await _save_uploaded_document(
+        course_id=course_id,
+        file_name=sampled_name,
+        content=sampled_content,
+        content_type="application/pdf",
+        user_id=user["id"],
+    )
 
 
 @router.get("/courses/{course_id}/documents", response_model=List[Document])

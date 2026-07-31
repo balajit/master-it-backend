@@ -35,6 +35,10 @@ from learning_platform.models.book import (
     HeadingItem,
     ImageItem,
     ListItem,
+    QuestionBlank,
+    QuestionItem,
+    QuestionOption,
+    QuestionStatement,
     TableItem,
     TextItem,
 )
@@ -64,6 +68,32 @@ _HEADING_PREFIX_RE: re.Pattern[str] = re.compile(
     r"^(?:chapter|unit|module|part|lesson|section|topic|lab)\b",
     re.IGNORECASE,
 )
+_FILL_BLANK_RE: re.Pattern[str] = re.compile(r"\((\d+)\)\s*(?:_{2,}|\.+|$)")
+_NUMBERED_ITEM_RE: re.Pattern[str] = re.compile(r"^\s*(\d+)[.)]\s+")
+_PAGE_TOP_MARGIN_MAX: float = 45.0
+_PAGE_BOTTOM_MARGIN_MAX: float = 55.0
+_QUESTION_CONTINUATION_MAX_GAP: float = 24.0
+
+_PAGE_CHROME_FRAGMENT_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bstudy\s+guide\s+for\s+content\s+mastery\b", re.IGNORECASE),
+    re.compile(
+        r"\bchemistry:\s*matter\s+and\s+change\s*[•·]?\s*chapter\s*\d+\b",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\bname\s+date\s+class(?:\s+\d+)?\b", re.IGNORECASE),
+    re.compile(
+        r"\bcopyright\s+©?\s*glencoe/mcgraw-hill[^\n]*",
+        re.IGNORECASE,
+    ),
+)
+
+
+def _normalized_heading_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().lower()
+
+
+def _normalized_inline_text(value: str) -> str:
+    return re.sub(r"\s+", " ", value).strip().lower()
 
 
 @dataclass
@@ -140,7 +170,12 @@ class BookAssembler:
             built_lessons: list[BookLesson] = []
             for lesson_order, lesson_slice in enumerate(chapter_slice.lessons):
                 pages = [
-                    BookPage(page_number=page.page_number, order=idx, items=page.items)
+                    BookPage(
+                        page_number=page.page_number,
+                        order=idx,
+                        items=page.items,
+                        metadata=self._page_metadata(document, page),
+                    )
                     for idx, page in enumerate(lesson_slice.pages)
                 ]
                 if not pages:
@@ -197,7 +232,8 @@ class BookAssembler:
 
         slices: list[_PageSlice] = []
         for page_number in sorted(page_buckets.keys()):
-            nodes = sorted(page_buckets[page_number], key=lambda n: n.seq)
+            deduped_nodes = self._dedupe_page_headings(page_buckets[page_number])
+            nodes = sorted(deduped_nodes, key=lambda n: n.seq)
             items = self._nodes_to_items(nodes)
             if not items:
                 continue
@@ -215,6 +251,28 @@ class BookAssembler:
             )
 
         return slices
+
+    def _dedupe_page_headings(self, nodes: list[DocumentNode]) -> list[DocumentNode]:
+        seen: set[tuple[int, str]] = set()
+        result: list[DocumentNode] = []
+
+        for node in sorted(nodes, key=lambda n: n.seq):
+            if not isinstance(node.content, Heading):
+                result.append(node)
+                continue
+
+            heading_text = _normalized_heading_text(node.content.text.plain_text)
+            if not heading_text:
+                result.append(node)
+                continue
+
+            key = (node.page, heading_text)
+            if key in seen:
+                continue
+            seen.add(key)
+            result.append(node)
+
+        return result
 
     def _extract_heading_signals(
         self,
@@ -484,7 +542,252 @@ class BookAssembler:
             if item is not None:
                 items.append(item)
                 order += 1
-        return items
+        return self._normalize_page_items(items)
+
+    def _normalize_page_items(self, items: list[ContentItem]) -> list[ContentItem]:
+        cleaned = self._strip_page_chrome(items)
+        deduped = self._dedupe_heading_text_echoes(cleaned)
+        promoted = self._promote_list_true_false_items(deduped)
+        return self._reindex_items(promoted)
+
+    def _strip_page_chrome(self, items: list[ContentItem]) -> list[ContentItem]:
+        result: list[ContentItem] = []
+        for item in items:
+            if item.type not in {"text", "heading"}:
+                result.append(item)
+                continue
+
+            raw_text = str(getattr(item, "content", ""))
+            raw_text_stripped = raw_text.strip()
+            cleaned_text = self._strip_page_chrome_fragments(raw_text)
+
+            if self._is_margin_chrome_item(item, raw_text):
+                continue
+            if raw_text_stripped and cleaned_text == "":
+                continue
+
+            if cleaned_text != raw_text:
+                clone = item.model_copy(deep=True)
+                clone.content = cleaned_text
+                metadata = dict(getattr(clone, "metadata", {}) or {})
+                metadata["chrome_sanitized"] = True
+                clone.metadata = metadata
+                result.append(clone)
+                continue
+
+            result.append(item)
+        return result
+
+    def _dedupe_heading_text_echoes(self, items: list[ContentItem]) -> list[ContentItem]:
+        if not items:
+            return []
+
+        result: list[ContentItem] = []
+        for item in items:
+            if (
+                item.type == "text"
+                and result
+                and result[-1].type == "heading"
+                and _normalized_inline_text(item.content)
+                == _normalized_inline_text(result[-1].content)
+            ):
+                continue
+            result.append(item)
+        return result
+
+    def _promote_list_true_false_items(self, items: list[ContentItem]) -> list[ContentItem]:
+        if not items:
+            return []
+
+        result: list[ContentItem] = []
+        for index, item in enumerate(items):
+            if item.type != "list" or len(item.items) != 1:
+                result.append(item)
+                continue
+
+            candidate_text = item.items[0].strip()
+            numbered = _NUMBERED_ITEM_RE.match(candidate_text)
+            if numbered is None:
+                result.append(item)
+                continue
+
+            statement_number = int(numbered.group(1))
+            if not self._adjacent_true_false_context(items, index, statement_number):
+                result.append(item)
+                continue
+
+            statement_text = candidate_text[numbered.end() :].strip()
+            if not statement_text:
+                result.append(item)
+                continue
+
+            question_metadata: dict[str, object] = {
+                **(item.metadata or {}),
+                "semantic_type": "question",
+                "question_type": "true_false",
+                "question_signal": "list_true_false",
+                "numbered_item": statement_number,
+                "statement_count": 1,
+            }
+            result.append(
+                QuestionItem(
+                    order=item.order,
+                    question_type="true_false",
+                    content=candidate_text,
+                    statements=[QuestionStatement(number=statement_number, text=statement_text)],
+                    bbox=item.bbox,
+                    style=item.style,
+                    metadata=question_metadata,
+                )
+            )
+
+        return result
+
+    def _join_question_continuations(self, items: list[ContentItem]) -> list[ContentItem]:
+        if not items:
+            return []
+
+        result: list[ContentItem] = []
+        for item in items:
+            if (
+                item.type == "text"
+                and result
+                and result[-1].type == "question"
+                and self._should_append_to_previous_question(result[-1], item)
+            ):
+                previous = result[-1].model_copy(deep=True)
+                append_text = item.content.strip()
+                previous.content = f"{previous.content.rstrip()} {append_text}".strip()
+                if previous.statements:
+                    last_statement = previous.statements[-1]
+                    last_statement.text = f"{last_statement.text.rstrip()} {append_text}".strip()
+                metadata = dict(previous.metadata or {})
+                metadata["statement_continued"] = True
+                previous.metadata = metadata
+                result[-1] = previous
+                continue
+            result.append(item)
+        return result
+
+    @staticmethod
+    def _reindex_items(items: list[ContentItem]) -> list[ContentItem]:
+        reindexed: list[ContentItem] = []
+        for order, item in enumerate(items):
+            if item.order == order:
+                reindexed.append(item)
+                continue
+            clone = item.model_copy(deep=True)
+            clone.order = order
+            reindexed.append(clone)
+        return reindexed
+
+    @staticmethod
+    def _strip_page_chrome_fragments(raw_text: str) -> str:
+        cleaned = raw_text
+        for pattern in _PAGE_CHROME_FRAGMENT_PATTERNS:
+            cleaned = pattern.sub(" ", cleaned)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" -•|\t\n")
+        if cleaned.lower() == "class":
+            return ""
+        if re.fullmatch(r"\d+", cleaned):
+            return ""
+        return cleaned
+
+    def _is_margin_chrome_item(self, item: ContentItem, text: str) -> bool:
+        bbox = item.bbox or {}
+        y_raw = bbox.get("y")
+        page_height_raw = bbox.get("page_height")
+        if not isinstance(y_raw, (int, float)):
+            return False
+        y_value = float(y_raw)
+        page_height = float(page_height_raw) if isinstance(page_height_raw, (int, float)) else 0.0
+        in_top_margin = y_value <= _PAGE_TOP_MARGIN_MAX
+        in_bottom_margin = page_height > 0.0 and y_value >= (page_height - _PAGE_BOTTOM_MARGIN_MAX)
+        if not (in_top_margin or in_bottom_margin):
+            return False
+        return self._looks_like_page_chrome_text(text)
+
+    @staticmethod
+    def _looks_like_page_chrome_text(text: str) -> bool:
+        normalized = _normalized_inline_text(text)
+        if not normalized:
+            return False
+        if normalized in {"class", "name", "date", "name date class"}:
+            return True
+        return (
+            "study guide for content mastery" in normalized
+            or "name date class" in normalized
+            or ("copyright" in normalized and "mcgraw-hill" in normalized)
+            or ("chemistry: matter and change" in normalized and "chapter" in normalized)
+        )
+
+    @staticmethod
+    def _adjacent_true_false_context(
+        items: list[ContentItem],
+        index: int,
+        statement_number: int,
+    ) -> bool:
+        neighbor_indexes = (index - 1, index + 1)
+        for neighbor_index in neighbor_indexes:
+            if neighbor_index < 0 or neighbor_index >= len(items):
+                continue
+            neighbor = items[neighbor_index]
+            if neighbor.type != "question":
+                continue
+            if neighbor.question_type != "true_false":
+                continue
+            neighbor_number = BookAssembler._extract_numbered_item(neighbor)
+            if neighbor_number is None:
+                continue
+            if abs(neighbor_number - statement_number) <= 2:
+                return True
+        return False
+
+    @staticmethod
+    def _extract_numbered_item(question: QuestionItem) -> int | None:
+        metadata_value = question.metadata.get("numbered_item") if question.metadata else None
+        if isinstance(metadata_value, int):
+            return metadata_value
+        if isinstance(metadata_value, str) and metadata_value.isdigit():
+            return int(metadata_value)
+        numbered = _NUMBERED_ITEM_RE.match(question.content)
+        if numbered is None:
+            return None
+        return int(numbered.group(1))
+
+    def _should_append_to_previous_question(
+        self,
+        question: QuestionItem,
+        continuation: TextItem,
+    ) -> bool:
+        if question.question_type != "true_false":
+            return False
+        tail = continuation.content.strip()
+        if not tail:
+            return False
+        if re.match(r"^[A-Z]", tail):
+            return False
+
+        question_text = question.content.strip()
+        if not question_text:
+            return False
+        if question_text.endswith((".", "?", "!", ":", ";")):
+            return False
+
+        question_bbox = question.bbox or {}
+        continuation_bbox = continuation.bbox or {}
+        q_y = question_bbox.get("y")
+        q_h = question_bbox.get("height")
+        t_y = continuation_bbox.get("y")
+        if not isinstance(q_y, (int, float)):
+            return False
+        if not isinstance(q_h, (int, float)):
+            return False
+        if not isinstance(t_y, (int, float)):
+            return False
+        q_bottom = float(q_y) + float(q_h)
+        vertical_gap = float(t_y) - q_bottom
+        return 0.0 <= vertical_gap <= _QUESTION_CONTINUATION_MAX_GAP
 
     def _node_to_item(self, node: DocumentNode, order: int) -> ContentItem | None:
         """Convert a single DocumentNode to the appropriate ContentItem."""
@@ -499,6 +802,7 @@ class BookAssembler:
             ListBlock,
             Note,
             Paragraph,
+            Question,
             Reference,
             TableBlock,
         )
@@ -513,78 +817,258 @@ class BookAssembler:
         style = self._style(node)
 
         if isinstance(content, Heading):
+            heading_metadata: dict[str, object] = dict(content.metadata or {})
+            if content.number:
+                heading_metadata.setdefault("number", content.number)
+            heading_metadata.setdefault("heading_level", int(content.level))
+            heading_metadata.setdefault("node_level", int(node.level or content.level))
+            heading_text_runs = self._styled_text_metadata(content.text)
+            if heading_text_runs is not None:
+                heading_metadata.setdefault("text_runs", heading_text_runs)
             return HeadingItem(
                 order=order,
                 content=content.text.plain_text,
                 level=node.level or content.level,
                 bbox=bbox,
                 style=style,
+                metadata=heading_metadata,
             )
 
         if isinstance(content, Paragraph):
             text = content.text.plain_text
             if not text.strip():
                 return None
-            return TextItem(order=order, content=text, bbox=bbox, style=style)
+            paragraph_metadata: dict[str, object] = {
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            if node.source.offset > 0:
+                paragraph_metadata.setdefault("source_offset", node.source.offset)
+            if node.source.length > 0:
+                paragraph_metadata.setdefault("source_length", node.source.length)
+            paragraph_text_runs = self._styled_text_metadata(content.text)
+            if paragraph_text_runs is not None:
+                paragraph_metadata.setdefault("text_runs", paragraph_text_runs)
+            paragraph_metadata.update(self._text_ui_hints(text, node.metadata.get("label")))
+            return TextItem(
+                order=order,
+                content=text,
+                bbox=bbox,
+                style=style,
+                metadata=paragraph_metadata,
+            )
 
         if isinstance(content, (Note, Callout, Definition, Reference)):
             text = getattr(content, "text", None)
             plain = text.plain_text if text and hasattr(text, "plain_text") else str(content)
             if not plain.strip():
                 return None
-            return TextItem(order=order, content=plain, bbox=bbox, style=style)
+            semantic_metadata: dict[str, object] = {
+                "semantic_type": getattr(content, "type", "text"),
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            semantic_metadata.update(self._text_ui_hints(plain, node.metadata.get("label")))
+            return TextItem(
+                order=order,
+                content=plain,
+                bbox=bbox,
+                style=style,
+                metadata=semantic_metadata,
+            )
 
         if isinstance(content, Exercise):
             text = content.question.plain_text if content.question else ""
             if not text.strip():
                 return None
-            return TextItem(order=order, content=text, bbox=bbox, style=style)
+            exercise_metadata: dict[str, object] = {
+                "semantic_type": "exercise",
+                "exercise_type": content.exercise_type.value,
+                "option_count": len(content.options),
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            exercise_metadata.update(self._text_ui_hints(text, node.metadata.get("label")))
+            return TextItem(
+                order=order,
+                content=text,
+                bbox=bbox,
+                style=style,
+                metadata=exercise_metadata,
+            )
+
+        if isinstance(content, Question):
+            question_text = content.text.plain_text if content.text else ""
+            if not question_text.strip() and content.statements:
+                question_text = " ".join(
+                    statement.text.plain_text for statement in content.statements
+                ).strip()
+            if not question_text.strip():
+                return None
+
+            if content.question_type.value == "true_false" and len(content.statements) > 1:
+                numbered = [
+                    str(statement.number)
+                    for statement in content.statements
+                    if statement.number is not None
+                ]
+                if numbered:
+                    question_text = (
+                        f"Statements {numbered[0]}-{numbered[-1]}"
+                        if len(numbered) > 1
+                        else question_text
+                    )
+
+            question_metadata: dict[str, object] = {
+                "semantic_type": "question",
+                "question_type": content.question_type.value,
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            question_metadata.setdefault("statement_count", len(content.statements))
+            question_metadata.update(
+                self._text_ui_hints(question_text, node.metadata.get("label"))
+            )
+
+            options: list[QuestionOption] = []
+            for option in content.options:
+                options.append(
+                    QuestionOption(
+                        label=option.label,
+                        text=option.text.plain_text,
+                        is_correct=option.is_correct,
+                        explanation=option.explanation,
+                    )
+                )
+
+            blanks: list[QuestionBlank] = []
+            for blank in content.blanks:
+                blanks.append(
+                    QuestionBlank(
+                        blank_id=blank.blank_id,
+                        placeholder=blank.placeholder,
+                        answer=blank.answer,
+                        metadata=dict(blank.metadata or {}),
+                    )
+                )
+
+            statements: list[QuestionStatement] = []
+            for statement in content.statements:
+                statements.append(
+                    QuestionStatement(
+                        number=statement.number,
+                        text=statement.text.plain_text,
+                        expected_answer=statement.expected_answer,
+                        metadata=dict(statement.metadata or {}),
+                    )
+                )
+
+            return QuestionItem(
+                order=order,
+                question_type=content.question_type.value,
+                content=question_text,
+                options=options,
+                blanks=blanks,
+                statements=statements,
+                solution=content.solution,
+                explanation=content.explanation,
+                points=content.points,
+                bbox=bbox,
+                style=style,
+                metadata=question_metadata,
+            )
 
         if isinstance(content, ListBlock):
             item_texts = [it.text.plain_text for it in content.items]
             if not any(item_texts):
                 return None
+            list_metadata: dict[str, object] = {
+                "list_style": content.style.value,
+                "item_count": len(content.items),
+                "checked_count": sum(1 for it in content.items if it.checked is True),
+                "unchecked_count": sum(1 for it in content.items if it.checked is False),
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            item_runs: list[list[dict[str, object]]] = []
+            has_runs = False
+            for list_item in content.items:
+                run_meta = self._styled_text_metadata(list_item.text)
+                if run_meta is None:
+                    item_runs.append([])
+                    continue
+                has_runs = True
+                item_runs.append(run_meta)
+            if has_runs:
+                list_metadata["item_text_runs"] = item_runs
             return ListItem(
                 order=order,
                 ordered=content.ordered if hasattr(content, "ordered") else False,
                 items=item_texts,
                 bbox=bbox,
                 style=style,
+                metadata=list_metadata,
             )
 
         if isinstance(content, TableBlock):
+            table_metadata: dict[str, object] = {
+                "row_count": content.row_count,
+                "column_count": content.column_count,
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            serialized_rows: list[list[str]] = []
+            for row in content.rows if content.rows else []:
+                row_cells: list[str] = []
+                for cell in row.cells:
+                    cell_text = "".join(run.text for run in cell.content).strip()
+                    row_cells.append(cell_text)
+                serialized_rows.append(row_cells)
+
             return TableItem(
                 order=order,
                 caption=content.caption if hasattr(content, "caption") else None,
                 headers=content.headers if content.headers else [],
-                rows=[
-                    [cell if isinstance(cell, str) else str(cell) for cell in row]
-                    for row in (content.rows if content.rows else [])
-                ],
+                rows=serialized_rows,
                 bbox=bbox,
                 style=style,
+                metadata=table_metadata,
             )
 
         if isinstance(content, Equation):
             latex = content.latex or ""
             if not latex.strip():
                 return None
+            equation_metadata: dict[str, object] = {
+                "is_block": bool(content.is_block),
+                "has_mathml": bool(content.mathml.strip()),
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
             return EquationItem(
                 order=order,
                 latex=latex,
                 label=content.label if hasattr(content, "label") else None,
                 bbox=bbox,
+                metadata=equation_metadata,
             )
 
         if isinstance(content, CodeBlock):
             code = content.code or ""
             if not code.strip():
                 return None
+            code_metadata: dict[str, object] = {
+                "filename": content.filename,
+                "line_start": content.line_start,
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
             return CodeItem(
                 order=order,
                 content=code,
                 language=content.language if hasattr(content, "language") else None,
                 bbox=bbox,
+                metadata=code_metadata,
             )
 
         if isinstance(content, Figure):
@@ -600,11 +1084,25 @@ class BookAssembler:
                 caption = content.caption_text
             elif hasattr(content, "alt_text"):
                 caption = content.alt_text or ""
+            figure_metadata: dict[str, object] = {
+                "image_uri": content.image_uri,
+                "alt_text": content.alt_text,
+                "caption_text": content.caption_text,
+                "mimetype": content.mimetype,
+                "format": content.format,
+                "storage_key": content.storage_key,
+                "size_bytes": content.size_bytes,
+                "width": content.width,
+                "height": content.height,
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
             return ImageItem(
                 order=order,
                 data=data,
                 caption=caption or None,
                 bbox=bbox,
+                metadata=figure_metadata,
             )
 
         return None
@@ -628,18 +1126,160 @@ class BookAssembler:
         if node.style is None:
             return None
         s = node.style
-        result: dict[str, object] = {}
-        if hasattr(s, "font_name") and s.font_name:
-            result["font_name"] = s.font_name
-        if hasattr(s, "font_size") and s.font_size is not None:
-            result["font_size"] = s.font_size
-        if hasattr(s, "bold") and s.bold is not None:
-            result["bold"] = s.bold
-        if hasattr(s, "italic") and s.italic is not None:
-            result["italic"] = s.italic
-        if hasattr(s, "color") and s.color:
-            result["color"] = s.color
+        result: dict[str, object] = {
+            "alignment": s.alignment.value,
+            "indent_level": s.indent_level,
+            "line_spacing": s.line_spacing,
+            "space_before": s.space_before,
+            "space_after": s.space_after,
+            "background_color": s.background_color,
+            "border_color": s.border_color,
+            "border_width": s.border_width,
+            "padding": s.padding,
+        }
+
+        font_info = BookAssembler._font_to_dict(s.font)
+        if font_info:
+            result["font"] = font_info
+
+        if s.metadata:
+            result["metadata"] = dict(s.metadata)
         return result if result else None
+
+    @staticmethod
+    def _font_to_dict(font: object) -> dict[str, object]:
+        if font is None:
+            return {}
+        result: dict[str, object] = {}
+        name = getattr(font, "name", "")
+        if isinstance(name, str) and name:
+            result["name"] = name
+
+        size = getattr(font, "size", 0.0)
+        if isinstance(size, (int, float)) and size:
+            result["size"] = float(size)
+
+        for attr in ("is_bold", "is_italic", "is_underline", "is_strikethrough"):
+            value = getattr(font, attr, None)
+            if value is not None:
+                result[attr] = bool(value)
+
+        color = getattr(font, "color", "")
+        if isinstance(color, str) and color:
+            result["color"] = color
+
+        background_color = getattr(font, "background_color", "")
+        if isinstance(background_color, str) and background_color:
+            result["background_color"] = background_color
+        return result
+
+    @staticmethod
+    def _styled_text_metadata(styled_text: object) -> list[dict[str, object]] | None:
+        runs = getattr(styled_text, "runs", None)
+        if not isinstance(runs, list) or not runs:
+            return None
+
+        serialized_runs: list[dict[str, object]] = []
+        has_style = False
+        for run in runs:
+            run_payload: dict[str, object] = {"text": getattr(run, "text", "")}
+            link_target = getattr(run, "link_target", "")
+            if isinstance(link_target, str) and link_target:
+                run_payload["link_target"] = link_target
+
+            style_payload: dict[str, object] = {}
+            run_style = getattr(run, "style", None)
+            if run_style is not None:
+                font_payload = BookAssembler._font_to_dict(getattr(run_style, "font", None))
+                if font_payload:
+                    style_payload["font"] = font_payload
+                baseline_shift = getattr(run_style, "baseline_shift", 0.0)
+                if baseline_shift:
+                    style_payload["baseline_shift"] = baseline_shift
+                language = getattr(run_style, "language", "")
+                if isinstance(language, str) and language:
+                    style_payload["language"] = language
+
+            run_metadata = getattr(run, "metadata", None)
+            if isinstance(run_metadata, dict) and run_metadata:
+                style_payload["metadata"] = dict(run_metadata)
+
+            if style_payload:
+                has_style = True
+                run_payload["style"] = style_payload
+
+            serialized_runs.append(run_payload)
+
+        if not has_style and len(serialized_runs) == 1:
+            return None
+        return serialized_runs
+
+    @staticmethod
+    def _page_metadata(document: CanonicalDocument, page: _PageSlice) -> dict[str, object]:
+        labels: list[str] = []
+        parent_refs: list[str] = []
+        label_counts: dict[str, int] = {}
+        for node in page.nodes:
+            label = node.metadata.get("label")
+            if isinstance(label, str) and label:
+                labels.append(label)
+                label_counts[label] = label_counts.get(label, 0) + 1
+            parent_ref = node.metadata.get("docling_parent_ref")
+            if isinstance(parent_ref, str) and parent_ref:
+                parent_refs.append(parent_ref)
+
+        metadata: dict[str, object] = {
+            "source_node_ids": [str(node.id) for node in page.nodes],
+            "docling_labels": sorted(set(labels)),
+            "docling_label_counts": label_counts,
+            "docling_parent_refs": sorted(set(parent_refs)),
+        }
+
+        parse_meta = document.metadata.custom.get("docling_parse")
+        if isinstance(parse_meta, dict):
+            metadata["ocr_enabled"] = bool(parse_meta.get("ocr_enabled", False))
+            metadata["pdf_document_class"] = str(parse_meta.get("pdf_document_class", "unknown"))
+            if parse_meta.get("hybrid_enabled") is True:
+                metadata["hybrid_enabled"] = True
+                metadata["layout_pages"] = int(parse_meta.get("layout_pages", 0) or 0)
+                metadata["semantic_candidates"] = int(
+                    parse_meta.get("semantic_candidates", 0) or 0
+                )
+
+            selected_reasons = parse_meta.get("selected_reasons")
+            if isinstance(selected_reasons, dict):
+                reasons = selected_reasons.get(str(page.page_number))
+                if isinstance(reasons, list) and reasons:
+                    metadata["second_pass_reasons"] = [str(reason) for reason in reasons]
+
+        return metadata
+
+    @staticmethod
+    def _text_ui_hints(raw_text: str, label: object) -> dict[str, object]:
+        hints: dict[str, object] = {}
+        text = raw_text.strip()
+        if not text:
+            return hints
+
+        numbered = _NUMBERED_ITEM_RE.match(text)
+        if numbered is not None:
+            hints["numbered_item"] = int(numbered.group(1))
+
+        fill_blank_ids = [int(match.group(1)) for match in _FILL_BLANK_RE.finditer(text)]
+        if fill_blank_ids:
+            hints["has_fill_in_blanks"] = True
+            hints["fill_in_blank_ids"] = fill_blank_ids
+
+        if len(fill_blank_ids) >= 2:
+            positions: list[int] = []
+            for match in _FILL_BLANK_RE.finditer(text):
+                positions.append(int(match.start()))
+            hints["blank_span_positions"] = positions
+
+        if isinstance(label, str) and label.startswith("checkbox_"):
+            hints["checkbox_state"] = label.removeprefix("checkbox_")
+
+        return hints
 
     def _collect_nodes(self, node: DocumentNode, node_map: dict[UUID, DocumentNode]) -> None:
         """Recursively collect all nodes from the document tree."""

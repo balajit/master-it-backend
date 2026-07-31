@@ -113,7 +113,23 @@ def get_pipeline_orchestrator() -> PipelineOrchestrator:
     if _orchestrator is None:
         settings = get_settings()
         _orchestrator = PipelineOrchestrator(
-            parser=DoclingAdapter(),
+            parser=DoclingAdapter(
+                pdf_ocr_strategy=settings.docling_pdf_ocr_strategy,
+                pdf_classifier_sample_pages=settings.docling_pdf_classifier_sample_pages,
+                pdf_classifier_min_chars_per_page=settings.docling_pdf_classifier_min_chars_per_page,
+                pdf_classifier_digital_ratio=settings.docling_pdf_classifier_digital_ratio,
+                pdf_classifier_scanned_ratio=settings.docling_pdf_classifier_scanned_ratio,
+                pdf_second_pass_enabled=settings.docling_pdf_second_pass_enabled,
+                pdf_second_pass_max_pages=settings.docling_pdf_second_pass_max_pages,
+                pdf_second_pass_low_text_chars=settings.docling_pdf_second_pass_low_text_chars,
+                hybrid_overlap_weight=settings.docling_pdf_hybrid_overlap_weight,
+                hybrid_distance_weight=settings.docling_pdf_hybrid_distance_weight,
+                hybrid_reading_order_weight=settings.docling_pdf_hybrid_reading_order_weight,
+                hybrid_text_similarity_weight=settings.docling_pdf_hybrid_text_similarity_weight,
+                hybrid_strict_match_threshold=settings.docling_pdf_hybrid_strict_match_threshold,
+                hybrid_relaxed_match_threshold=settings.docling_pdf_hybrid_relaxed_match_threshold,
+                hybrid_spatial_fallback_vertical_gap=settings.docling_pdf_hybrid_spatial_fallback_vertical_gap,
+            ),
             normalizer=StructuralNormalizer(),
             enricher=SemanticEnricher(
                 engine=EnrichmentEngine.from_settings(settings),

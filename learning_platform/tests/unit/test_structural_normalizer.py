@@ -191,6 +191,33 @@ class TestParagraphMergePass:
         assert len(result) == 1
 
 
+class TestBatchOneBoundaryPreservation:
+    def test_boundary_preserved_paragraphs_are_not_merged(self) -> None:
+        from learning_platform.stages.normalizer.passes.visitor_batch import BatchOnePass
+
+        first = _para("First paragraph")
+        second = _para("Second paragraph")
+        first.metadata["boundary_preserved"] = True
+        second.metadata["boundary_preserved"] = True
+
+        result = BatchOnePass()([first, second])
+        assert len(result) == 2
+        assert result[0].content.text.plain_text == "First paragraph"
+        assert result[1].content.text.plain_text == "Second paragraph"
+
+    def test_non_preserved_paragraphs_still_merge(self) -> None:
+        from learning_platform.stages.normalizer.passes.visitor_batch import BatchOnePass
+
+        first = _para("First")
+        second = _para("Second")
+
+        result = BatchOnePass()([first, second])
+        assert len(result) == 1
+        merged_text = result[0].content.text.plain_text
+        assert "First" in merged_text
+        assert "Second" in merged_text
+
+
 # ──────────────────────────────────────────────────────────────────────────────
 # CaptionAssociationPass
 # ──────────────────────────────────────────────────────────────────────────────

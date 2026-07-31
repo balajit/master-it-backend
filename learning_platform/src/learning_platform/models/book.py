@@ -29,6 +29,7 @@ class TextItem(BaseModel):
     level: int = 0  # 0 for non-headings
     bbox: dict[str, float] | None = None
     style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class HeadingItem(BaseModel):
@@ -39,6 +40,7 @@ class HeadingItem(BaseModel):
     level: int = 1
     bbox: dict[str, float] | None = None
     style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ImageItem(BaseModel):
@@ -48,6 +50,7 @@ class ImageItem(BaseModel):
     data: str = ""  # base64-encoded image bytes
     caption: str | None = None
     bbox: dict[str, float] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class TableItem(BaseModel):
@@ -59,6 +62,7 @@ class TableItem(BaseModel):
     rows: list[list[str]] = Field(default_factory=list)
     bbox: dict[str, float] | None = None
     style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class EquationItem(BaseModel):
@@ -68,6 +72,7 @@ class EquationItem(BaseModel):
     latex: str = ""
     label: str | None = None
     bbox: dict[str, float] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class CodeItem(BaseModel):
@@ -77,6 +82,7 @@ class CodeItem(BaseModel):
     content: str = ""
     language: str | None = None
     bbox: dict[str, float] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
 class ListItem(BaseModel):
@@ -87,9 +93,57 @@ class ListItem(BaseModel):
     items: list[str] = Field(default_factory=list)
     bbox: dict[str, float] | None = None
     style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
 
 
-ContentItem = TextItem | HeadingItem | ImageItem | TableItem | EquationItem | CodeItem | ListItem
+class QuestionOption(BaseModel):
+    label: str = ""
+    text: str = ""
+    is_correct: bool | None = None
+    explanation: str = ""
+
+
+class QuestionBlank(BaseModel):
+    blank_id: int
+    placeholder: str = ""
+    answer: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuestionStatement(BaseModel):
+    number: int | None = None
+    text: str = ""
+    expected_answer: bool | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuestionItem(BaseModel):
+    type: Literal["question"] = "question"
+    id: UUID = Field(default_factory=uuid4)
+    order: int = 0
+    question_type: str = "unknown"
+    content: str = ""
+    options: list[QuestionOption] = Field(default_factory=list)
+    blanks: list[QuestionBlank] = Field(default_factory=list)
+    statements: list[QuestionStatement] = Field(default_factory=list)
+    solution: str = ""
+    explanation: str = ""
+    points: float = 0.0
+    bbox: dict[str, float] | None = None
+    style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+ContentItem = (
+    TextItem
+    | HeadingItem
+    | ImageItem
+    | TableItem
+    | EquationItem
+    | CodeItem
+    | ListItem
+    | QuestionItem
+)
 
 # ---------------------------------------------------------------------------
 # Book structural models

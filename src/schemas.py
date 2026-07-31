@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
-from typing import Annotated, List, Literal, Optional
+from typing import Annotated, Any, List, Literal, Optional
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
@@ -101,14 +101,173 @@ class Document(BaseModel):
 # Content items are typed so the frontend can apply the correct HTML renderer.
 
 
+class FontMetadata(BaseModel):
+    name: str = ""
+    size: float = 0.0
+    is_bold: bool = False
+    is_italic: bool = False
+    is_underline: bool = False
+    is_strikethrough: bool = False
+    color: str = ""
+    background_color: str = ""
+
+
+class TextRunStyleMetadata(BaseModel):
+    font: Optional[FontMetadata] = None
+    baseline_shift: float = 0.0
+    language: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class TextRunMetadata(BaseModel):
+    text: str = ""
+    link_target: str = ""
+    style: Optional[TextRunStyleMetadata] = None
+
+
+class BlockStyleMetadata(BaseModel):
+    alignment: str = "left"
+    indent_level: int = 0
+    line_spacing: float = 1.0
+    space_before: float = 0.0
+    space_after: float = 0.0
+    background_color: str = ""
+    border_color: str = ""
+    border_width: float = 0.0
+    padding: float = 0.0
+    font: Optional[FontMetadata] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class BaseItemMetadata(BaseModel):
+    label: Optional[str] = None
+    docling_parent_ref: Optional[str] = None
+    layout_line_id: Optional[str] = None
+    layout_block_index: Optional[int] = None
+    layout_line_index: Optional[int] = None
+    layout_span_count: Optional[int] = None
+    layout_origin: Optional[str] = None
+    semantic_origin: Optional[str] = None
+    relation_method: Optional[str] = None
+    relation_confidence: Optional[float] = None
+    question_group_id: Optional[str] = None
+    sequence_index: Optional[int] = None
+    resolved_section_heading: Optional[str] = None
+    resolved_parent_ref: Optional[str] = None
+    semantic_node_type: Optional[str] = None
+    semantic_match_score: Optional[float] = None
+
+
+class TextItemMetadata(BaseItemMetadata):
+    source_offset: Optional[int] = None
+    source_length: Optional[int] = None
+    semantic_type: Optional[str] = None
+    exercise_type: Optional[str] = None
+    option_count: Optional[int] = None
+    numbered_item: Optional[int] = None
+    has_fill_in_blanks: Optional[bool] = None
+    fill_in_blank_ids: List[int] = Field(default_factory=list)
+    blank_span_positions: List[int] = Field(default_factory=list)
+    checkbox_state: Optional[str] = None
+    text_runs: List[TextRunMetadata] = Field(default_factory=list)
+
+
+class HeadingItemMetadata(BaseItemMetadata):
+    number: Optional[str] = None
+    heading_level: Optional[int] = None
+    node_level: Optional[int] = None
+    text_runs: List[TextRunMetadata] = Field(default_factory=list)
+
+
+class ImageItemMetadata(BaseItemMetadata):
+    image_uri: str = ""
+    alt_text: str = ""
+    caption_text: str = ""
+    mimetype: str = ""
+    format: str = ""
+    storage_key: str = ""
+    size_bytes: int = 0
+    width: float = 0.0
+    height: float = 0.0
+
+
+class TableItemMetadata(BaseItemMetadata):
+    row_count: Optional[int] = None
+    column_count: Optional[int] = None
+
+
+class EquationItemMetadata(BaseItemMetadata):
+    is_block: Optional[bool] = None
+    has_mathml: Optional[bool] = None
+
+
+class CodeItemMetadata(BaseItemMetadata):
+    filename: str = ""
+    line_start: int = 1
+
+
+class ListItemMetadata(BaseItemMetadata):
+    list_style: Optional[str] = None
+    item_count: Optional[int] = None
+    checked_count: Optional[int] = None
+    unchecked_count: Optional[int] = None
+    item_text_runs: List[List[TextRunMetadata]] = Field(default_factory=list)
+
+
+class QuestionOptionMetadata(BaseModel):
+    label: str = ""
+    text: str = ""
+    is_correct: Optional[bool] = None
+    explanation: str = ""
+
+
+class QuestionBlankMetadata(BaseModel):
+    blank_id: int
+    placeholder: str = ""
+    answer: str = ""
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuestionStatementMetadata(BaseModel):
+    number: Optional[int] = None
+    text: str = ""
+    expected_answer: Optional[bool] = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class QuestionItemMetadata(BaseItemMetadata):
+    semantic_type: Optional[str] = None
+    question_signal: Optional[str] = None
+    numbered_item: Optional[int] = None
+    statement_count: Optional[int] = None
+    has_fill_in_blanks: Optional[bool] = None
+    fill_in_blank_ids: List[int] = Field(default_factory=list)
+    blank_span_positions: List[int] = Field(default_factory=list)
+    checkbox_state: Optional[str] = None
+
+
+class PageMetadata(BaseModel):
+    source_node_ids: List[str] = Field(default_factory=list)
+    docling_labels: List[str] = Field(default_factory=list)
+    docling_label_counts: dict[str, int] = Field(default_factory=dict)
+    docling_parent_refs: List[str] = Field(default_factory=list)
+    ocr_enabled: Optional[bool] = None
+    pdf_document_class: Optional[str] = None
+    hybrid_enabled: Optional[bool] = None
+    layout_pages: Optional[int] = None
+    semantic_candidates: Optional[int] = None
+    second_pass_reasons: List[str] = Field(default_factory=list)
+
+
 class TextItem(BaseModel):
     type: Literal["text"] = "text"
     id: str
     order: int = 0
     content: str = ""
     level: int = 0
-    bbox: Optional[dict] = None
-    style: Optional[dict] = None
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: TextItemMetadata = Field(default_factory=TextItemMetadata)
 
 
 class HeadingItem(BaseModel):
@@ -117,8 +276,9 @@ class HeadingItem(BaseModel):
     order: int = 0
     content: str = ""
     level: int = 1
-    bbox: Optional[dict] = None
-    style: Optional[dict] = None
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: HeadingItemMetadata = Field(default_factory=HeadingItemMetadata)
 
 
 class ImageItem(BaseModel):
@@ -127,7 +287,8 @@ class ImageItem(BaseModel):
     order: int = 0
     data: str = ""  # base64-encoded
     caption: Optional[str] = None
-    bbox: Optional[dict] = None
+    bbox: Optional[dict[str, float]] = None
+    metadata: ImageItemMetadata = Field(default_factory=ImageItemMetadata)
 
 
 class TableItem(BaseModel):
@@ -135,10 +296,11 @@ class TableItem(BaseModel):
     id: str
     order: int = 0
     caption: Optional[str] = None
-    headers: List[str] = []
-    rows: List[List[str]] = []
-    bbox: Optional[dict] = None
-    style: Optional[dict] = None
+    headers: List[str] = Field(default_factory=list)
+    rows: List[List[str]] = Field(default_factory=list)
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: TableItemMetadata = Field(default_factory=TableItemMetadata)
 
 
 class EquationItem(BaseModel):
@@ -147,7 +309,8 @@ class EquationItem(BaseModel):
     order: int = 0
     latex: str = ""
     label: Optional[str] = None
-    bbox: Optional[dict] = None
+    bbox: Optional[dict[str, float]] = None
+    metadata: EquationItemMetadata = Field(default_factory=EquationItemMetadata)
 
 
 class CodeItem(BaseModel):
@@ -156,7 +319,8 @@ class CodeItem(BaseModel):
     order: int = 0
     content: str = ""
     language: Optional[str] = None
-    bbox: Optional[dict] = None
+    bbox: Optional[dict[str, float]] = None
+    metadata: CodeItemMetadata = Field(default_factory=CodeItemMetadata)
 
 
 class ListItem(BaseModel):
@@ -164,13 +328,38 @@ class ListItem(BaseModel):
     id: str
     order: int = 0
     ordered: bool = False
-    items: List[str] = []
-    bbox: Optional[dict] = None
-    style: Optional[dict] = None
+    items: List[str] = Field(default_factory=list)
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: ListItemMetadata = Field(default_factory=ListItemMetadata)
+
+
+class QuestionItem(BaseModel):
+    type: Literal["question"] = "question"
+    id: str
+    order: int = 0
+    question_type: str = "unknown"
+    content: str = ""
+    options: List[QuestionOptionMetadata] = Field(default_factory=list)
+    blanks: List[QuestionBlankMetadata] = Field(default_factory=list)
+    statements: List[QuestionStatementMetadata] = Field(default_factory=list)
+    solution: str = ""
+    explanation: str = ""
+    points: float = 0.0
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: QuestionItemMetadata = Field(default_factory=QuestionItemMetadata)
 
 
 ContentItem = Annotated[
-    TextItem | HeadingItem | ImageItem | TableItem | EquationItem | CodeItem | ListItem,
+    TextItem
+    | HeadingItem
+    | ImageItem
+    | TableItem
+    | EquationItem
+    | CodeItem
+    | ListItem
+    | QuestionItem,
     Field(discriminator="type"),
 ]
 
@@ -181,7 +370,8 @@ class Page(BaseModel):
     id: str
     page_number: int = 0
     order: int = 0
-    items: List[ContentItem] = []
+    items: List[ContentItem] = Field(default_factory=list)
+    metadata: PageMetadata = Field(default_factory=PageMetadata)
 
 
 class Lesson(BaseModel):
@@ -205,12 +395,25 @@ class Chapter(BaseModel):
     unit_id: Optional[int] = None  # master-it UnitModel.id for this chapter's content
 
 
+class CourseStudyPlanDocument(BaseModel):
+    """Per-document study plan payload within a course."""
+
+    document_id: str
+    document_name: str = ""
+    chapters: List[Chapter] = []
+
+
 class CourseStudyPlanResponse(BaseModel):
     """Response for GET /api/courses/{course_id}/study-plan."""
 
     course_id: int
     course_title: str = ""
-    chapters: List[Chapter] = []
+    documents: List[CourseStudyPlanDocument] = []
+    chapters: List[Chapter] = Field(
+        default_factory=list,
+        description="DEPRECATED: use documents[].chapters instead",
+        deprecated=True,
+    )
 
 
 # ── Study Plan legacy aliases (kept for backward-compat while old tests exist)

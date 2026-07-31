@@ -358,6 +358,7 @@ class BookProcessPoller:
             async with self._session_factory() as session:
                 book_pipeline = BookPipeline(session)
                 await book_pipeline.run(UUID(proc.document_id))
+                await session.commit()
         except Exception:
             _LOG.exception("Book assembly failed for document %s", proc.document_id)
             async with self._session_factory() as session:

@@ -71,6 +71,7 @@ def _plain_text(node: DocumentNode) -> str:
         Figure,
         ListBlock,
         Note,
+        Question,
         Reference,
         TableBlock,
     )
@@ -92,6 +93,8 @@ def _plain_text(node: DocumentNode) -> str:
         return content.latex
     if isinstance(content, Exercise):
         return content.question.plain_text
+    if isinstance(content, Question):
+        return content.text.plain_text
     if isinstance(content, Definition):
         return f"{content.term}: {content.definition}"
     if isinstance(content, Reference):
@@ -407,6 +410,7 @@ class LearningUnitBuilder:
                 Equation,
                 Exercise,
                 Figure,
+                Question,
                 TableBlock,
             )
 
@@ -416,7 +420,7 @@ class LearningUnitBuilder:
                 current_table_nodes.append(node)
             elif isinstance(content, Equation):
                 current_equation_nodes.append(node)
-            elif isinstance(content, Exercise):
+            elif isinstance(content, (Exercise, Question)):
                 current_exercise_nodes.append(node)
             else:
                 current_text_nodes.append(node)
@@ -456,10 +460,12 @@ class LearningUnitBuilder:
         current_table_nodes: list[DocumentNode] = []
         current_equation_nodes: list[DocumentNode] = []
         heading_stack: list[LearningUnit] = []
+        last_page_annotations: list[Annotation] = []
 
         for page in pages:
             # Collect all annotations from this page
             page_anns: list[Annotation] = list(page.annotations)
+            last_page_annotations = page_anns
 
             for node in page.nodes:
                 content = node.content
@@ -529,6 +535,7 @@ class LearningUnitBuilder:
                     Equation,
                     Exercise,
                     Figure,
+                    Question,
                     TableBlock,
                 )
 
@@ -538,7 +545,7 @@ class LearningUnitBuilder:
                     current_table_nodes.append(node)
                 elif isinstance(content, Equation):
                     current_equation_nodes.append(node)
-                elif isinstance(content, Exercise):
+                elif isinstance(content, (Exercise, Question)):
                     current_exercise_nodes.append(node)
                 else:
                     current_text_nodes.append(node)
@@ -583,7 +590,7 @@ class LearningUnitBuilder:
                 current_figure_nodes,
                 current_table_nodes,
                 current_equation_nodes,
-                page.annotations if pages else [],
+                last_page_annotations,
             )
 
         _LOG.info("Built %d learning units from pages", len(units))

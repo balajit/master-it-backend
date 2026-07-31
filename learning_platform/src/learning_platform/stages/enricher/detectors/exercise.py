@@ -10,6 +10,7 @@ from learning_platform.models.document import (
     Exercise,
     Heading,
     Paragraph,
+    Question,
 )
 
 from ._helpers import plain_text
@@ -36,6 +37,26 @@ class ExerciseDetector:
                         node_id=node.id,
                         exercise_type=node.content.exercise_type.value,
                         question_text=node.content.question.plain_text,
+                        options=options,
+                        solution=node.content.solution,
+                        confidence=1.0,
+                        detector="ExerciseDetector",
+                    )
+                )
+                continue
+
+            if isinstance(node.content, Question):
+                question_text = node.content.text.plain_text
+                if not question_text and node.content.statements:
+                    question_text = " ".join(
+                        statement.text.plain_text for statement in node.content.statements
+                    )
+                options = [option.text.plain_text for option in node.content.options]
+                annotations.append(
+                    ExerciseAnnotation(
+                        node_id=node.id,
+                        exercise_type=node.content.question_type.value,
+                        question_text=question_text,
                         options=options,
                         solution=node.content.solution,
                         confidence=1.0,

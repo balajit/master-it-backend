@@ -24,6 +24,7 @@ from uuid import UUID
 
 import pytest
 from fastapi import HTTPException
+from fpdf import FPDF
 from httpx import ASGITransport, AsyncClient
 
 from schemas import DocumentBookProcess
@@ -190,6 +191,253 @@ class TestDocumentUpload:
                     files={"file": ("big.pdf", b"x" * 100, "application/pdf")},
                 )
         assert resp.status_code == 413
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_saves_single_page_pdf(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        pdf_path = tmp_path / "source.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=12)
+        pdf.multi_cell(0, 10, "Page One")
+        pdf.add_page()
+        pdf.multi_cell(0, 10, "Page Two")
+        pdf.output(str(pdf_path))
+        source_bytes = pdf_path.read_bytes()
+
+        captured: dict[str, Any] = {}
+
+        async def _create_document_stub(**kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {
+                "id": kwargs["doc_id"],
+                "filename": kwargs["filename"],
+                "storage_path": kwargs["storage_path"],
+                "content_type": kwargs["content_type"],
+                "size_bytes": kwargs["size_bytes"],
+                "created_at": "2026-01-01T00:00:00",
+            }
+
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch(
+                "routers.documents.create_document",
+                new=AsyncMock(side_effect=_create_document_stub),
+            ),
+            patch(
+                "routers.documents.attach_document_to_course", new_callable=AsyncMock
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={"file": ("worksheet.pdf", source_bytes, "application/pdf")},
+                    data={
+                        "sample_start_page": "2",
+                        "sampled_filename": "worksheet-sample",
+                    },
+                )
+
+        assert resp.status_code == 201
+        saved_path = Path(captured["storage_path"])
+        assert saved_path.name == "worksheet-sample.pdf"
+
+        import pymupdf
+
+        sliced = pymupdf.open(saved_path)
+        try:
+            assert len(sliced) == 1
+        finally:
+            sliced.close()
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_requires_pdf(self, authed_app, tmp_path: Path) -> None:
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={"file": ("notes.txt", b"hello", "text/plain")},
+                    data={"sample_start_page": "1"},
+                )
+
+        assert resp.status_code == 400
+        assert "only supports PDF" in resp.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_rejects_out_of_range_page(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        pdf_path = tmp_path / "single.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=12)
+        pdf.multi_cell(0, 10, "Only page")
+        pdf.output(str(pdf_path))
+
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={
+                        "file": ("single.pdf", pdf_path.read_bytes(), "application/pdf")
+                    },
+                    data={"sample_start_page": "3"},
+                )
+
+        assert resp.status_code == 400
+        assert "out of range" in resp.json()["detail"]
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_requires_sample_page(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        pdf_path = tmp_path / "source.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=12)
+        pdf.multi_cell(0, 10, "Page")
+        pdf.output(str(pdf_path))
+
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={
+                        "file": ("source.pdf", pdf_path.read_bytes(), "application/pdf")
+                    },
+                )
+
+        assert resp.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_with_page_range_saves_expected_page_count(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        pdf_path = tmp_path / "source-range.pdf"
+        pdf = FPDF()
+        for text in ("Page One", "Page Two", "Page Three", "Page Four"):
+            pdf.add_page()
+            pdf.set_font("Helvetica", size=12)
+            pdf.multi_cell(0, 10, text)
+        pdf.output(str(pdf_path))
+        source_bytes = pdf_path.read_bytes()
+
+        captured: dict[str, Any] = {}
+
+        async def _create_document_stub(**kwargs: Any) -> dict[str, Any]:
+            captured.update(kwargs)
+            return {
+                "id": kwargs["doc_id"],
+                "filename": kwargs["filename"],
+                "storage_path": kwargs["storage_path"],
+                "content_type": kwargs["content_type"],
+                "size_bytes": kwargs["size_bytes"],
+                "created_at": "2026-01-01T00:00:00",
+            }
+
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch(
+                "routers.documents.create_document",
+                new=AsyncMock(side_effect=_create_document_stub),
+            ),
+            patch(
+                "routers.documents.attach_document_to_course", new_callable=AsyncMock
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={"file": ("worksheet.pdf", source_bytes, "application/pdf")},
+                    data={"sample_start_page": "2", "sample_end_page": "4"},
+                )
+
+        assert resp.status_code == 201
+        saved_path = Path(captured["storage_path"])
+        assert saved_path.name == "worksheet.sample-p2-4.pdf"
+
+        import pymupdf
+
+        sliced = pymupdf.open(saved_path)
+        try:
+            assert len(sliced) == 3
+        finally:
+            sliced.close()
+
+    @pytest.mark.asyncio
+    async def test_upload_sample_rejects_reversed_range(
+        self, authed_app, tmp_path: Path
+    ) -> None:
+        pdf_path = tmp_path / "range.pdf"
+        pdf = FPDF()
+        pdf.add_page()
+        pdf.set_font("Helvetica", size=12)
+        pdf.multi_cell(0, 10, "Page One")
+        pdf.output(str(pdf_path))
+
+        with (
+            patch(
+                "routers.documents.get_course",
+                new_callable=AsyncMock,
+                return_value={"id": 1, "title": "Math"},
+            ),
+            patch("routers.documents.UPLOAD_PATH", str(tmp_path)),
+        ):
+            async with AsyncClient(
+                transport=ASGITransport(app=authed_app), base_url="http://test"
+            ) as client:
+                resp = await client.post(
+                    "/api/courses/1/documents/upload_sample",
+                    files={
+                        "file": ("range.pdf", pdf_path.read_bytes(), "application/pdf")
+                    },
+                    data={"sample_start_page": "3", "sample_end_page": "2"},
+                )
+
+        assert resp.status_code == 400
+        assert "greater than or equal" in resp.json()["detail"]
 
 
 class TestDocumentList:

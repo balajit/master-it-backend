@@ -26,6 +26,10 @@ from learning_platform.models.book import (
     HeadingItem,
     ImageItem,
     ListItem,
+    QuestionBlank,
+    QuestionItem,
+    QuestionOption,
+    QuestionStatement,
     TableItem,
     TextItem,
 )
@@ -323,8 +327,22 @@ class BookRepository:
             content = {"items": item.items, "ordered": item.ordered}
             bbox = dict(item.bbox) if item.bbox else None
             style = dict(item.style) if item.style else None
+        elif item.type == "question":
+            content = {
+                "question_type": item.question_type,
+                "content": item.content,
+                "options": [option.model_dump(mode="json") for option in item.options],
+                "blanks": [blank.model_dump(mode="json") for blank in item.blanks],
+                "statements": [statement.model_dump(mode="json") for statement in item.statements],
+                "solution": item.solution,
+                "explanation": item.explanation,
+                "points": item.points,
+            }
+            bbox = dict(item.bbox) if item.bbox else None
+            style = dict(item.style) if item.style else None
 
         level = getattr(item, "level", 0)
+        metadata = dict(item.metadata) if getattr(item, "metadata", None) else None
 
         return BookItemRow(
             id=item.id,
@@ -335,6 +353,7 @@ class BookRepository:
             content_json=content or None,
             bbox_json=bbox,
             style_json=style,
+            metadata_json=metadata,
         )
 
     @staticmethod
@@ -352,6 +371,7 @@ class BookRepository:
                 level=row.level,
                 bbox=b,
                 style=s,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "heading":
             return HeadingItem(
@@ -361,6 +381,7 @@ class BookRepository:
                 level=row.level,
                 bbox=b,
                 style=s,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "image":
             return ImageItem(
@@ -369,6 +390,7 @@ class BookRepository:
                 data=c.get("data", ""),
                 caption=c.get("caption"),
                 bbox=b,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "table":
             return TableItem(
@@ -379,6 +401,7 @@ class BookRepository:
                 rows=c.get("rows", []),
                 bbox=b,
                 style=s,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "equation":
             return EquationItem(
@@ -387,6 +410,7 @@ class BookRepository:
                 latex=c.get("latex", ""),
                 label=c.get("label"),
                 bbox=b,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "code":
             return CodeItem(
@@ -395,6 +419,7 @@ class BookRepository:
                 content=c.get("code", ""),
                 language=c.get("language"),
                 bbox=b,
+                metadata=row.metadata_json or {},
             )
         if row.item_type == "list":
             return ListItem(
@@ -404,6 +429,44 @@ class BookRepository:
                 items=c.get("items", []),
                 bbox=b,
                 style=s,
+                metadata=row.metadata_json or {},
+            )
+        if row.item_type == "question":
+            raw_options = c.get("options", [])
+            options: list[QuestionOption] = []
+            if isinstance(raw_options, list):
+                for raw_option in raw_options:
+                    if isinstance(raw_option, dict):
+                        options.append(QuestionOption.model_validate(raw_option))
+
+            raw_blanks = c.get("blanks", [])
+            blanks: list[QuestionBlank] = []
+            if isinstance(raw_blanks, list):
+                for raw_blank in raw_blanks:
+                    if isinstance(raw_blank, dict):
+                        blanks.append(QuestionBlank.model_validate(raw_blank))
+
+            raw_statements = c.get("statements", [])
+            statements: list[QuestionStatement] = []
+            if isinstance(raw_statements, list):
+                for raw_statement in raw_statements:
+                    if isinstance(raw_statement, dict):
+                        statements.append(QuestionStatement.model_validate(raw_statement))
+
+            return QuestionItem(
+                id=row.id,
+                order=row.order,
+                question_type=str(c.get("question_type", "unknown")),
+                content=str(c.get("content", "")),
+                options=options,
+                blanks=blanks,
+                statements=statements,
+                solution=str(c.get("solution", "")),
+                explanation=str(c.get("explanation", "")),
+                points=float(c.get("points", 0.0) or 0.0),
+                bbox=b,
+                style=s,
+                metadata=row.metadata_json or {},
             )
         _LOG.warning("Unknown item_type %r — skipping", row.item_type)
         return None

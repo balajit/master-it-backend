@@ -17,6 +17,7 @@ from learning_platform.models.book import (
     HeadingItem,
     ImageItem,
     ListItem,
+    QuestionItem,
     TableItem,
     TextItem,
 )
@@ -52,6 +53,7 @@ __all__ = [
     "ListItem",
     "NodeRef",
     "PageContext",
+    "QuestionItem",
     "Quiz",
     "StudyPlan",
     "Summary",

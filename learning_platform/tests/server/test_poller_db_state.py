@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from learning_platform.config import get_settings
 from learning_platform.infrastructure.persistence.engine import create_engine
+from learning_platform.infrastructure.persistence.models.book import BookChapterRow
 from learning_platform.infrastructure.persistence.models import Base
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
 from learning_platform.infrastructure.persistence.repositories.book_process import (
@@ -423,3 +424,65 @@ async def test_book_process_completion_marks_document_process_completed(
         book_proc = await book_repo.find_by_document_id(str(doc_id))
         assert book_proc is not None
         assert book_proc.status == "completed"
+
+
+@pytest.mark.asyncio
+async def test_book_process_commits_pipeline_writes(
+    temp_upload_dir: Path,
+    session_factory,
+) -> None:
+    """Book poller must commit writes produced by BookPipeline.run()."""
+    rel_path = "16/book-commit.pdf"
+    abs_path = str(temp_upload_dir / rel_path)
+    doc_id = uuid4()
+
+    async with session_factory() as session:
+        session.add(
+            CanonicalDocumentRow(
+                id=doc_id,
+                source=abs_path,
+                title="Book Commit",
+                metadata_json={},
+                nodes_json={},
+            )
+        )
+
+        doc_repo = DocumentProcessRepository(session)
+        doc_proc = await doc_repo.create_entry(rel_path, abs_path)
+        await doc_repo.mark_processing(doc_proc)
+
+        book_repo = BookProcessRepository(session)
+        await book_repo.create_entry(str(doc_id))
+        await session.commit()
+
+    async def _run_with_db_write(self, document_id):  # type: ignore[no-untyped-def]
+        self._session.add(
+            BookChapterRow(
+                document_id=document_id,
+                title="Chapter 1",
+                order=0,
+            )
+        )
+        await self._session.flush()
+        return SimpleNamespace()
+
+    poller = BookProcessPoller(session_factory=session_factory)
+    with patch(
+        "learning_platform.pipeline.book_pipeline.BookPipeline.run",
+        new=_run_with_db_write,
+    ):
+        await poller._process_pending()
+
+    async with session_factory() as session:
+        from sqlalchemy import select
+
+        chapter_rows = (
+            (
+                await session.execute(
+                    select(BookChapterRow).where(BookChapterRow.document_id == doc_id)
+                )
+            )
+            .scalars()
+            .all()
+        )
+        assert len(chapter_rows) == 1

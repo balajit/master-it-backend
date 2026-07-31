@@ -28,6 +28,7 @@ def plain_text(node: DocumentNode) -> str:
         ListBlock,
         Note,
         Paragraph,
+        Question,
         Reference,
         TableBlock,
     )
@@ -49,6 +50,8 @@ def plain_text(node: DocumentNode) -> str:
         return content.latex
     if isinstance(content, Exercise):
         return content.question.plain_text
+    if isinstance(content, Question):
+        return content.text.plain_text
     if isinstance(content, Definition):
         return f"{content.term}: {content.definition}"
     if isinstance(content, Reference):

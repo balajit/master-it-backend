@@ -361,6 +361,9 @@ async def test_book_repository_save_and_reload() -> None:
         BookPage,
         CanonicalBook,
         HeadingItem,
+        QuestionBlank,
+        QuestionItem,
+        QuestionStatement,
         TextItem,
     )
 
@@ -382,15 +385,73 @@ async def test_book_repository_save_and_reload() -> None:
                             BookPage(
                                 page_number=1,
                                 order=0,
+                                metadata={
+                                    "docling_labels": ["section_header", "text"],
+                                    "docling_label_counts": {"text": 3},
+                                },
                                 items=[
                                     HeadingItem(
                                         order=0,
                                         content="Introduction",
                                         level=1,
+                                        metadata={
+                                            "heading_level": 1,
+                                            "node_level": 1,
+                                            "text_runs": [
+                                                {
+                                                    "text": "Introduction",
+                                                    "style": {
+                                                        "font": {
+                                                            "is_bold": True,
+                                                            "is_underline": True,
+                                                        }
+                                                    },
+                                                }
+                                            ],
+                                        },
                                     ),
                                     TextItem(
                                         order=1,
                                         content="First paragraph of the lesson.",
+                                        metadata={
+                                            "label": "text",
+                                            "source_offset": 12,
+                                            "source_length": 32,
+                                        },
+                                    ),
+                                    QuestionItem(
+                                        order=2,
+                                        question_type="true_false",
+                                        content="8. The body has 206 bones",
+                                        statements=[
+                                            QuestionStatement(
+                                                number=8,
+                                                text="The body has 206 bones",
+                                            )
+                                        ],
+                                        metadata={
+                                            "semantic_type": "question",
+                                            "question_signal": "true_false_context",
+                                            "numbered_item": 8,
+                                        },
+                                    ),
+                                    QuestionItem(
+                                        order=3,
+                                        question_type="fill_in_blank",
+                                        content="The signs are (1) ____ and (2) ____",
+                                        blanks=[
+                                            QuestionBlank(
+                                                blank_id=1, placeholder="(1)"
+                                            ),
+                                            QuestionBlank(
+                                                blank_id=2, placeholder="(2)"
+                                            ),
+                                        ],
+                                        metadata={
+                                            "semantic_type": "question",
+                                            "has_fill_in_blanks": True,
+                                            "fill_in_blank_ids": [1, 2],
+                                        },
                                     ),
                                 ],
                             )
@@ -442,15 +503,34 @@ async def test_book_repository_save_and_reload() -> None:
 
     page = lesson.pages[0]
     assert page.page_number == 1
-    assert len(page.items) == 2
+    assert page.metadata.get("docling_labels") == ["section_header", "text"]
+    assert len(page.items) == 4
 
     heading = page.items[0]
     assert heading.type == "heading"
     assert heading.content == "Introduction"
+    assert heading.metadata.get("heading_level") == 1
+    assert heading.metadata.get("node_level") == 1
+    assert isinstance(heading.metadata.get("text_runs"), list)
 
     text = page.items[1]
     assert text.type == "text"
     assert "paragraph" in text.content
+    assert text.metadata.get("label") == "text"
+    assert text.metadata.get("source_offset") == 12
+
+    true_false_question = page.items[2]
+    assert true_false_question.type == "question"
+    assert true_false_question.question_type == "true_false"
+    assert true_false_question.metadata.get("numbered_item") == 8
+    assert len(true_false_question.statements) == 1
+    assert true_false_question.statements[0].number == 8
+
+    fill_blank_question = page.items[3]
+    assert fill_blank_question.type == "question"
+    assert fill_blank_question.question_type == "fill_in_blank"
+    assert fill_blank_question.metadata.get("has_fill_in_blanks") is True
+    assert [blank.blank_id for blank in fill_blank_question.blanks] == [1, 2]
 
 
 # ── API integration tests (FastAPI + mocked LP DB) ────────────────────────────
@@ -476,6 +556,7 @@ class TestStudyPlanAPI:
             patch(
                 "routers.courses.get_documents_by_course", new_callable=AsyncMock
             ) as mock_docs,
+            patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
             patch(
                 "routers.courses._fetch_book_chapters", new_callable=AsyncMock
             ) as mock_fetch,
@@ -499,6 +580,7 @@ class TestStudyPlanAPI:
                     "created_at": "2026-01-01T00:00:00",
                 }
             ]
+            mock_lp_uuid.return_value = uuid4()
 
             from schemas import Chapter, Lesson, Page, TextItem as SchemaTextItem
 
@@ -541,6 +623,10 @@ class TestStudyPlanAPI:
 
         assert data["course_id"] == 1
         assert data["course_title"] == "Physics 101"
+        assert len(data["documents"]) == 1
+        assert data["documents"][0]["document_id"] == doc_id
+        assert data["documents"][0]["document_name"] == "physics.pdf"
+        assert len(data["documents"][0]["chapters"]) == 1
         assert len(data["chapters"]) == 1
 
         chapter = data["chapters"][0]
@@ -555,6 +641,136 @@ class TestStudyPlanAPI:
         assert page["page_number"] == 5
         assert len(page["items"]) == 1
         assert page["items"][0]["type"] == "text"
+
+    @pytest.mark.asyncio
+    async def test_study_plan_returns_question_items(
+        self, app: Any, mock_user: dict[str, Any]
+    ) -> None:
+        import httpx
+        from httpx import ASGITransport
+
+        doc_id = str(uuid4())
+
+        with (
+            patch("routers.courses.get_course", new_callable=AsyncMock) as mock_course,
+            patch(
+                "routers.courses.get_documents_by_course", new_callable=AsyncMock
+            ) as mock_docs,
+            patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
+            patch(
+                "routers.courses._fetch_book_chapters", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_course.return_value = {
+                "id": 1,
+                "title": "Physics 101",
+                "description": "",
+                "number_of_credits": 3,
+                "difficulty": "beginner",
+                "status": "OPEN",
+                "owner_id": 1,
+            }
+            mock_docs.return_value = [
+                {
+                    "id": doc_id,
+                    "filename": "physics.pdf",
+                    "storage_path": "/tmp/physics.pdf",
+                    "content_type": "application/pdf",
+                    "size_bytes": 4096,
+                    "created_at": "2026-01-01T00:00:00",
+                }
+            ]
+            mock_lp_uuid.return_value = uuid4()
+
+            from schemas import (
+                Chapter,
+                Lesson,
+                Page,
+                QuestionBlankMetadata,
+                QuestionItem,
+                QuestionItemMetadata,
+                QuestionStatementMetadata,
+            )
+
+            mock_fetch.return_value = [
+                Chapter(
+                    id=str(uuid4()),
+                    title="Chapter 1: Mechanics",
+                    order=0,
+                    lessons=[
+                        Lesson(
+                            id=str(uuid4()),
+                            title="Lesson 1.1: Worksheet",
+                            order=0,
+                            pages=[
+                                Page(
+                                    id=str(uuid4()),
+                                    page_number=5,
+                                    order=0,
+                                    items=[
+                                        QuestionItem(
+                                            id=str(uuid4()),
+                                            order=0,
+                                            question_type="true_false",
+                                            content="8. The body has 206 bones",
+                                            statements=[
+                                                QuestionStatementMetadata(
+                                                    number=8,
+                                                    text="The body has 206 bones",
+                                                )
+                                            ],
+                                            metadata=QuestionItemMetadata(
+                                                numbered_item=8
+                                            ),
+                                        ),
+                                        QuestionItem(
+                                            id=str(uuid4()),
+                                            order=1,
+                                            question_type="fill_in_blank",
+                                            content="The signs are (1) ____ and (2) ____",
+                                            blanks=[
+                                                QuestionBlankMetadata(
+                                                    blank_id=1,
+                                                    placeholder="(1)",
+                                                ),
+                                                QuestionBlankMetadata(
+                                                    blank_id=2,
+                                                    placeholder="(2)",
+                                                ),
+                                            ],
+                                            metadata=QuestionItemMetadata(
+                                                has_fill_in_blanks=True,
+                                                fill_in_blank_ids=[1, 2],
+                                            ),
+                                        ),
+                                    ],
+                                )
+                            ],
+                        )
+                    ],
+                )
+            ]
+
+            async with httpx.AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/courses/1/study-plan")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["documents"]) == 1
+        assert data["documents"][0]["document_id"] == doc_id
+        assert data["documents"][0]["document_name"] == "physics.pdf"
+        assert len(data["documents"][0]["chapters"]) == 1
+        items = data["chapters"][0]["lessons"][0]["pages"][0]["items"]
+
+        assert items[0]["type"] == "question"
+        assert items[0]["question_type"] == "true_false"
+        assert items[0]["statements"][0]["number"] == 8
+
+        assert items[1]["type"] == "question"
+        assert items[1]["question_type"] == "fill_in_blank"
+        assert [blank["blank_id"] for blank in items[1]["blanks"]] == [1, 2]
 
     @pytest.mark.asyncio
     async def test_study_plan_course_not_found(self, app: Any) -> None:
@@ -603,7 +819,81 @@ class TestStudyPlanAPI:
 
         assert resp.status_code == 200
         data = resp.json()
+        assert data["documents"] == []
         assert data["chapters"] == []
+
+    @pytest.mark.asyncio
+    async def test_study_plan_skips_documents_without_book_output(
+        self, app: Any
+    ) -> None:
+        """When some docs have no book, endpoint still returns available chapters."""
+        import httpx
+        from httpx import ASGITransport
+
+        from schemas import Chapter
+
+        with (
+            patch("routers.courses.get_course", new_callable=AsyncMock) as mock_course,
+            patch(
+                "routers.courses.get_documents_by_course", new_callable=AsyncMock
+            ) as mock_docs,
+            patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
+            patch(
+                "routers.courses._fetch_book_chapters", new_callable=AsyncMock
+            ) as mock_fetch,
+        ):
+            mock_course.return_value = {
+                "id": 4,
+                "title": "Mixed Course",
+                "description": "",
+                "number_of_credits": 2,
+                "difficulty": "beginner",
+                "status": "OPEN",
+                "owner_id": 1,
+            }
+            mock_docs.return_value = [
+                {
+                    "id": "doc-main",
+                    "filename": "main.pdf",
+                    "storage_path": "/tmp/main.pdf",
+                    "content_type": "application/pdf",
+                    "size_bytes": 1024,
+                    "created_at": "",
+                },
+                {
+                    "id": "doc-extra",
+                    "filename": "extra.pptx",
+                    "storage_path": "/tmp/extra.pptx",
+                    "content_type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                    "size_bytes": 2048,
+                    "created_at": "",
+                },
+            ]
+
+            mock_lp_uuid.side_effect = [uuid4(), uuid4()]
+            mock_fetch.side_effect = [
+                [Chapter(id=str(uuid4()), title="Chapter 1", order=0, lessons=[])],
+                [],
+            ]
+
+            async with httpx.AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                resp = await client.get("/api/courses/4/study-plan")
+
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["course_id"] == 4
+        assert data["course_title"] == "Mixed Course"
+        assert len(data["documents"]) == 2
+        assert data["documents"][0]["document_id"] == "doc-main"
+        assert data["documents"][0]["document_name"] == "main.pdf"
+        assert len(data["documents"][0]["chapters"]) == 1
+        assert data["documents"][1]["document_id"] == "doc-extra"
+        assert data["documents"][1]["document_name"] == "extra.pptx"
+        assert data["documents"][1]["chapters"] == []
+        assert len(data["chapters"]) == 1
+        assert data["chapters"][0]["title"] == "Chapter 1"
 
     @pytest.mark.asyncio
     async def test_study_plan_multiple_documents_chapters_concatenated(
@@ -620,6 +910,7 @@ class TestStudyPlanAPI:
             patch(
                 "routers.courses.get_documents_by_course", new_callable=AsyncMock
             ) as mock_docs,
+            patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
             patch(
                 "routers.courses._fetch_book_chapters", new_callable=AsyncMock
             ) as mock_fetch,
@@ -637,7 +928,7 @@ class TestStudyPlanAPI:
                 {
                     "id": "doc-1",
                     "filename": "a.pdf",
-                    "storage_path": "",
+                    "storage_path": "/tmp/a.pdf",
                     "content_type": "",
                     "size_bytes": 0,
                     "created_at": "",
@@ -645,12 +936,14 @@ class TestStudyPlanAPI:
                 {
                     "id": "doc-2",
                     "filename": "b.pdf",
-                    "storage_path": "",
+                    "storage_path": "/tmp/b.pdf",
                     "content_type": "",
                     "size_bytes": 0,
                     "created_at": "",
                 },
             ]
+
+            mock_lp_uuid.side_effect = [uuid4(), uuid4()]
 
             mock_fetch.side_effect = [
                 [Chapter(id=str(uuid4()), title="Chapter 1", order=0, lessons=[])],
@@ -664,6 +957,13 @@ class TestStudyPlanAPI:
 
         assert resp.status_code == 200
         data = resp.json()
+        assert len(data["documents"]) == 2
+        assert data["documents"][0]["document_id"] == "doc-1"
+        assert data["documents"][0]["document_name"] == "a.pdf"
+        assert len(data["documents"][0]["chapters"]) == 1
+        assert data["documents"][1]["document_id"] == "doc-2"
+        assert data["documents"][1]["document_name"] == "b.pdf"
+        assert len(data["documents"][1]["chapters"]) == 1
         assert len(data["chapters"]) == 2
         assert data["chapters"][0]["title"] == "Chapter 1"
         assert data["chapters"][1]["title"] == "Chapter 2"

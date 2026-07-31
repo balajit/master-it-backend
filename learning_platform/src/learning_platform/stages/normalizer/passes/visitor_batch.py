@@ -135,6 +135,50 @@ class BatchOnePass:
 
             # ── Step 2: paragraph carry / merge ──────────────────────────────
             if _helpers.is_paragraph(node):
+                if bool(node.metadata.get("boundary_preserved")):
+                    if para_carry is not None:
+                        emit(flush_para())  # type: ignore[arg-type]
+
+                    is_caption = _CAPTION_PATTERN.match(_helpers.plain_text(node)) is not None
+                    if is_caption and prev_captionable is not None:
+                        caption_text = _helpers.plain_text(node)
+                        content = prev_captionable.content
+
+                        if isinstance(content, Figure):
+                            new_content = Figure(
+                                caption_text=caption_text,
+                                image_uri=content.image_uri,
+                                alt_text=content.alt_text,
+                                caption_node_id=content.caption_node_id,
+                                width=content.width,
+                                height=content.height,
+                                format=content.format,
+                                mimetype=content.mimetype,
+                                storage_key=content.storage_key,
+                                size_bytes=content.size_bytes,
+                                metadata=content.metadata,
+                            )
+                            updated = prev_captionable.model_copy(update={"content": new_content})
+                            result[-1] = updated
+                            prev_captionable = updated
+                            continue
+
+                        if isinstance(content, Equation):
+                            new_content = Equation(
+                                latex=content.latex,
+                                mathml=content.mathml,
+                                label=content.label,
+                                is_block=content.is_block,
+                                metadata={**content.metadata, "caption": caption_text},
+                            )
+                            updated = prev_captionable.model_copy(update={"content": new_content})
+                            result[-1] = updated
+                            prev_captionable = updated
+                            continue
+
+                    emit(node)
+                    continue
+
                 # Check caption heuristic first.
                 is_caption = _CAPTION_PATTERN.match(_helpers.plain_text(node)) is not None
 
