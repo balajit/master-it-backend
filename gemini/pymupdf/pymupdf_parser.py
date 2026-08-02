@@ -137,7 +137,7 @@ def build_canonical_document(pdf_path: str, output_assets_dir: str = "extracted_
 
 
 # --- Execute and Save ---
-canonical_data = build_canonical_document("sample_textbook.pdf")
+canonical_data = build_canonical_document("/Users/rajani/PycharmProjects/Scratchpad/pdfs/csg.pdf")
 
 with open("canonical_document.json", "w", encoding="utf-8") as f:
     json.dump(canonical_data, f, indent=2)

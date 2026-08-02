@@ -32,3 +32,5 @@ uploads/
 # OS
 .DS_Store
 Thumbs.db
+
+uploads_prod/
