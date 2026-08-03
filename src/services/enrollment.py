@@ -16,7 +16,11 @@ Section locking rules:
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from typing import Any, Dict, List, Optional
+from uuid import UUID
+
+from fastapi import HTTPException
 
 from database.repositories.enrollment import (
     batch_init_lesson_progress,
@@ -28,12 +32,14 @@ from database.repositories.enrollment import (
     get_section_lesson_progress,
     unlock_section_items,
 )
+from database.repositories.documents import get_document
 from database.repositories.learning import (
     create_lesson,
     create_practice,
     create_quiz,
     create_section,
     create_unit,
+    get_lessons_by_plan_ids_for_course,
     get_section,
     list_lessons_for_sections,
     list_practices_for_sections,
@@ -42,8 +48,131 @@ from database.repositories.learning import (
     list_units,
 )
 from schemas import EnrollResponse
+from services.lp_results import (
+    lp_doc_uuid_from_external_id,
+    lp_doc_uuid_from_storage_path,
+)
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+def _missing_plan_lesson_ids(
+    expected_plan_lesson_ids: set[str],
+    lesson_rows: Iterable[Dict[str, Any]],
+) -> set[str]:
+    found_plan_ids: set[str] = {
+        str(row["plan_lesson_id"]) for row in lesson_rows if row.get("plan_lesson_id")
+    }
+    return expected_plan_lesson_ids - found_plan_ids
+
+
+def _extract_expected_plan_lesson_ids(plan: Any) -> set[str]:
+    expected: set[str] = set()
+    missing_identity_titles: list[str] = []
+
+    for lesson in plan.lessons:
+        plan_lesson_id_value = getattr(lesson, "unit_id", None)
+        if plan_lesson_id_value is None:
+            lesson_title = (
+                str(getattr(lesson, "title", "")).strip() or "(untitled lesson)"
+            )
+            missing_identity_titles.append(lesson_title)
+            continue
+        expected.add(str(plan_lesson_id_value))
+
+    if missing_identity_titles:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Study plan is incomplete: one or more lessons are missing LP lesson IDs "
+                f"({', '.join(missing_identity_titles[:3])})"
+            ),
+        )
+
+    return expected
+
+
+async def _fetch_lp_study_plan(source_document_id: str) -> Any:
+    try:
+        doc_uuid = await _resolve_source_document_lp_uuid(source_document_id)
+    except HTTPException:
+        raise
+
+    try:
+        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
+
+        from learning_platform.config import Settings
+        from learning_platform.infrastructure.persistence.engine import create_engine
+        from learning_platform.infrastructure.persistence.repositories.sequence import (
+            StudyPlanRepository,
+        )
+        from learning_platform.infrastructure.persistence.session import (
+            create_session_factory,
+        )
+
+        settings = Settings()
+        lp_engine = create_engine(settings)
+        factory: async_sessionmaker[AsyncSession] = create_session_factory(lp_engine)
+
+        try:
+            async with factory() as session:
+                repo = StudyPlanRepository(session)
+                plan = await repo.find_by_document(doc_uuid)
+        finally:
+            await lp_engine.dispose()
+
+        if plan is None:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Study plan is not ready for the provided source document. "
+                    "Process the document completely before enrollment."
+                ),
+            )
+
+        return plan
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception(
+            "Failed to fetch study plan for document %s", source_document_id
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to load study plan for strict enrollment provisioning",
+        ) from exc
+
+
+async def _resolve_source_document_lp_uuid(source_document_id: str) -> UUID:
+    """Resolve source_document_id into the canonical LP document UUID.
+
+    Supported identifiers:
+      - LP UUID / LP external SHA-style identifier
+      - master-it DocumentModel.id (maps via storage_path -> stable_doc_id)
+    """
+    document_row = await get_document(source_document_id)
+    if document_row is not None:
+        storage_path_raw = document_row.get("storage_path")
+        storage_path = (
+            str(storage_path_raw).strip() if storage_path_raw is not None else ""
+        )
+        if not storage_path:
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "Invalid source_document_id: document has no storage path for LP lookup"
+                ),
+            )
+        return lp_doc_uuid_from_storage_path(storage_path)
+
+    lp_doc_uuid = lp_doc_uuid_from_external_id(source_document_id)
+    if lp_doc_uuid is not None:
+        return lp_doc_uuid
+
+    raise HTTPException(
+        status_code=409,
+        detail=f"Invalid source_document_id: {source_document_id}",
+    )
 
 
 # ── Main entry point ──────────────────────────────────────────────────────
@@ -56,12 +185,19 @@ async def provision_enrollment(
 ) -> EnrollResponse:
     """Provision a student's enrollment for a course.
 
-    If already enrolled, returns immediately with status='already_enrolled'.
-    If source_document_id is provided, generates course content from the
-    learning_platform study plan before initializing progress.
+    If source_document_id is provided, strict provisioning is validated first.
+    For already-enrolled users, this means source-linked provisioning can still
+    fail and return an error before the idempotent already_enrolled response.
 
     DB round-trips (on first enrollment): 5 reads + 3 batch writes + 1 enroll write.
     """
+    # ── Flow B: provision content from study plan ──────────────────────────
+    if source_document_id is not None:
+        await _provision_content_from_study_plan(
+            course_id=course_id,
+            source_document_id=source_document_id,
+        )
+
     # ── Idempotency check ──────────────────────────────────────────────────
     existing = await get_enrollment(user_id, course_id)
     if existing is not None:
@@ -70,13 +206,6 @@ async def provision_enrollment(
             user_id=user_id,
             enrolled_at=existing["enrolled_at"],
             status="already_enrolled",
-        )
-
-    # ── Flow B: provision content from study plan ──────────────────────────
-    if source_document_id is not None:
-        await _provision_content_from_study_plan(
-            course_id=course_id,
-            source_document_id=source_document_id,
         )
 
     # ── Batch-fetch all content for this course ────────────────────────────
@@ -202,57 +331,54 @@ async def _provision_content_from_study_plan(
       Checkpoint (quiz)      → QuizModel row
       Checkpoint (other)     → PracticeModel row
 
-    Idempotent: checks for an existing unit with the same title under the
-    course before creating, so re-running is safe.
+    Strict behavior:
+      - source_document_id must resolve to a ready LP study plan
+      - all LP lesson IDs must exist and map after provisioning
+      - partial course mappings fail with HTTP 409
     """
-    try:
-        from uuid import UUID
-
-        from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
-
-        from learning_platform.config import Settings
-        from learning_platform.infrastructure.persistence.engine import create_engine
-        from learning_platform.infrastructure.persistence.repositories.sequence import (
-            StudyPlanRepository,
-        )
-        from learning_platform.infrastructure.persistence.session import (
-            create_session_factory,
+    plan = await _fetch_lp_study_plan(source_document_id)
+    expected_plan_lesson_ids = _extract_expected_plan_lesson_ids(plan)
+    if not expected_plan_lesson_ids:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Study plan has no lessons to provision. "
+                "Resolve study-plan generation before strict enrollment."
+            ),
         )
 
-        settings = Settings()
-        lp_engine = create_engine(settings)
-        factory: async_sessionmaker[AsyncSession] = create_session_factory(lp_engine)
-
-        doc_uuid = UUID(source_document_id)
-        async with factory() as session:
-            repo = StudyPlanRepository(session)
-            plan = await repo.find_by_document(doc_uuid)
-
-        await lp_engine.dispose()
-
-        if plan is None:
-            logger.warning(
-                "No study plan found for document %s — skipping content provisioning",
-                source_document_id,
-            )
-            return
-
-    except Exception:
-        logger.exception(
-            "Failed to fetch study plan for document %s", source_document_id
-        )
-        return
-
-    # Check if a unit with this plan title already exists under the course
-    existing_units = await list_units(course_id)
-    existing_titles: set[str] = {u["title"] for u in existing_units}
-    if plan.title in existing_titles:
+    existing_rows = await get_lessons_by_plan_ids_for_course(
+        course_id,
+        list(expected_plan_lesson_ids),
+    )
+    missing_before = _missing_plan_lesson_ids(expected_plan_lesson_ids, existing_rows)
+    if not missing_before:
         logger.info(
-            "Content for plan '%s' already exists in course %d — skipping",
-            plan.title,
+            "Study plan content already provisioned for course %d and document %s",
             course_id,
+            source_document_id,
         )
         return
+
+    if expected_plan_lesson_ids and len(missing_before) < len(expected_plan_lesson_ids):
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Course has partial study-plan provisioning. "
+                "Resolve the incomplete lesson mapping before enrollment."
+            ),
+        )
+
+    existing_units = await list_units(course_id)
+    existing_titles: set[str] = {str(unit.get("title", "")) for unit in existing_units}
+    if str(plan.title) in existing_titles:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Course content conflicts with the requested study plan title. "
+                "Resolve existing course content before strict enrollment provisioning."
+            ),
+        )
 
     # Create the unit
     unit_id = await create_unit(
@@ -281,13 +407,22 @@ async def _provision_content_from_study_plan(
             if lesson.milestone_id and str(lesson.milestone_id) == str(milestone.id)
         ]
         for lesson in sorted(milestone_lessons, key=lambda lesson: lesson.order):
+            plan_lesson_id_value = getattr(lesson, "unit_id", None)
+            if plan_lesson_id_value is None:
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        "Study plan is incomplete: lesson is missing LP lesson ID "
+                        f"('{lesson.title}')"
+                    ),
+                )
             await create_lesson(
                 section_id=section_id,
                 title=lesson.title,
                 description=lesson.description or "",
                 duration_minutes=lesson.estimated_minutes or 0,
                 display_order=lesson.order,
-                plan_lesson_id=str(lesson.unit_id),
+                plan_lesson_id=str(plan_lesson_id_value),
             )
 
         # Checkpoints belonging to this milestone
@@ -312,6 +447,22 @@ async def _provision_content_from_study_plan(
                     title=cp.title,
                     display_order=cp.order,
                 )
+
+    mapped_after_rows = await get_lessons_by_plan_ids_for_course(
+        course_id,
+        list(expected_plan_lesson_ids),
+    )
+    missing_after = _missing_plan_lesson_ids(
+        expected_plan_lesson_ids, mapped_after_rows
+    )
+    if missing_after:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                "Strict enrollment provisioning failed to map all lessons. "
+                f"Missing {len(missing_after)} lesson mapping(s)."
+            ),
+        )
 
     logger.info(
         "Provisioned content from study plan '%s' into course %d (unit_id=%d)",

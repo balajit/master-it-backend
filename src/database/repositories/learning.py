@@ -1054,6 +1054,38 @@ async def get_lessons_by_plan_ids(plan_lesson_ids: List[str]) -> List[Dict[str, 
     return [_lesson_to_dict(r) for r in rows]
 
 
+async def get_lessons_by_plan_ids_for_course(
+    course_id: int,
+    plan_lesson_ids: List[str],
+) -> List[Dict[str, Any]]:
+    """Batch-fetch lessons by LP plan IDs restricted to one course.
+
+    This prevents accidental cross-course matches when different courses
+    reference the same LP lesson IDs.
+    """
+    if not plan_lesson_ids:
+        return []
+
+    async with AsyncSession(engine) as session:
+        rows = (
+            (
+                await session.execute(
+                    select(LessonModel)
+                    .join(SectionModel, SectionModel.id == LessonModel.section_id)
+                    .join(UnitModel, UnitModel.id == SectionModel.unit_id)
+                    .where(
+                        UnitModel.course_id == course_id,
+                        LessonModel.plan_lesson_id.in_(plan_lesson_ids),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return [_lesson_to_dict(r) for r in rows]
+
+
 async def get_sections_by_ids(section_ids: List[int]) -> List[Dict[str, Any]]:
     """Batch-fetch sections by their integer PKs.
 

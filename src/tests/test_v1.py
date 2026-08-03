@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock, patch
 
 import httpx
 import pytest
+from fastapi import HTTPException
 from httpx import ASGITransport
 
 _src_dir: str = str(Path(__file__).resolve().parent.parent)
@@ -181,6 +182,81 @@ class TestV1Courses:
         resp = asyncio.run(_run())
         assert resp.status_code == 404
         assert resp.json()["detail"] == "Course not found"
+
+    def test_enroll_passes_source_document_id(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            with (
+                patch(
+                    "routers.v1.get_course",
+                    new_callable=AsyncMock,
+                    return_value=MOCK_COURSE,
+                ),
+                patch(
+                    "routers.v1.provision_enrollment",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "course_id": 1,
+                        "user_id": 1,
+                        "enrolled_at": "2026-01-01T00:00:00Z",
+                        "status": "enrolled",
+                        "lessons_initialized": 3,
+                        "practices_initialized": 2,
+                        "quizzes_initialized": 1,
+                    },
+                ) as mock_provision,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    resp = await c.post(
+                        "/api/v1/courses/1/enroll",
+                        json={"source_document_id": "122e720903b24930af4f8485c8f8f25b"},
+                    )
+                assert resp.status_code == 200
+                mock_provision.assert_awaited_once_with(
+                    user_id=1,
+                    course_id=1,
+                    source_document_id="122e720903b24930af4f8485c8f8f25b",
+                )
+                return resp
+
+        resp = asyncio.run(_run())
+        body = resp.json()
+        assert body["status"] == "enrolled"
+        assert body["lessons_initialized"] == 3
+
+    def test_enroll_propagates_strict_provisioning_errors(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            with (
+                patch(
+                    "routers.v1.get_course",
+                    new_callable=AsyncMock,
+                    return_value=MOCK_COURSE,
+                ),
+                patch(
+                    "routers.v1.provision_enrollment",
+                    new_callable=AsyncMock,
+                    side_effect=HTTPException(
+                        status_code=409,
+                        detail="Study plan is not ready for the provided source document.",
+                    ),
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.post(
+                        "/api/v1/courses/1/enroll",
+                        json={"source_document_id": "abc123"},
+                    )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 409
+        assert "Study plan is not ready" in resp.json()["detail"]
 
 
 class TestV1Units:
