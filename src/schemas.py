@@ -156,6 +156,7 @@ class BaseItemMetadata(BaseModel):
     resolved_parent_ref: Optional[str] = None
     semantic_node_type: Optional[str] = None
     semantic_match_score: Optional[float] = None
+    display_hint: Optional[str] = None
 
 
 class TextItemMetadata(BaseItemMetadata):
@@ -334,6 +335,16 @@ class ListItem(BaseModel):
     metadata: ListItemMetadata = Field(default_factory=ListItemMetadata)
 
 
+class FormAreaItem(BaseModel):
+    type: Literal["form_area"] = "form_area"
+    id: str
+    order: int = 0
+    items: List[str] = Field(default_factory=list)
+    bbox: Optional[dict[str, float]] = None
+    style: Optional[BlockStyleMetadata] = None
+    metadata: BaseItemMetadata = Field(default_factory=BaseItemMetadata)
+
+
 class QuestionItem(BaseModel):
     type: Literal["question"] = "question"
     id: str
@@ -359,6 +370,7 @@ ContentItem = Annotated[
     | EquationItem
     | CodeItem
     | ListItem
+    | FormAreaItem
     | QuestionItem,
     Field(discriminator="type"),
 ]
@@ -956,6 +968,132 @@ class UserProgressResponse(BaseModel):
     lessons: List[UserLessonProgressResponse]
     practices: List[UserPracticeProgressResponse]
     quizzes: List[UserQuizProgressResponse]
+
+
+class DiagnosisRequest(BaseModel):
+    document_id: str
+
+    @model_validator(mode="after")
+    def validate_document_id(self) -> DiagnosisRequest:
+        if not self.document_id.strip():
+            raise ValueError("document_id is required")
+        return self
+
+
+class DiagnosisFindingRead(BaseModel):
+    id: int
+    diagnosis_id: int
+    rule_id: str
+    severity: Literal["warning", "error"]
+    table_name: str
+    message: str
+    affected_count: int
+    sample: dict[str, Any] = Field(default_factory=dict)
+
+
+class MissingEntryTableRead(BaseModel):
+    table_name: str
+    severity: Literal["info", "warning", "error"]
+    reason: str
+    expected_rule: str
+    observed_row_count: int
+    related_tables: list[str] = Field(default_factory=list)
+
+
+class DiagnosisRunRead(BaseModel):
+    diagnosis_id: int
+    document_id: str | None = None
+    status: Literal["running", "completed", "failed"]
+    verdict: Literal["pass", "warn", "fail"] | None = None
+    report_id: str | None = None
+    created_at: datetime
+    completed_at: datetime | None = None
+    summary: dict[str, Any] = Field(default_factory=dict)
+    missing_entry_tables: list[MissingEntryTableRead] = Field(default_factory=list)
+
+
+class DeleteDocumentProcessRunsRequest(BaseModel):
+    process_ids: list[int] | None = None
+    reason: str
+    confirm: bool = False
+    action_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_payload(self) -> DeleteDocumentProcessRunsRequest:
+        if not self.reason.strip():
+            raise ValueError("reason is required")
+        if self.confirm:
+            if not self.action_id or not self.action_id.strip():
+                raise ValueError("action_id is required when confirm=true")
+            return self
+        if not self.process_ids:
+            raise ValueError("process_ids is required when confirm=false")
+        if any(process_id <= 0 for process_id in self.process_ids):
+            raise ValueError("process_ids must contain positive integers")
+        return self
+
+
+class DeleteActionPreview(BaseModel):
+    requested_ids: list[int] = Field(default_factory=list)
+    target_process_ids: list[int] = Field(default_factory=list)
+    missing_process_ids: list[int] = Field(default_factory=list)
+    affected_row_count: int
+    affected_file_count: int
+    integrity_hash: str
+
+
+class DeleteDocumentProcessRunsResponse(BaseModel):
+    diagnosis_id: int
+    status: Literal["confirmation_required", "applied", "already_applied"]
+    action_id: str
+    action_type: str
+    precheck_passed: bool | None = None
+    preview: DeleteActionPreview | None = None
+    deleted_process_ids: list[int] = Field(default_factory=list)
+    missing_process_ids: list[int] = Field(default_factory=list)
+    deleted_pipeline_log_count: int | None = None
+    affected_row_count: int | None = None
+    affected_file_count: int | None = None
+    applied_at: datetime | None = None
+    expires_at: datetime | None = None
+    message: str | None = None
+
+
+class CancelDeleteActionRequest(BaseModel):
+    reason: str
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> CancelDeleteActionRequest:
+        if not self.reason.strip():
+            raise ValueError("reason is required")
+        return self
+
+
+class CancelDeleteActionResponse(BaseModel):
+    diagnosis_id: int
+    status: Literal["canceled", "already_canceled"]
+    action_id: str
+    action_type: str
+    canceled_at: datetime | None = None
+
+
+class RollbackDeleteActionRequest(BaseModel):
+    reason: str
+
+    @model_validator(mode="after")
+    def validate_reason(self) -> RollbackDeleteActionRequest:
+        if not self.reason.strip():
+            raise ValueError("reason is required")
+        return self
+
+
+class RollbackDeleteActionResponse(BaseModel):
+    diagnosis_id: int
+    status: Literal["rolled_back", "already_rolled_back"]
+    action_id: str
+    action_type: str
+    restored_row_count: int
+    rolled_back_at: datetime | None = None
 
 
 class SectionUnlockResponse(BaseModel):

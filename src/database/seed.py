@@ -8,6 +8,7 @@ from database.models import (
     RoleModel,
     RolePermissionModel,
 )
+from database.models_triage import TriageFindingModel, TriageRunModel  # noqa: F401
 from learning_platform.infrastructure.persistence.models import Base as LpBase
 
 

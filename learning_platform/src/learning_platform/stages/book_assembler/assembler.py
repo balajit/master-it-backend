@@ -32,6 +32,7 @@ from learning_platform.models.book import (
     CodeItem,
     ContentItem,
     EquationItem,
+    FormAreaItem,
     HeadingItem,
     ImageItem,
     ListItem,
@@ -536,8 +537,16 @@ class BookAssembler:
     def _nodes_to_items(self, nodes: list[DocumentNode]) -> list[ContentItem]:
         """Convert DocumentNode list to typed ContentItem list."""
         items: list[ContentItem] = []
+        node_by_id: dict[UUID, DocumentNode] = {node.id: node for node in nodes}
         order = 0
         for node in nodes:
+            parent_node = node_by_id.get(node.parent_id) if node.parent_id is not None else None
+            if (
+                getattr(node.content, "type", "") == "text_item"
+                and parent_node is not None
+                and getattr(parent_node.content, "type", "") == "form_area"
+            ):
+                continue
             item = self._node_to_item(node, order)
             if item is not None:
                 items.append(item)
@@ -798,6 +807,7 @@ class BookAssembler:
             Equation,
             Exercise,
             Figure,
+            FormAreaBlock,
             Heading,
             ListBlock,
             Note,
@@ -805,6 +815,9 @@ class BookAssembler:
             Question,
             Reference,
             TableBlock,
+        )
+        from learning_platform.models.document import (
+            TextItem as CanonicalTextItem,
         )
 
         content = node.content
@@ -856,6 +869,54 @@ class BookAssembler:
                 bbox=bbox,
                 style=style,
                 metadata=paragraph_metadata,
+            )
+
+        if isinstance(content, CanonicalTextItem):
+            text = content.text.plain_text
+            if not text.strip():
+                return None
+            text_item_metadata: dict[str, object] = {
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            if node.source.offset > 0:
+                text_item_metadata.setdefault("source_offset", node.source.offset)
+            if node.source.length > 0:
+                text_item_metadata.setdefault("source_length", node.source.length)
+            text_runs = self._styled_text_metadata(content.text)
+            if text_runs is not None:
+                text_item_metadata.setdefault("text_runs", text_runs)
+            text_item_metadata.update(self._text_ui_hints(text, node.metadata.get("label")))
+            return TextItem(
+                order=order,
+                content=text,
+                bbox=bbox,
+                style=style,
+                metadata=text_item_metadata,
+            )
+
+        if isinstance(content, FormAreaBlock):
+            form_items: list[str] = []
+            for child in node.children:
+                child_content = child.content
+                if isinstance(child_content, CanonicalTextItem):
+                    child_text = child_content.text.plain_text.strip()
+                    if child_text:
+                        form_items.append(child_text)
+
+            form_metadata: dict[str, object] = {
+                **(content.metadata or {}),
+                **(node.metadata or {}),
+            }
+            if content.display_hint is not None:
+                form_metadata["display_hint"] = content.display_hint
+
+            return FormAreaItem(
+                order=order,
+                items=form_items,
+                bbox=bbox,
+                style=style,
+                metadata=form_metadata,
             )
 
         if isinstance(content, (Note, Callout, Definition, Reference)):

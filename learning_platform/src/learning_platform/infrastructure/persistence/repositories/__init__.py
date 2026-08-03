@@ -20,6 +20,13 @@ from learning_platform.infrastructure.persistence.repositories.learning_unit imp
 from learning_platform.infrastructure.persistence.repositories.pipeline_log import (
     PipelineLogRepository,
 )
+from learning_platform.infrastructure.persistence.repositories.reviewer_run import (
+    ReviewerPageResultRepository,
+    ReviewerRunRepository,
+)
+from learning_platform.infrastructure.persistence.repositories.roll_back_agent_action import (
+    RollBackAgentActionRepository,
+)
 from learning_platform.infrastructure.persistence.repositories.sequence import StudyPlanRepository
 
 __all__ = [
@@ -31,5 +38,8 @@ __all__ = [
     "KnowledgeGraphRepository",
     "LearningUnitRepository",
     "PipelineLogRepository",
+    "ReviewerPageResultRepository",
+    "ReviewerRunRepository",
+    "RollBackAgentActionRepository",
     "StudyPlanRepository",
 ]

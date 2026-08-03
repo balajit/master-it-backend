@@ -280,7 +280,10 @@ def _metadata_for_line(
     if semantic_candidate is not None:
         if semantic_candidate.metadata:
             metadata.update(semantic_candidate.metadata)
-        metadata["resolved_parent_ref"] = semantic_candidate.metadata.get("docling_parent_ref", "")
+        parent_ref = semantic_candidate.metadata.get("resolved_parent_ref")
+        if not isinstance(parent_ref, str) or not parent_ref.strip():
+            parent_ref = semantic_candidate.metadata.get("docling_parent_ref", "")
+        metadata["resolved_parent_ref"] = str(parent_ref).strip()
         metadata["semantic_node_type"] = semantic_candidate.node_type
         metadata["semantic_match_score"] = round(relation_confidence, 4)
     return metadata
@@ -672,7 +675,9 @@ class HybridMergeEngine:
             return bool(text or statements or options or blanks)
         if candidate.node_type == "list":
             items = getattr(content, "items", [])
-            return any(item.text.plain_text.strip() for item in items)
+            has_items = any(item.text.plain_text.strip() for item in items)
+            has_children = bool(candidate.node.children)
+            return has_items or has_children
         if candidate.node_type == "table_of_contents":
             entries = getattr(content, "entries", [])
             return bool(entries)
@@ -814,6 +819,11 @@ class HybridMergeEngine:
         metadata = dict(clone.metadata)
         metadata.setdefault("semantic_origin", "docling")
         metadata["boundary_preserved"] = True
+        parent_ref = metadata.get("resolved_parent_ref")
+        if not isinstance(parent_ref, str) or not parent_ref.strip():
+            docling_parent_ref = metadata.get("docling_parent_ref")
+            if isinstance(docling_parent_ref, str) and docling_parent_ref.strip():
+                metadata["resolved_parent_ref"] = docling_parent_ref.strip()
         metadata["relation_method"] = relation_method
         metadata["relation_confidence"] = round(max(0.0, min(1.0, relation_confidence)), 4)
         metadata["semantic_node_type"] = candidate.node_type

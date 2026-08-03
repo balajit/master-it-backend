@@ -18,7 +18,10 @@ from database import (
     get_documents_by_course,
     list_courses,
 )
-from database.repositories.learning import get_lessons_by_plan_ids, get_sections_by_ids
+from database.repositories.learning import (
+    get_lessons_by_plan_ids_for_course,
+    get_sections_by_ids,
+)
 from schemas import (
     Chapter,
     Course,
@@ -123,7 +126,7 @@ async def get_course_study_plan(
             continue
 
         lp_doc_uuid = lp_doc_uuid_from_storage_path(storage_path)
-        doc_chapters = await _fetch_book_chapters(str(lp_doc_uuid), 0)
+        doc_chapters = await _fetch_book_chapters(str(lp_doc_uuid), course_id, 0)
 
         documents_payload.append(
             CourseStudyPlanDocument(
@@ -163,7 +166,11 @@ async def get_course_study_plan(
     )
 
 
-async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[Chapter]:
+async def _fetch_book_chapters(
+    doc_id_str: str,
+    course_id: int,
+    order_offset: int = 0,
+) -> list[Chapter]:
     """Fetch book chapters from the LP database for a given document ID.
 
     Also back-populates master-it integer PKs (lesson_id, unit_id) on each
@@ -202,7 +209,9 @@ async def _fetch_book_chapters(doc_id_str: str, order_offset: int = 0) -> list[C
                 if bl.unit_id is not None:
                     plan_lesson_ids.append(str(bl.unit_id))
 
-        lesson_rows = await get_lessons_by_plan_ids(plan_lesson_ids)
+        lesson_rows = await get_lessons_by_plan_ids_for_course(
+            course_id, plan_lesson_ids
+        )
         plan_to_lesson: dict[str, dict] = {
             r["plan_lesson_id"]: r for r in lesson_rows if r.get("plan_lesson_id")
         }

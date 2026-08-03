@@ -96,6 +96,16 @@ class ListItem(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class FormAreaItem(BaseModel):
+    type: Literal["form_area"] = "form_area"
+    id: UUID = Field(default_factory=uuid4)
+    order: int = 0
+    items: list[str] = Field(default_factory=list)
+    bbox: dict[str, float] | None = None
+    style: dict[str, Any] | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class QuestionOption(BaseModel):
     label: str = ""
     text: str = ""
@@ -142,6 +152,7 @@ ContentItem = (
     | EquationItem
     | CodeItem
     | ListItem
+    | FormAreaItem
     | QuestionItem
 )
 

@@ -58,6 +58,12 @@ from learning_platform.models.sequence import (
 
 @pytest.fixture
 async def engine():
+    from learning_platform.infrastructure.persistence.models.reviewer_run import (
+        ReviewerPageResultRow,
+        ReviewerRunRow,
+    )
+
+    _ = (ReviewerRunRow, ReviewerPageResultRow)
     eng = create_async_engine("sqlite+aiosqlite:///:memory:")
     async with eng.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -210,6 +216,68 @@ class TestDocumentRepository:
 
 
 class TestDocumentProcessRepository:
+    async def test_delete_entries_by_ids_removes_process_rows_and_pipeline_logs(
+        self, session: AsyncSession
+    ) -> None:
+        from learning_platform.infrastructure.persistence.models.pipeline_log import PipelineLogRow
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row_1 = await repo.create_entry("source-1.pdf", "/tmp/source-1.pdf")
+        row_2 = await repo.create_entry("source-2.pdf", "/tmp/source-2.pdf")
+
+        await session.execute(
+            PipelineLogRow.__table__.insert(),
+            [
+                {
+                    "source": row_1.source,
+                    "stage": "parser",
+                    "output": "ok",
+                    "result": "success",
+                    "document_process_id": row_1.id,
+                },
+                {
+                    "source": row_1.source,
+                    "stage": "normalizer",
+                    "output": "ok",
+                    "result": "success",
+                    "document_process_id": row_1.id,
+                },
+                {
+                    "source": row_2.source,
+                    "stage": "parser",
+                    "output": "ok",
+                    "result": "success",
+                    "document_process_id": row_2.id,
+                },
+            ],
+        )
+        await session.flush()
+
+        deleted_ids, not_found_ids, deleted_log_count = await repo.delete_entries_by_ids(
+            [row_2.id, row_1.id, row_2.id, 999999]
+        )
+
+        assert deleted_ids == [row_1.id, row_2.id]
+        assert not_found_ids == [999999]
+        assert deleted_log_count == 3
+        assert await repo.find_by_id(row_1.id) is None
+        assert await repo.find_by_id(row_2.id) is None
+
+    async def test_delete_entries_by_ids_with_empty_input(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        deleted_ids, not_found_ids, deleted_log_count = await repo.delete_entries_by_ids([])
+
+        assert deleted_ids == []
+        assert not_found_ids == []
+        assert deleted_log_count == 0
+
     async def test_create_retry_entry_copies_resume_state(self, session: AsyncSession) -> None:
         from learning_platform.infrastructure.persistence.repositories.document_process import (
             DocumentProcessRepository,
@@ -288,6 +356,130 @@ class TestDocumentProcessRepository:
 
         assert row.status == "processing"
         assert row.error_message == "BookPipeline error, will retry"
+
+    async def test_list_entries_and_pipeline_logs_by_ids(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.models.pipeline_log import PipelineLogRow
+        from learning_platform.infrastructure.persistence.repositories.document_process import (
+            DocumentProcessRepository,
+        )
+
+        repo = DocumentProcessRepository(session)
+        row_1 = await repo.create_entry("source-1.pdf", "/tmp/source-1.pdf")
+        row_2 = await repo.create_entry("source-2.pdf", "/tmp/source-2.pdf")
+        await session.execute(
+            PipelineLogRow.__table__.insert(),
+            [
+                {
+                    "source": row_1.source,
+                    "stage": "parser",
+                    "output": "ok",
+                    "result": "success",
+                    "document_process_id": row_1.id,
+                },
+                {
+                    "source": row_2.source,
+                    "stage": "parser",
+                    "output": "ok",
+                    "result": "success",
+                    "document_process_id": row_2.id,
+                },
+            ],
+        )
+        await session.flush()
+
+        entries = await repo.list_entries_by_ids([row_2.id, 999999, row_1.id, row_2.id])
+        logs = await repo.list_pipeline_logs_by_process_ids([row_2.id, row_1.id, row_2.id])
+
+        assert [entry.id for entry in entries] == [row_1.id, row_2.id]
+        assert [log.document_process_id for log in logs] == [row_1.id, row_2.id]
+
+
+class TestReviewerRunRepositories:
+    async def test_reviewer_run_and_page_result_lifecycle(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document import (
+            DocumentRepository,
+        )
+        from learning_platform.infrastructure.persistence.repositories.reviewer_run import (
+            ReviewerPageResultRepository,
+            ReviewerRunRepository,
+        )
+
+        doc_id = _make_doc_id()
+        doc_repo = DocumentRepository(session)
+        await doc_repo.save_document(_make_document(doc_id), doc_id=doc_id)
+
+        run_repo = ReviewerRunRepository(session)
+        page_repo = ReviewerPageResultRepository(session)
+
+        run_row = await run_repo.create_processing_run(
+            requested_lp_documents_id=doc_id,
+            resolved_lp_documents_id=doc_id,
+            resolved_document_name="test.pdf",
+            metadata={"reviewed_page_numbers": [1]},
+        )
+
+        await page_repo.create_page_result(
+            reviewer_run_id=run_row.id,
+            lp_documents_id=doc_id,
+            page_number=1,
+            review_status="reviewed",
+            review_error=None,
+            extracted_text_char_count=123,
+            summary="Looks good",
+            strengths=["clear"],
+            issues=[],
+            recommendations=["none"],
+            verdict="approved",
+            confidence=0.93,
+            metadata={"deterministic_verifier": {"text_similarity_ratio": 1.0}},
+        )
+
+        page_rows = await page_repo.list_by_run_id(run_row.id)
+        assert len(page_rows) == 1
+        assert page_rows[0].review_status == "reviewed"
+
+        await run_repo.mark_completed(
+            run_row,
+            aggregate_verdict="approved",
+            aggregate_summary="Reviewed 1 page(s)",
+            metadata={"reviewed_pages_count": 1},
+        )
+
+        loaded_run = await run_repo.find_by_id(run_row.id)
+        assert loaded_run is not None
+        assert loaded_run.status == "completed"
+        assert loaded_run.aggregate_verdict == "approved"
+
+    async def test_reviewer_run_mark_failed(self, session: AsyncSession) -> None:
+        from learning_platform.infrastructure.persistence.repositories.document import (
+            DocumentRepository,
+        )
+        from learning_platform.infrastructure.persistence.repositories.reviewer_run import (
+            ReviewerRunRepository,
+        )
+
+        doc_id = _make_doc_id()
+        doc_repo = DocumentRepository(session)
+        await doc_repo.save_document(_make_document(doc_id), doc_id=doc_id)
+
+        run_repo = ReviewerRunRepository(session)
+        run_row = await run_repo.create_processing_run(
+            requested_lp_documents_id=doc_id,
+            resolved_lp_documents_id=doc_id,
+            resolved_document_name="failed.pdf",
+            metadata={"reviewed_page_numbers": [1, 2]},
+        )
+
+        await run_repo.mark_failed(
+            run_row,
+            error_message="deterministic failure",
+            metadata={"processed_pages_count": 1},
+        )
+
+        loaded_run = await run_repo.find_by_id(run_row.id)
+        assert loaded_run is not None
+        assert loaded_run.status == "failed"
+        assert loaded_run.error_message == "deterministic failure"
 
 
 # ── LearningUnitRepository ───────────────────────────────────────────────────

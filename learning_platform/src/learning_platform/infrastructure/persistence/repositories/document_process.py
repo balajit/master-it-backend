@@ -5,10 +5,11 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
 from learning_platform.infrastructure.persistence.models.document_process import DocumentProcessRow
+from learning_platform.infrastructure.persistence.models.pipeline_log import PipelineLogRow
 from learning_platform.infrastructure.persistence.repositories.base import BaseRepository
 
 _LOG = logging.getLogger(__name__)
@@ -265,3 +266,63 @@ class DocumentProcessRepository(BaseRepository[DocumentProcessRow]):
             abs_path=row.abs_path,
             run_mode="reprocess",
         )
+
+    async def list_entries_by_ids(self, process_ids: list[int]) -> list[DocumentProcessRow]:
+        if not process_ids:
+            return []
+
+        unique_ids = sorted(set(process_ids))
+        stmt = (
+            select(DocumentProcessRow)
+            .where(DocumentProcessRow.id.in_(unique_ids))
+            .order_by(DocumentProcessRow.id.asc())
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def list_pipeline_logs_by_process_ids(
+        self, process_ids: list[int]
+    ) -> list[PipelineLogRow]:
+        if not process_ids:
+            return []
+
+        unique_ids = sorted(set(process_ids))
+        stmt = (
+            select(PipelineLogRow)
+            .where(PipelineLogRow.document_process_id.in_(unique_ids))
+            .order_by(PipelineLogRow.id.asc())
+        )
+        return list((await self._session.execute(stmt)).scalars().all())
+
+    async def delete_entries_by_ids(
+        self,
+        process_ids: list[int],
+    ) -> tuple[list[int], list[int], int]:
+        if not process_ids:
+            return [], [], 0
+
+        unique_ids = sorted(set(process_ids))
+        existing_stmt = (
+            select(DocumentProcessRow.id)
+            .where(DocumentProcessRow.id.in_(unique_ids))
+            .order_by(DocumentProcessRow.id.asc())
+        )
+        existing_rows = await self._session.execute(existing_stmt)
+        deleted_ids = [int(row_id) for row_id in existing_rows.scalars().all()]
+        existing_set = set(deleted_ids)
+        not_found_ids = [row_id for row_id in unique_ids if row_id not in existing_set]
+
+        deleted_pipeline_logs = 0
+        if deleted_ids:
+            pipeline_log_delete = delete(PipelineLogRow).where(
+                PipelineLogRow.document_process_id.in_(deleted_ids)
+            )
+            pipeline_log_result = await self._session.execute(pipeline_log_delete)
+            deleted_pipeline_logs = int(pipeline_log_result.rowcount or 0)
+
+            process_delete = delete(DocumentProcessRow).where(
+                DocumentProcessRow.id.in_(deleted_ids)
+            )
+            await self._session.execute(process_delete)
+
+        await self._session.flush()
+        return deleted_ids, not_found_ids, deleted_pipeline_logs

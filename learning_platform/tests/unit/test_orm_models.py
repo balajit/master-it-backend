@@ -21,6 +21,10 @@ from learning_platform.infrastructure.persistence.models.knowledge_graph import 
     KnowledgeGraphRow,
 )
 from learning_platform.infrastructure.persistence.models.learning_unit import LearningUnitRow
+from learning_platform.infrastructure.persistence.models.reviewer_run import (
+    ReviewerPageResultRow,
+    ReviewerRunRow,
+)
 from learning_platform.infrastructure.persistence.models.sequence import (
     CheckpointRow,
     LessonRow,
@@ -54,12 +58,15 @@ class TestBase:
             "lp_lessons",
             "lp_milestones",
             "lp_pipeline_logs",
+            "lp_reviewer_page_result",
+            "lp_reviewer_run",
+            "lp_roll_back_agent_action",
             "lp_study_plans",
         ]
         assert table_names == expected
 
     def test_total_table_count(self) -> None:
-        assert len(Base.metadata.tables) == 19
+        assert len(Base.metadata.tables) == 22
 
 
 class TestCanonicalDocumentRow:
@@ -261,3 +268,41 @@ class TestSequenceRows:
             checkpoint_type="quiz",
         )
         assert row.checkpoint_type == "quiz"
+
+
+class TestReviewerRows:
+    def test_reviewer_run_table_name(self) -> None:
+        assert ReviewerRunRow.__tablename__ == "lp_reviewer_run"
+
+    def test_reviewer_page_result_table_name(self) -> None:
+        assert ReviewerPageResultRow.__tablename__ == "lp_reviewer_page_result"
+
+    def test_reviewer_run_construction(self) -> None:
+        row = ReviewerRunRow(
+            id=uuid.uuid4(),
+            requested_lp_documents_id=uuid.uuid4(),
+            resolved_lp_documents_id=uuid.uuid4(),
+            resolved_document_name="sample.pdf",
+            status="processing",
+            aggregate_summary="",
+        )
+        assert row.resolved_document_name == "sample.pdf"
+        assert row.status == "processing"
+
+    def test_reviewer_page_result_construction(self) -> None:
+        row = ReviewerPageResultRow(
+            reviewer_run_id=uuid.uuid4(),
+            lp_documents_id=uuid.uuid4(),
+            page_number=3,
+            review_status="reviewed",
+            extracted_text_char_count=42,
+            summary="ok",
+            strengths_json=["clear examples"],
+            issues_json=[],
+            recommendations_json=["expand section"],
+            verdict="approved",
+            confidence=0.95,
+            metadata_json={"k": "v"},
+        )
+        assert row.page_number == 3
+        assert row.review_status == "reviewed"

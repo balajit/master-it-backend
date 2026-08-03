@@ -12,6 +12,8 @@
 ## Coding
 - Think in terms of objects to represent the entities and state. Always create pydantic types and use collections and types from typing pakcage
 - always follow type hinting.  All the variables and functions should have types including the return types.
+- All feature changes require tests.
+- All reported issues require a test to be added before the fix.
 - Lint: `uv run ruff check .`
 - Format: `uv run ruff format .`
 

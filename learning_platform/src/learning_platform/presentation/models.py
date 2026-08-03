@@ -435,6 +435,23 @@ class ParagraphNode(BaseModel):
         return cls(runs=[PlainRun(text=text)])
 
 
+class TextItemNode(BaseModel):
+    """A discrete text element, typically within a form area.
+
+    Unlike ``ParagraphNode`` (flowing prose), ``TextItemNode`` represents
+    individual text fragments like word-bank choices, form field labels,
+    or answer options.
+    """
+
+    type: Literal["text_item"] = "text_item"
+    runs: list[InlineRun] = Field(default_factory=list)
+
+    @classmethod
+    def from_text(cls, text: str) -> TextItemNode:
+        """Convenience constructor for a plain-text item."""
+        return cls(runs=[PlainRun(text=text)])
+
+
 class ListItemNode(BaseModel):
     """A single item in a list — may itself contain inline runs."""
 
@@ -451,6 +468,23 @@ class ListNode(BaseModel):
     type: Literal["list"] = "list"
     style: Literal["bullet", "numbered", "alpha", "roman", "checkbox"] = "bullet"
     items: list[ListItemNode] = Field(default_factory=list)
+
+
+class FormAreaNode(BaseModel):
+    """A form area containing interactive content like word banks or answer boxes.
+
+    Children are ``TextItemNode`` elements representing individual selectable
+    or fillable items within the form area.
+
+    The ``display_hint`` field provides rendering guidance:
+    - ``"word_bank"``: horizontal layout of selectable items
+    - ``"answer_box"``: bordered input region
+    - ``None``: default form area rendering
+    """
+
+    type: Literal["form_area"] = "form_area"
+    items: list[TextItemNode] = Field(default_factory=list)
+    display_hint: Literal["word_bank", "answer_box"] | None = None
 
 
 class EquationNode(BaseModel):
@@ -542,7 +576,9 @@ ContentNode = Annotated[
     Union[  # noqa: UP007
         HeadingNode,
         ParagraphNode,
+        TextItemNode,
         ListNode,
+        FormAreaNode,
         EquationNode,
         CodeBlockNode,
         TableNode,

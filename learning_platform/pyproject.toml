@@ -23,6 +23,8 @@ dependencies = [
     "langchain-openai>=1.4.1",
     "langchain-anthropic>=1.5.1",
     "pymupdf>=1.28.0",
+    "mcp[cli]>=2.0.0",
+    "langgraph>=1.2.10",
 ]
 
 [dependency-groups]

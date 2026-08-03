@@ -19,7 +19,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Dict
 from uuid import uuid4
 
 from learning_platform.models.document import (
@@ -205,6 +205,7 @@ class DoclingAdapter:
                 spatial_fallback_vertical_gap=max(0.0, hybrid_spatial_fallback_vertical_gap),
             )
         )
+
 
     # ── AbstractParser Protocol ───────────────────────────────────────────
 

@@ -1040,3 +1040,286 @@ class TestV1Auth:
 
         resp = asyncio.run(_run())
         assert resp.status_code in (401, 403)
+
+
+class TestV1Triage:
+    def test_post_diagnosis(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            with patch(
+                "routers.triage.run_diagnosis",
+                new_callable=AsyncMock,
+                return_value={
+                    "diagnosis_id": 11,
+                    "document_id": "doc-1",
+                    "status": "completed",
+                    "verdict": "warn",
+                    "report_id": "report-1",
+                    "created_at": "2026-08-02T00:00:00Z",
+                    "completed_at": "2026-08-02T00:01:00Z",
+                    "summary": {"stats": {"finding_count": 1}},
+                    "missing_entry_tables": [],
+                    "findings": [],
+                },
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.post(
+                        "/api/v1/triage/diagnoses",
+                        json={"document_id": "doc-1"},
+                    )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["diagnosis_id"] == 11
+        assert body["verdict"] == "warn"
+
+    def test_get_diagnosis_not_found(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            with patch(
+                "routers.triage.get_diagnosis_view",
+                new_callable=AsyncMock,
+                return_value=None,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.get("/api/v1/triage/diagnoses/999")
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 404
+
+    def test_get_diagnosis_findings(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            with (
+                patch(
+                    "routers.triage.get_diagnosis_view",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "document_id": "doc-2",
+                        "status": "completed",
+                        "verdict": "pass",
+                        "report_id": "report-2",
+                        "created_at": "2026-08-02T00:00:00Z",
+                        "completed_at": "2026-08-02T00:00:30Z",
+                        "summary": {},
+                        "missing_entry_tables": [],
+                        "findings": [],
+                    },
+                ),
+                patch(
+                    "routers.triage.get_diagnosis_findings_view",
+                    new_callable=AsyncMock,
+                    return_value=[
+                        {
+                            "id": 1,
+                            "diagnosis_id": 12,
+                            "rule_id": "table.documents.non_empty",
+                            "severity": "warning",
+                            "table_name": "documents",
+                            "message": "documents low count",
+                            "affected_count": 2,
+                            "sample": {"rows": ["a", "b"]},
+                        }
+                    ],
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.get("/api/v1/triage/diagnoses/12/findings")
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert len(body) == 1
+        assert body[0]["table_name"] == "documents"
+
+    def test_post_diagnosis_requires_document_id(self, app, mock_user):
+        _mock_deps(app, mock_user)
+
+        async def _run():
+            async with httpx.AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as c:
+                return await c.post(
+                    "/api/v1/triage/diagnoses",
+                    json={"document_id": ""},
+                )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 422
+
+    def test_post_delete_document_process_runs_prepare(self, app, mock_user):
+        _mock_deps(app, mock_user)
+        mock_user["permissions"] = ["course:manage"]
+
+        async def _run():
+            with (
+                patch(
+                    "routers.triage.get_diagnosis_view",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "document_id": "doc-2",
+                        "status": "completed",
+                        "verdict": "pass",
+                        "report_id": "report-2",
+                        "created_at": "2026-08-02T00:00:00Z",
+                        "completed_at": "2026-08-02T00:00:30Z",
+                        "summary": {},
+                        "missing_entry_tables": [],
+                        "findings": [],
+                    },
+                ),
+                patch(
+                    "routers.triage.delete_document_process_runs",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "status": "confirmation_required",
+                        "action_id": "a1",
+                        "action_type": "delete_document_process_runs",
+                        "precheck_passed": True,
+                        "preview": {
+                            "requested_ids": [11, 12],
+                            "target_process_ids": [11],
+                            "missing_process_ids": [12],
+                            "affected_row_count": 3,
+                            "affected_file_count": 1,
+                            "integrity_hash": "abc123",
+                        },
+                        "expires_at": None,
+                        "message": "Preparation complete. Submit confirm=true to execute delete.",
+                    },
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.post(
+                        "/api/v1/triage/diagnoses/12/actions/delete-document-process-runs",
+                        json={
+                            "process_ids": [11, 12],
+                            "reason": "cleanup",
+                            "confirm": False,
+                        },
+                    )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "confirmation_required"
+        assert body["action_id"] == "a1"
+
+    def test_post_delete_document_process_runs_execute(self, app, mock_user):
+        _mock_deps(app, mock_user)
+        mock_user["permissions"] = ["course:manage"]
+
+        async def _run():
+            with (
+                patch(
+                    "routers.triage.get_diagnosis_view",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "document_id": "doc-2",
+                        "status": "completed",
+                        "verdict": "pass",
+                        "report_id": "report-2",
+                        "created_at": "2026-08-02T00:00:00Z",
+                        "completed_at": "2026-08-02T00:00:30Z",
+                        "summary": {},
+                        "missing_entry_tables": [],
+                        "findings": [],
+                    },
+                ),
+                patch(
+                    "routers.triage.delete_document_process_runs",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "status": "applied",
+                        "action_id": "a1",
+                        "action_type": "delete_document_process_runs",
+                        "deleted_process_ids": [11],
+                        "missing_process_ids": [12],
+                        "deleted_pipeline_log_count": 2,
+                        "affected_row_count": 3,
+                        "affected_file_count": 1,
+                        "applied_at": None,
+                    },
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.post(
+                        "/api/v1/triage/diagnoses/12/actions/delete-document-process-runs",
+                        json={
+                            "reason": "cleanup",
+                            "confirm": True,
+                            "action_id": "a1",
+                        },
+                    )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "applied"
+        assert body["deleted_process_ids"] == [11]
+
+    def test_cancel_delete_action(self, app, mock_user):
+        _mock_deps(app, mock_user)
+        mock_user["permissions"] = ["course:manage"]
+
+        async def _run():
+            with (
+                patch(
+                    "routers.triage.get_diagnosis_view",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "document_id": "doc-2",
+                        "status": "completed",
+                        "verdict": "pass",
+                        "report_id": "report-2",
+                        "created_at": "2026-08-02T00:00:00Z",
+                        "completed_at": "2026-08-02T00:00:30Z",
+                        "summary": {},
+                        "missing_entry_tables": [],
+                        "findings": [],
+                    },
+                ),
+                patch(
+                    "routers.triage.cancel_delete_action",
+                    new_callable=AsyncMock,
+                    return_value={
+                        "diagnosis_id": 12,
+                        "status": "canceled",
+                        "action_id": "a1",
+                        "action_type": "delete_document_process_runs",
+                        "canceled_at": None,
+                    },
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as c:
+                    return await c.post(
+                        "/api/v1/triage/diagnoses/12/actions/a1/cancel",
+                        json={"reason": "cancel"},
+                    )
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "canceled"

@@ -58,6 +58,8 @@ class NodeType(StrEnum):
     PAGE_HEADER = "page_header"
     PAGE_FOOTER = "page_footer"
     TABLE_OF_CONTENTS = "table_of_contents"
+    TEXT_ITEM = "text_item"
+    FORM_AREA = "form_area"
 
 
 class HeadingLevel(IntEnum):
@@ -269,6 +271,19 @@ class Paragraph(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class TextItem(BaseModel):
+    """A discrete text element, typically a child of a FormAreaBlock.
+
+    Unlike ``Paragraph``, which represents flowing prose, ``TextItem`` models
+    individual text fragments such as word-bank choices, form field labels,
+    or answer options. Each item is a distinct selectable/fillable unit.
+    """
+
+    type: Literal["text_item"] = "text_item"
+    text: StyledText = Field(default_factory=StyledText)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
 class Heading(BaseModel):
     """A heading node with an explicit level."""
 
@@ -301,6 +316,24 @@ class ListBlock(BaseModel):
     type: Literal["list"] = "list"
     style: ListStyle = ListStyle.BULLET
     items: list[ListItem] = Field(default_factory=list)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class FormAreaBlock(BaseModel):
+    """A form area containing interactive or fillable content.
+
+    Represents word banks, answer boxes, option groups, and similar
+    interactive regions. Children are ``TextItem`` nodes attached as
+    ``DocumentNode.children`` of the form area node.
+
+    The ``display_hint`` field provides rendering guidance to the UI:
+    - ``"word_bank"``: horizontal layout of selectable items
+    - ``"answer_box"``: bordered input region
+    - ``None``: default form area rendering
+    """
+
+    type: Literal["form_area"] = "form_area"
+    display_hint: Literal["word_bank", "answer_box"] | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -591,8 +624,10 @@ class TableOfContents(BaseModel):
 
 ContentBlock = Annotated[
     Paragraph
+    | TextItem
     | Heading
     | ListBlock
+    | FormAreaBlock
     | TableBlock
     | Figure
     | Equation

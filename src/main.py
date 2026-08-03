@@ -13,6 +13,7 @@ from routers.courses import router as courses_router
 from routers.documents import router as documents_router
 from routers.learning import router as learning_router
 from routers.mapping import router as mapping_router
+from routers.triage import router as triage_router
 from routers.users import router as users_router
 from routers.v1 import router as v1_router
 from learning_platform.api.app import (
@@ -72,6 +73,7 @@ app.include_router(documents_router)
 app.include_router(learning_router)
 app.include_router(mapping_router)
 app.include_router(v1_router)
+app.include_router(triage_router)
 
 
 @app.on_event("startup")

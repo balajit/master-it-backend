@@ -28,6 +28,7 @@ from database.models import (
     UserQuizProgressModel,
     UserRoleModel,
 )
+from database.models_triage import TriageFindingModel, TriageRunModel
 from database.repositories.courses import (
     create_course,
     delete_course,
@@ -114,6 +115,13 @@ from database.repositories.users import (
     remove_role,
     upsert_user,
 )
+from database.repositories.triage import (
+    complete_diagnosis_run,
+    create_diagnosis_run,
+    get_diagnosis_findings,
+    get_diagnosis_run,
+    insert_diagnosis_findings,
+)
 from database.seed import init_db
 from database.session import create_session, delete_session, get_session
 
@@ -143,6 +151,8 @@ __all__ = [
     "CourseEnrollmentModel",
     "SectionUnlockOverrideModel",
     "UserQuizProgressModel",
+    "TriageRunModel",
+    "TriageFindingModel",
     "init_db",
     "create_session",
     "get_session",
@@ -221,4 +231,9 @@ __all__ = [
     "get_section_lesson_progress",
     "count_section_lessons",
     "unlock_section_items",
+    "create_diagnosis_run",
+    "complete_diagnosis_run",
+    "insert_diagnosis_findings",
+    "get_diagnosis_run",
+    "get_diagnosis_findings",
 ]

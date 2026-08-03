@@ -22,6 +22,13 @@ from learning_platform.infrastructure.persistence.models.knowledge_graph import 
 )
 from learning_platform.infrastructure.persistence.models.learning_unit import LearningUnitRow
 from learning_platform.infrastructure.persistence.models.pipeline_log import PipelineLogRow
+from learning_platform.infrastructure.persistence.models.reviewer_run import (
+    ReviewerPageResultRow,
+    ReviewerRunRow,
+)
+from learning_platform.infrastructure.persistence.models.roll_back_agent_action import (
+    RollBackAgentActionRow,
+)
 from learning_platform.infrastructure.persistence.models.sequence import (
     CheckpointRow,
     LessonRow,
@@ -49,5 +56,8 @@ __all__ = [
     "LessonRow",
     "MilestoneRow",
     "PipelineLogRow",
+    "ReviewerPageResultRow",
+    "ReviewerRunRow",
+    "RollBackAgentActionRow",
     "StudyPlanRow",
 ]

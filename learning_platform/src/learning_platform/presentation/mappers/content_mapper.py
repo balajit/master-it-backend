@@ -22,6 +22,7 @@ from learning_platform.models.document import (
     DocumentNode,
     Equation,
     Figure,
+    FormAreaBlock,
     Heading,
     ListBlock,
     ListStyle,
@@ -29,6 +30,7 @@ from learning_platform.models.document import (
     NoteType,
     Paragraph,
     TableBlock,
+    TextItem,
     TextRun,
 )
 from learning_platform.presentation.models import (
@@ -39,6 +41,7 @@ from learning_platform.presentation.models import (
     DefinitionNode,
     EquationNode,
     FigureNode,
+    FormAreaNode,
     HeadingNode,
     InlineRun,
     ItalicRun,
@@ -51,6 +54,7 @@ from learning_platform.presentation.models import (
     TableCellNode,
     TableNode,
     TableRowNode,
+    TextItemNode,
 )
 
 _LIST_STYLE_MAP: dict[str, str] = {
@@ -124,6 +128,21 @@ def canonical_node_to_content_node(node: DocumentNode) -> ContentNode | None:
 
     if isinstance(c, Paragraph):
         return ParagraphNode(runs=_styled_text_to_runs(c.text))
+
+    if isinstance(c, TextItem):
+        return TextItemNode(runs=_styled_text_to_runs(c.text))
+
+    if isinstance(c, FormAreaBlock):
+        # Collect TextItem children into the form area's items list
+        form_items: list[TextItemNode] = []
+        for child in node.children:
+            child_content = child.content
+            if isinstance(child_content, TextItem):
+                form_items.append(TextItemNode(runs=_styled_text_to_runs(child_content.text)))
+        return FormAreaNode(
+            items=form_items,
+            display_hint=c.display_hint,  # type: ignore[arg-type]
+        )
 
     if isinstance(c, ListBlock):
         items: list[ListItemNode] = [
@@ -219,8 +238,8 @@ def _walk_nodes(nodes: list[DocumentNode], result: list[ContentNode]) -> None:
                     _walk_nodes(node.children, result)
                     continue
             result.append(mapped)
-            # ListNodes already absorbed their paragraph children — don't recurse
-            if isinstance(mapped, ListNode):
+            # ListNodes and FormAreaNodes already absorbed their children — don't recurse
+            if isinstance(mapped, (ListNode, FormAreaNode)):
                 continue
         # Always descend into children regardless of whether the parent mapped
         _walk_nodes(node.children, result)

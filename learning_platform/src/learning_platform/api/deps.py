@@ -24,6 +24,7 @@ from learning_platform.infrastructure.persistence.repositories.learning_unit imp
     LearningUnitRepository,
 )
 from learning_platform.infrastructure.persistence.repositories.sequence import StudyPlanRepository
+from learning_platform.pipeline.base import AbstractParser
 from learning_platform.pipeline.event_bus import SimpleEventBus
 from learning_platform.pipeline.orchestrator import PipelineOrchestrator
 from learning_platform.pipeline.plugins import PluginRegistry
@@ -34,6 +35,7 @@ from learning_platform.stages.enricher.semantic import SemanticEnricher
 from learning_platform.stages.graph_builder.graph import NetworkxGraphBuilder
 from learning_platform.stages.normalizer.structural import StructuralNormalizer
 from learning_platform.stages.parser.docling_adapter import DoclingAdapter
+from learning_platform.stages.parser2 import Parser2Adapter
 from learning_platform.stages.sequence_builder.sequencer import TopologicalSequenceBuilder
 from learning_platform.stages.unit_builder.builder import LearningUnitBuilder
 
@@ -100,10 +102,49 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
 # ── Pipeline ────────────────────────────────────────────────────────────────
 
 
+def _create_parser(settings: Settings) -> AbstractParser:
+    """Create the parser based on the parser_backend setting.
+
+    Returns Parser2Adapter for "parser2" (default), DoclingAdapter for "parser".
+    """
+    backend = settings.parser_backend.strip().lower()
+
+    if backend == "parser2":
+        _LOG.info("Using Parser2Adapter (parser_backend='parser2')")
+        return Parser2Adapter()
+
+    if backend == "parser":
+        _LOG.info("Using DoclingAdapter (parser_backend='parser')")
+        return DoclingAdapter(
+            pdf_ocr_strategy=settings.docling_pdf_ocr_strategy,
+            pdf_classifier_sample_pages=settings.docling_pdf_classifier_sample_pages,
+            pdf_classifier_min_chars_per_page=settings.docling_pdf_classifier_min_chars_per_page,
+            pdf_classifier_digital_ratio=settings.docling_pdf_classifier_digital_ratio,
+            pdf_classifier_scanned_ratio=settings.docling_pdf_classifier_scanned_ratio,
+            pdf_second_pass_enabled=settings.docling_pdf_second_pass_enabled,
+            pdf_second_pass_max_pages=settings.docling_pdf_second_pass_max_pages,
+            pdf_second_pass_low_text_chars=settings.docling_pdf_second_pass_low_text_chars,
+            hybrid_overlap_weight=settings.docling_pdf_hybrid_overlap_weight,
+            hybrid_distance_weight=settings.docling_pdf_hybrid_distance_weight,
+            hybrid_reading_order_weight=settings.docling_pdf_hybrid_reading_order_weight,
+            hybrid_text_similarity_weight=settings.docling_pdf_hybrid_text_similarity_weight,
+            hybrid_strict_match_threshold=settings.docling_pdf_hybrid_strict_match_threshold,
+            hybrid_relaxed_match_threshold=settings.docling_pdf_hybrid_relaxed_match_threshold,
+            hybrid_spatial_fallback_vertical_gap=settings.docling_pdf_hybrid_spatial_fallback_vertical_gap,
+        )
+
+    _LOG.info("Unknown parser_backend '%s'; defaulting to Parser2Adapter", backend)
+    return Parser2Adapter()
+
+
 def get_pipeline_orchestrator() -> PipelineOrchestrator:
     """Return the pipeline orchestrator singleton (built once per process).
 
-    Constructing the orchestrator is expensive: ``DoclingAdapter`` initialises
+    The parser backend is selected based on the ``parser_backend`` setting:
+    - ``"parser2"`` (default): Uses ``Parser2Adapter`` with direct mapping
+    - ``"parser"``: Uses ``DoclingAdapter`` with hybrid merge and synthetics
+
+    Constructing the orchestrator is expensive: the parser initialises
     the Docling document converter, all stage objects are created, and the
     plugin registry is built.  Creating a new instance per request wastes
     time and memory.  The singleton is process-local and therefore safe for
@@ -112,24 +153,9 @@ def get_pipeline_orchestrator() -> PipelineOrchestrator:
     global _orchestrator
     if _orchestrator is None:
         settings = get_settings()
+        parser = _create_parser(settings)
         _orchestrator = PipelineOrchestrator(
-            parser=DoclingAdapter(
-                pdf_ocr_strategy=settings.docling_pdf_ocr_strategy,
-                pdf_classifier_sample_pages=settings.docling_pdf_classifier_sample_pages,
-                pdf_classifier_min_chars_per_page=settings.docling_pdf_classifier_min_chars_per_page,
-                pdf_classifier_digital_ratio=settings.docling_pdf_classifier_digital_ratio,
-                pdf_classifier_scanned_ratio=settings.docling_pdf_classifier_scanned_ratio,
-                pdf_second_pass_enabled=settings.docling_pdf_second_pass_enabled,
-                pdf_second_pass_max_pages=settings.docling_pdf_second_pass_max_pages,
-                pdf_second_pass_low_text_chars=settings.docling_pdf_second_pass_low_text_chars,
-                hybrid_overlap_weight=settings.docling_pdf_hybrid_overlap_weight,
-                hybrid_distance_weight=settings.docling_pdf_hybrid_distance_weight,
-                hybrid_reading_order_weight=settings.docling_pdf_hybrid_reading_order_weight,
-                hybrid_text_similarity_weight=settings.docling_pdf_hybrid_text_similarity_weight,
-                hybrid_strict_match_threshold=settings.docling_pdf_hybrid_strict_match_threshold,
-                hybrid_relaxed_match_threshold=settings.docling_pdf_hybrid_relaxed_match_threshold,
-                hybrid_spatial_fallback_vertical_gap=settings.docling_pdf_hybrid_spatial_fallback_vertical_gap,
-            ),
+            parser=parser,
             normalizer=StructuralNormalizer(),
             enricher=SemanticEnricher(
                 engine=EnrichmentEngine.from_settings(settings),

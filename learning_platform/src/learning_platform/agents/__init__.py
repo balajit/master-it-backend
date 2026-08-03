@@ -11,5 +11,6 @@ Modules:
 
 from learning_platform.agents.curator import CuratorAgent
 from learning_platform.agents.llm import LLMFactory
+from learning_platform.agents.reviewer import ReviewerAgent
 
-__all__ = ["LLMFactory", "CuratorAgent"]
+__all__ = ["LLMFactory", "CuratorAgent", "ReviewerAgent"]

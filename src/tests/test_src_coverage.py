@@ -5,6 +5,7 @@ Covers:
 - src/routers/documents.py  — upload, list, delete, process, tree, units,
                                concepts, study-plan, export
 - src/routers/mapping.py    — get, put, post (regenerate/reset), preview
+- src/routers/triage.py     — create diagnosis, diagnosis lookup, findings lookup
 - src/services/mapping.py   — generate_study_experience, pipeline_result_to_output
 - src/services/learning.py  — TTL-caching wrappers
 
@@ -116,6 +117,17 @@ class TestAppStartup:
                 files={"file": ("f.pdf", b"x", "application/pdf")},
             )
         assert resp.status_code in (401, 403, 422)
+
+    @pytest.mark.asyncio
+    async def test_unauthenticated_triage_run_returns_403(self, app) -> None:
+        async with AsyncClient(
+            transport=ASGITransport(app=app), base_url="http://test"
+        ) as client:
+            resp = await client.post(
+                "/api/v1/triage/diagnoses",
+                json={"document_id": "doc-1"},
+            )
+        assert resp.status_code in (401, 403)
 
 
 # ── src/routers/documents.py ──────────────────────────────────────────────────

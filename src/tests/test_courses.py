@@ -261,6 +261,95 @@ class TestCourseStudyPlan:
         assert lesson["lesson_id"] == 42
         assert len(lesson["pages"]) == 1
 
+    def test_study_plan_uses_course_scoped_plan_lesson_mapping(self, app, mock_user):
+        self._mock_deps(app, mock_user)
+
+        async def _run():
+            with (
+                patch(
+                    "routers.courses.get_course", new_callable=AsyncMock
+                ) as mock_get_course,
+                patch(
+                    "routers.courses.get_documents_by_course", new_callable=AsyncMock
+                ) as mock_get_docs,
+                patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
+                patch(
+                    "routers.courses.get_lessons_by_plan_ids_for_course",
+                    new_callable=AsyncMock,
+                ) as mock_get_by_course,
+                patch(
+                    "routers.courses.get_sections_by_ids", new_callable=AsyncMock
+                ) as mock_sections,
+                patch(
+                    "learning_platform.infrastructure.persistence.repositories.book.BookRepository.find_by_document",
+                    new_callable=AsyncMock,
+                ) as mock_find_book,
+            ):
+                mock_get_course.return_value = {
+                    "id": 9,
+                    "title": "Scoped Course",
+                    "description": "",
+                    "number_of_credits": 3,
+                    "difficulty": "beginner",
+                    "status": "OPEN",
+                    "owner_id": 1,
+                    "created_at": "2026-01-01T00:00:00",
+                    "updated_at": "2026-01-01T00:00:00",
+                }
+                mock_get_docs.return_value = [
+                    {
+                        "id": "doc-scope",
+                        "filename": "scope.pdf",
+                        "storage_path": "/tmp/scope.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 1024,
+                        "created_at": "2026-01-01T00:00:00",
+                    }
+                ]
+                mock_lp_uuid.return_value = UUID("7f3cf7e4-1126-f240-09dc-afb0fd3eafed")
+
+                from learning_platform.models.book import (
+                    BookChapter,
+                    BookLesson,
+                    CanonicalBook,
+                )
+
+                lp_lesson_uuid = UUID("11111111-2222-3333-4444-555555555555")
+                book = CanonicalBook(
+                    document_id=UUID("7f3cf7e4-1126-f240-09dc-afb0fd3eafed"),
+                    chapters=[
+                        BookChapter(
+                            title="Scoped Chapter",
+                            lessons=[
+                                BookLesson(
+                                    title="Scoped Lesson", unit_id=lp_lesson_uuid
+                                )
+                            ],
+                        )
+                    ],
+                )
+                mock_find_book.return_value = book
+
+                mock_get_by_course.return_value = [
+                    {"id": 123, "plan_lesson_id": str(lp_lesson_uuid), "section_id": 77}
+                ]
+                mock_sections.return_value = [{"id": 77, "unit_id": 5}]
+
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    return await client.get(
+                        "/api/courses/9/study-plan"
+                    ), mock_get_by_course
+
+        resp, mock_get_by_course = asyncio.run(_run())
+        assert resp.status_code == 200
+        payload = resp.json()
+        assert payload["chapters"][0]["lessons"][0]["lesson_id"] == 123
+        mock_get_by_course.assert_awaited_once()
+        assert len(mock_get_by_course.await_args_list) == 1
+        assert mock_get_by_course.await_args_list[0].args[0] == 9
+
     def test_study_plan_incomplete_documents_are_skipped(self, app, mock_user):
         self._mock_deps(app, mock_user)
 
@@ -390,3 +479,35 @@ class TestCourseStudyPlan:
         assert body["documents"][1]["chapters"] == []
         assert len(body["chapters"]) == 1
         assert body["chapters"][0]["title"] == "Cell Biology"
+
+    def test_form_area_item_schema_accepts_display_hint(self) -> None:
+        from schemas import FormAreaItem
+
+        item = FormAreaItem(
+            id="item-1",
+            items=["bank", "words"],
+            metadata={"display_hint": "word_bank", "semantic_node_type": "form_area"},
+        )
+
+        payload = item.model_dump(mode="json")
+        assert payload["type"] == "form_area"
+        assert payload["items"] == ["bank", "words"]
+        assert payload["metadata"]["display_hint"] == "word_bank"
+
+    def test_content_item_union_accepts_form_area(self) -> None:
+        from schemas import ContentItem
+        from pydantic import TypeAdapter
+
+        adapter = TypeAdapter(ContentItem)
+        parsed = adapter.validate_python(
+            {
+                "type": "form_area",
+                "id": "item-2",
+                "order": 1,
+                "items": ["A", "B", "C"],
+                "metadata": {"display_hint": "answer_box"},
+            }
+        )
+
+        assert parsed.type == "form_area"
+        assert parsed.items == ["A", "B", "C"]

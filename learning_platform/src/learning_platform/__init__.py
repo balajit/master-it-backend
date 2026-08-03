@@ -7,6 +7,20 @@ details and may change without notice.
 
 from __future__ import annotations
 
+# ── Agentic operations ───────────────────────────────────────────────────────
+from learning_platform.agentic_ops import (
+    AgenticOpsSettings,
+    DatabaseEntriesReportPage,
+    McpReportClient,
+    ReportScope,
+    RuleSet,
+    TriageAgent,
+    TriageFinding,
+    TriageResult,
+    TriageService,
+    build_default_rule_set,
+)
+
 # ── Cache ────────────────────────────────────────────────────────────────────
 from learning_platform.cache import PipelineCache, pipeline_cache
 
@@ -54,6 +68,17 @@ from learning_platform.presentation.models import StudyExperience
 from learning_platform.service import LearningPlatformService, get_service, stable_doc_id
 
 __all__ = [
+    # Agentic operations
+    "AgenticOpsSettings",
+    "DatabaseEntriesReportPage",
+    "McpReportClient",
+    "ReportScope",
+    "RuleSet",
+    "TriageAgent",
+    "TriageFinding",
+    "TriageResult",
+    "TriageService",
+    "build_default_rule_set",
     # Protocols
     "AbstractParser",
     "ConceptExtractor",

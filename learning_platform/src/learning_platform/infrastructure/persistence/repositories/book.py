@@ -23,6 +23,7 @@ from learning_platform.models.book import (
     CodeItem,
     ContentItem,
     EquationItem,
+    FormAreaItem,
     HeadingItem,
     ImageItem,
     ListItem,
@@ -327,6 +328,10 @@ class BookRepository:
             content = {"items": item.items, "ordered": item.ordered}
             bbox = dict(item.bbox) if item.bbox else None
             style = dict(item.style) if item.style else None
+        elif item.type == "form_area":
+            content = {"items": item.items}
+            bbox = dict(item.bbox) if item.bbox else None
+            style = dict(item.style) if item.style else None
         elif item.type == "question":
             content = {
                 "question_type": item.question_type,
@@ -426,6 +431,15 @@ class BookRepository:
                 id=row.id,
                 order=row.order,
                 ordered=c.get("ordered", False),
+                items=c.get("items", []),
+                bbox=b,
+                style=s,
+                metadata=row.metadata_json or {},
+            )
+        if row.item_type == "form_area":
+            return FormAreaItem(
+                id=row.id,
+                order=row.order,
                 items=c.get("items", []),
                 bbox=b,
                 style=s,

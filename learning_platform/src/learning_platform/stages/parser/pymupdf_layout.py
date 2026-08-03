@@ -154,12 +154,18 @@ def _to_bbox(
             page_width=page_width,
             page_height=page_height,
         )
-    left, top, right, bottom = (
+    left_raw, top_raw, right_raw, bottom_raw = (
         float(values[0]),
         float(values[1]),
         float(values[2]),
         float(values[3]),
     )
+
+    left = min(left_raw, right_raw)
+    right = max(left_raw, right_raw)
+    top = min(top_raw, bottom_raw)
+    bottom = max(top_raw, bottom_raw)
+
     return LayoutBBox(
         left=round(left, 4),
         top=round(top, 4),
@@ -185,7 +191,7 @@ class PyMuPDFLayoutExtractor:
 
                 lines: list[LayoutLine] = []
                 line_order = 0
-                raw_data = page.get_text("rawdict")
+                raw_data = page.get_text("rawdict", sort=True)
                 blocks_raw = raw_data.get("blocks") if isinstance(raw_data, dict) else []
                 blocks = blocks_raw if isinstance(blocks_raw, list) else []
 
@@ -222,6 +228,7 @@ class PyMuPDFLayoutExtractor:
                             )
 
                             flags = _safe_int(span_dict.get("flags", 0), 0)
+                            char_flags = _safe_int(span_dict.get("char_flags", 0), 0)
                             font_name = str(span_dict.get("font") or "")
                             font_size = round(float(span_dict.get("size", 0.0) or 0.0), 4)
                             color_raw = span_dict.get("color")
@@ -259,7 +266,7 @@ class PyMuPDFLayoutExtractor:
                                         color=font_color,
                                         is_bold=bool(flags & (2**4)),
                                         is_italic=bool(flags & (2**1)),
-                                        is_underline=bool(flags & (2**0)),
+                                        is_underline=bool(char_flags & (2**1)),
                                         is_monospace=bool(flags & (2**3)),
                                     ),
                                 )
@@ -268,7 +275,8 @@ class PyMuPDFLayoutExtractor:
                         if not line_spans:
                             continue
 
-                        line_text = "".join(span.text for span in line_spans).strip()
+                        line_text = "".join(span.text for span in line_spans)
+                        line_text = " ".join(line_text.split())
                         if not line_text:
                             continue
 

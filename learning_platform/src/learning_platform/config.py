@@ -32,7 +32,10 @@ class Settings(BaseSettings):
     # --- File paths ---
     upload_path: str = "uploads"
 
-    # --- Docling parser ---
+    # --- Parser backend ---
+    parser_backend: str = "parser2"  # "parser" (DoclingAdapter) or "parser2" (Parser2Adapter)
+
+    # --- Docling parser (used when parser_backend="parser") ---
     docling_pdf_ocr_strategy: str = "auto"
     docling_pdf_classifier_sample_pages: int = 5
     docling_pdf_classifier_min_chars_per_page: int = 80
