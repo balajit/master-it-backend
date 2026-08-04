@@ -33,26 +33,7 @@ class Settings(BaseSettings):
     upload_path: str = "uploads"
 
     # --- Parser backend ---
-    parser_backend: str = "parser2"  # "parser" (DoclingAdapter) or "parser2" (Parser2Adapter)
-
-    # --- Docling parser (used when parser_backend="parser") ---
-    docling_pdf_ocr_strategy: str = "auto"
-    docling_pdf_classifier_sample_pages: int = 5
-    docling_pdf_classifier_min_chars_per_page: int = 80
-    docling_pdf_classifier_digital_ratio: float = 0.80
-    docling_pdf_classifier_scanned_ratio: float = 0.20
-    docling_pdf_second_pass_enabled: bool = True
-    docling_pdf_second_pass_max_pages: int = 12
-    docling_pdf_second_pass_low_text_chars: int = 120
-
-    # --- Hybrid PDF merge tuning (PyMuPDF layout + Docling semantics) ---
-    docling_pdf_hybrid_overlap_weight: float = 0.50
-    docling_pdf_hybrid_distance_weight: float = 0.20
-    docling_pdf_hybrid_reading_order_weight: float = 0.15
-    docling_pdf_hybrid_text_similarity_weight: float = 0.15
-    docling_pdf_hybrid_strict_match_threshold: float = 0.55
-    docling_pdf_hybrid_relaxed_match_threshold: float = 0.35
-    docling_pdf_hybrid_spatial_fallback_vertical_gap: float = 90.0
+    parser_backend: str = "parser2"
 
     # --- LLM ---
     llm_provider: str = "ollama"  # ollama | openai | anthropic

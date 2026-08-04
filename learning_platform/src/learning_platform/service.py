@@ -297,13 +297,20 @@ class LearningPlatformService:
                 BookProcessRepository,
             )
 
-            book_proc_repo = BookProcessRepository(session)
-            existing = await book_proc_repo.find_by_document_id(str(doc_id_uuid))
-            if existing is not None:
-                await book_proc_repo.reset_entry(existing)
-            else:
-                await book_proc_repo.create_entry(str(doc_id_uuid))
-            await session.commit()
+            try:
+                book_proc_repo = BookProcessRepository(session)
+                existing = await book_proc_repo.find_by_document_id(str(doc_id_uuid))
+                if existing is not None:
+                    await book_proc_repo.reset_entry(existing)
+                else:
+                    await book_proc_repo.create_entry(str(doc_id_uuid))
+                await session.commit()
+            except Exception as exc:
+                _LOG.warning(
+                    "Failed to enqueue book assembly entry for doc_id=%s: %s",
+                    doc_id_uuid,
+                    exc,
+                )
         else:
             pipeline_cache.set(str(doc_id_uuid), result)
             _LOG.info("Pipeline result cached for doc_id=%s (file=%s)", doc_id_uuid, file_path)

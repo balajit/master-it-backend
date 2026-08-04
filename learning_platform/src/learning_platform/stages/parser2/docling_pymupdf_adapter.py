@@ -6,8 +6,7 @@ This adapter uses the ``DoclingPyMuPDFMerger`` pattern to parse documents:
 3. Direct-map Docling items to canonical DocumentNode types (no synthetics)
 4. Build tree from parent-child relationships
 
-The adapter implements the ``AbstractParser`` protocol and can be used
-interchangeably with ``DoclingAdapter``.
+The adapter implements the ``AbstractParser`` protocol.
 """
 
 from __future__ import annotations
@@ -66,8 +65,7 @@ class Parser2Adapter:
     - No synthetic inference (no question promotion, no TOC generation)
     - PyMuPDF enrichment for PDFs (fonts, vector lines)
 
-    The adapter is interchangeable with ``DoclingAdapter`` via the
-    ``AbstractParser`` protocol.
+    The adapter satisfies the ``AbstractParser`` protocol.
     """
 
     def parse(self, source: str) -> CanonicalDocument:

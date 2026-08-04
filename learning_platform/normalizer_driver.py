@@ -1,8 +1,8 @@
 import logging
 
-from docling_driver import process
 from learning_platform.models.document import CanonicalDocument
 from learning_platform.stages.normalizer import StructuralNormalizer
+from learning_platform.stages.parser2 import Parser2Adapter
 
 logging.basicConfig(level=logging.INFO, force=True)
 
@@ -15,8 +15,10 @@ logger.warning("TEST WARNING")
 
 
 def normalize() -> CanonicalDocument:
+    parser = Parser2Adapter()
+    document = parser.parse("/Users/rajani/workspace/apps/master-it-backend/test_pdfs/small.pdf")
     normalizer = StructuralNormalizer()
-    return normalizer.normalize(process())
+    return normalizer.normalize(document)
 
 
 if __name__ == "__main__":

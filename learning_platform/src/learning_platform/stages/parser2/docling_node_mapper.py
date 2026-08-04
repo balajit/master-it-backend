@@ -25,8 +25,8 @@ Mapping Table
 
 from __future__ import annotations
 
-import math
 import logging
+import math
 from dataclasses import dataclass
 from uuid import UUID, uuid4
 
