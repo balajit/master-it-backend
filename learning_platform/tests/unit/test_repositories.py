@@ -601,10 +601,31 @@ class TestStudyPlanRepository:
         loaded = await repo.find_by_document(doc_id)
 
         assert loaded is not None
+        assert loaded.id == plan.id
         assert loaded.title == "Plan"
         assert len(loaded.lessons) == 1
         assert len(loaded.milestones) == 1
         assert len(loaded.checkpoints) == 1
+
+    async def test_save_plan_uses_plan_id_not_zero_fallback(self, session: AsyncSession) -> None:
+        first_doc_id = _make_doc_id()
+        second_doc_id = _make_doc_id()
+        repo = StudyPlanRepository(session)
+
+        first_plan = StudyPlan(title="First")
+        second_plan = StudyPlan(title="Second")
+
+        await repo.save_plan(first_plan, first_doc_id)
+        await repo.save_plan(second_plan, second_doc_id)
+
+        loaded_first = await repo.find_by_document(first_doc_id)
+        loaded_second = await repo.find_by_document(second_doc_id)
+
+        assert loaded_first is not None
+        assert loaded_second is not None
+        assert loaded_first.id == first_plan.id
+        assert loaded_second.id == second_plan.id
+        assert loaded_first.id != loaded_second.id
 
     async def test_delete_by_document(self, session: AsyncSession) -> None:
         doc_id = _make_doc_id()

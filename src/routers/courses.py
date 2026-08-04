@@ -19,6 +19,7 @@ from database import (
     list_courses,
 )
 from database.repositories.learning import (
+    get_lessons_by_titles_for_course,
     get_lessons_by_plan_ids_for_course,
     get_sections_by_ids,
 )
@@ -185,6 +186,9 @@ async def _fetch_book_chapters(
     from learning_platform.infrastructure.persistence.repositories.book import (
         BookRepository,
     )
+    from learning_platform.infrastructure.persistence.repositories.learning_unit import (
+        LearningUnitRepository,
+    )
     from learning_platform.infrastructure.persistence.session import (
         create_session_factory,
     )
@@ -199,28 +203,70 @@ async def _fetch_book_chapters(
         async with factory() as session:
             repo = BookRepository(session)
             book = await repo.find_by_document(doc_uuid)
+            unit_repo = LearningUnitRepository(session)
+            learning_units = await unit_repo.find_by_document(doc_uuid)
 
         if book is None:
             return []
 
+        unit_title_by_id: dict[UUID, str] = {
+            unit.id: unit.title.strip()
+            for unit in learning_units
+            if unit.title and unit.title.strip()
+        }
+
         plan_lesson_ids: list[str] = []
+        lesson_titles: set[str] = set()
         for bc in book.chapters:
             for bl in bc.lessons:
                 if bl.unit_id is not None:
                     plan_lesson_ids.append(str(bl.unit_id))
+                    unit_title = unit_title_by_id.get(bl.unit_id, "").strip()
+                    if unit_title:
+                        lesson_titles.add(unit_title)
+                lesson_title = bl.title.strip()
+                if lesson_title:
+                    lesson_titles.add(lesson_title)
 
-        lesson_rows = await get_lessons_by_plan_ids_for_course(
+        lesson_rows_by_plan_id = await get_lessons_by_plan_ids_for_course(
             course_id, plan_lesson_ids
         )
-        plan_to_lesson: dict[str, dict] = {
-            r["plan_lesson_id"]: r for r in lesson_rows if r.get("plan_lesson_id")
+        lesson_rows_by_title = await get_lessons_by_titles_for_course(
+            course_id,
+            list(lesson_titles),
+        )
+        plan_to_lesson: dict[str, dict[str, Any]] = {
+            str(row["plan_lesson_id"]): row
+            for row in lesson_rows_by_plan_id
+            if row.get("plan_lesson_id")
         }
 
+        title_to_lessons: dict[str, list[dict[str, Any]]] = {}
+        for row in lesson_rows_by_title:
+            raw_title = row.get("title")
+            if raw_title is None:
+                continue
+            title = str(raw_title).strip()
+            if not title:
+                continue
+            title_to_lessons.setdefault(title.lower(), []).append(row)
+
+        for rows in title_to_lessons.values():
+            rows.sort(
+                key=lambda value: (value.get("display_order", 0), value.get("id", 0))
+            )
+
         section_ids_seen: list[int] = list(
-            {r["section_id"] for r in lesson_rows if r.get("section_id")}
+            {
+                int(row["section_id"])
+                for row in [*lesson_rows_by_plan_id, *lesson_rows_by_title]
+                if isinstance(row.get("section_id"), int)
+            }
         )
+
         section_rows = await get_sections_by_ids(section_ids_seen)
         section_to_unit: dict[int, int] = {s["id"]: s["unit_id"] for s in section_rows}
+        assigned_lesson_ids: set[int] = set()
 
         chapters: list[Chapter] = []
         for bc in book.chapters:
@@ -244,11 +290,41 @@ async def _fetch_book_chapters(
                 lesson_unit_id: int | None = None
                 if bl.unit_id is not None:
                     lesson_row = plan_to_lesson.get(str(bl.unit_id))
-                    if lesson_row:
-                        lesson_id = lesson_row["id"]
-                        lesson_unit_id = section_to_unit.get(lesson_row["section_id"])
-                        if chapter_unit_id is None:
-                            chapter_unit_id = lesson_unit_id
+                else:
+                    lesson_row = None
+
+                if lesson_row is None:
+                    fallback_titles: list[str] = []
+                    lesson_title = bl.title.strip()
+                    if lesson_title:
+                        fallback_titles.append(lesson_title)
+                    if bl.unit_id is not None:
+                        unit_title = unit_title_by_id.get(bl.unit_id, "").strip()
+                        if unit_title and unit_title not in fallback_titles:
+                            fallback_titles.append(unit_title)
+
+                    for fallback_title in fallback_titles:
+                        candidates = title_to_lessons.get(fallback_title.lower(), [])
+                        available = [
+                            row
+                            for row in candidates
+                            if isinstance(row.get("id"), int)
+                            and row["id"] not in assigned_lesson_ids
+                        ]
+                        if available:
+                            lesson_row = available[0]
+                            break
+
+                if lesson_row and isinstance(lesson_row.get("id"), int):
+                    raw_lesson_id = lesson_row.get("id")
+                    raw_section_id = lesson_row.get("section_id")
+                    if isinstance(raw_lesson_id, int):
+                        lesson_id = raw_lesson_id
+                        assigned_lesson_ids.add(lesson_id)
+                    if isinstance(raw_section_id, int):
+                        lesson_unit_id = section_to_unit.get(raw_section_id)
+                    if chapter_unit_id is None:
+                        chapter_unit_id = lesson_unit_id
 
                 lessons.append(
                     Lesson(

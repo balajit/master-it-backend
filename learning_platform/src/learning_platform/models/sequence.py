@@ -205,6 +205,7 @@ class StudyPlan(BaseModel):
         Open key-value store.
     """
 
+    id: UUID = Field(default_factory=uuid4)
     title: str = ""
     description: str = ""
     lessons: list[Lesson] = Field(default_factory=list)

@@ -37,11 +37,7 @@ class StudyPlanRepository(BaseRepository[StudyPlanRow]):
 
     async def save_plan(self, plan: StudyPlan, document_id: UUID) -> None:
         """Persist a full study plan with all child entities."""
-        plan_id = UUID(int=0)
-        if plan.milestones:
-            plan_id = plan.milestones[0].id
-        elif plan.lessons:
-            plan_id = plan.lessons[0].id
+        plan_id = plan.id
 
         plan_row = StudyPlanRow(
             id=plan_id,
@@ -86,6 +82,7 @@ class StudyPlanRepository(BaseRepository[StudyPlanRow]):
         checkpoints = await self._checkpoint_repo.find_by_plan(plan_row.id)
 
         return StudyPlan(
+            id=plan_row.id,
             title=plan_row.title,
             description=plan_row.description,
             lessons=lessons,

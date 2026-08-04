@@ -15,10 +15,11 @@ Usage
 
 from learning_platform.stages.parser2.docling_node_mapper import (
     build_document_tree,
-    map_correlated_item,
 )
 from learning_platform.stages.parser2.docling_pymupdf_adapter import Parser2Adapter
 from learning_platform.stages.parser2.docling_pymupdf_merger import (
+    BridgeDocument,
+    BridgeNode,
     CorrelatedItem,
     DoclingPyMuPDFMerger,
     compute_bbox_overlap_ratio,
@@ -26,9 +27,10 @@ from learning_platform.stages.parser2.docling_pymupdf_merger import (
 
 __all__ = [
     "Parser2Adapter",
+    "BridgeNode",
+    "BridgeDocument",
     "DoclingPyMuPDFMerger",
     "CorrelatedItem",
     "compute_bbox_overlap_ratio",
-    "map_correlated_item",
     "build_document_tree",
 ]

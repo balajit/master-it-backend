@@ -1,175 +1,520 @@
-"""Docling + PyMuPDF merger — correlates Docling structure with PyMuPDF typography.
+"""Docling + PyMuPDF bridge merger for parser2.
 
-This module provides the correlation engine that enriches Docling's semantic
-structure with PyMuPDF's low-level font metrics and vector graphics data.
-
-The ``DoclingPyMuPDFMerger`` class runs both parsers and spatially correlates
-their outputs using bounding box overlap. The result is a list of
-``CorrelatedItem`` objects that carry both semantic structure (from Docling)
-and visual styling (from PyMuPDF).
+This module builds a bridge tree from Docling items and enriches it with
+PyMuPDF style/span data. The bridge tree is then mapped to canonical
+``DocumentNode`` objects by ``docling_node_mapper``.
 """
 
 from __future__ import annotations
 
 import logging
-from collections.abc import Sequence
+import re
+from dataclasses import dataclass, field
 from typing import Any
+from uuid import uuid4
 
 _LOG = logging.getLogger(__name__)
 
 
+@dataclass
+class BridgeNode:
+    """Internal bridge node used before canonical mapping."""
+
+    id: str = field(default_factory=lambda: str(uuid4()))
+    docling_item: Any | None = None
+    self_ref: str | None = None
+    parent_cref: str | None = None
+    level: int = 0
+    label: str = ""
+    name: str = ""
+    text: str = ""
+    page_no: int = 0
+    norm_top: float = float("inf")
+    norm_left: float = float("inf")
+    norm_bottom: float = 0.0
+    norm_right: float = 0.0
+    parent_id: str | None = None
+    children: list[BridgeNode] = field(default_factory=list)
+    is_synthetic: bool = False
+    font_name: str | None = None
+    font_size: float | None = None
+    color_hex: str | None = None
+    is_bold: bool = False
+    is_italic: bool = False
+    fitz_text: str | None = None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class BridgeDocument:
+    """Bridge output returned by the merger."""
+
+    root: BridgeNode
+    source: str
+    title: str
+    page_count: int
+
+
+@dataclass
 class CorrelatedItem:
-    """Wraps a Docling item with PyMuPDF-derived typography and vector-line data.
+    """Legacy compatibility shim.
 
-    Attributes
-    ----------
-    docling_item : Any
-        The raw Docling item object.
-    level : int
-        Hierarchy depth from Docling's iterate_items.
-    self_ref : str | None
-        Docling's self-reference identifier.
-    label : str
-        Docling's semantic label (e.g., "paragraph", "section_header").
-    text : str
-        Extracted text content.
-    parent_cref : str | None
-        Parent's correlation reference for tree building.
-    page_no : int
-        1-indexed page number from provenance.
-    bbox : list[float] | None
-        Bounding box [l, t, r, b] from Docling provenance.
-    fonts : list[dict]
-        All PyMuPDF spans that overlap this item.
-    primary_font_name : str | None
-        Dominant font name from first matching span.
-    primary_font_size : float | None
-        Dominant font size in points.
-    primary_color_hex : str | None
-        Dominant color as hex string (e.g., "#000000").
-    is_bold : bool
-        True if any matching span is bold.
-    is_italic : bool
-        True if any matching span is italic.
-    vector_lines : list[dict]
-        Horizontal vector lines sitting directly below this item.
+    Parser2 now operates on ``BridgeNode``/``BridgeDocument``. This class is
+    retained only so imports continue to resolve.
     """
 
-    def __init__(self, docling_item: Any, level: int) -> None:
-        self.docling_item: Any = docling_item
-        self.level: int = level
-        self.self_ref: str | None = getattr(docling_item, "self_ref", None) or None
-        self.label: str = self._extract_label(docling_item)
-        self.text: str = (getattr(docling_item, "text", "") or "").strip()
-
-        # Parent reference for tree building
-        _parent = getattr(docling_item, "parent", None)
-        self.parent_cref: str | None = (
-            getattr(_parent, "cref", None) if _parent is not None else None
-        )
-
-        # Page and bbox from provenance
-        self.page_no: int = 0
-        self.bbox: list[float] | None = None
-        prov_list = getattr(docling_item, "prov", None)
-        if prov_list:
-            prov = prov_list[0]
-            self.page_no = int(getattr(prov, "page_no", 0) or 0)
-            raw_bbox = getattr(prov, "bbox", None)
-            if raw_bbox is not None:
-                self.bbox = [
-                    float(getattr(raw_bbox, "l", 0.0)),
-                    float(getattr(raw_bbox, "t", 0.0)),
-                    float(getattr(raw_bbox, "r", 0.0)),
-                    float(getattr(raw_bbox, "b", 0.0)),
-                ]
-
-        # PyMuPDF correlated typography (populated by merger)
-        self.fonts: list[dict[str, Any]] = []
-        self.primary_font_name: str | None = None
-        self.primary_font_size: float | None = None
-        self.primary_color_hex: str | None = None
-        self.is_bold: bool = False
-        self.is_italic: bool = False
-
-        # Vector answer-blank lines sitting directly below this item
-        self.vector_lines: list[dict[str, Any]] = []
-
-    @staticmethod
-    def _extract_label(docling_item: Any) -> str:
-        """Extract label value as string from Docling item."""
-        label = getattr(docling_item, "label", None)
-        if label is None:
-            return type(docling_item).__name__
-        return getattr(label, "value", str(label))
-
-    def __repr__(self) -> str:
-        font_part = (
-            f" | Font: {self.primary_font_name}, {self.primary_font_size}pt"
-            if self.primary_font_name
-            else ""
-        )
-        lines_part = f" | Lines: {len(self.vector_lines)}" if self.vector_lines else ""
-        preview = self.text[:35]
-        return f"<CorrelatedItem [{self.label}] '{preview}...'{font_part}{lines_part}>"
+    docling_item: Any
+    level: int = 0
 
 
-def compute_bbox_overlap_ratio(box1: Sequence[float], box2: Any) -> float:
-    """Return the fraction of *box1* area covered by *box2*.
+@dataclass(frozen=True)
+class CachedLine:
+    """PyMuPDF text line with dominant style metadata."""
 
-    Parameters
-    ----------
-    box1 : Sequence[float]
-        Bounding box [l, t, r, b] in Docling coordinate space.
-    box2 : fitz.Rect
-        PyMuPDF Rect in the same coordinate space.
+    block_index: int
+    line_index: int
+    bbox: tuple[float, float, float, float]
+    text: str
+    font_name: str | None
+    font_size: float | None
+    color_hex: str | None
+    is_bold: bool
+    is_italic: bool
 
-    Returns
-    -------
-    float
-        Overlap ratio in [0.0, 1.0]. Returns 0.0 on any error.
-    """
-    try:
+
+class PageStyleCache:
+    """Pre-index PyMuPDF spans for fast spatial/text style lookup."""
+
+    def __init__(self, page: Any) -> None:
+        self.page_no = int(page.number) + 1
+        self.page_w = float(page.rect.width)
+        self.page_h = float(page.rect.height)
+        self.spans: list[tuple[Any, dict[str, Any]]] = []
+        self.lines: list[CachedLine] = []
+        self._build_index(page)
+
+    def _build_index(self, page: Any) -> None:
         import fitz  # noqa: PLC0415
 
-        rect1 = fitz.Rect(box1[0], box1[1], box1[2], box1[3])
-        rect1_area = rect1.get_area()
-        if rect1_area == 0:
-            return 0.0
-        # intersect() modifies rect1 in place, so get area first
-        intersection = rect1.intersect(box2)
-        if intersection.is_empty:
-            return 0.0
-        return float(intersection.get_area() / rect1_area)
-    except Exception:
-        return 0.0
+        page_dict = page.get_text("dict")
+        for block_index, block in enumerate(page_dict.get("blocks", [])):
+            if "lines" not in block:
+                continue
+            for line_index, line in enumerate(block["lines"]):
+                line_spans: list[dict[str, Any]] = []
+                line_text_parts: list[str] = []
+
+                for span in line.get("spans", []):
+                    raw_text = str(span.get("text", ""))
+                    if raw_text:
+                        line_text_parts.append(raw_text)
+
+                    stripped_text = raw_text.strip()
+                    if not stripped_text:
+                        continue
+
+                    bbox = fitz.Rect(span["bbox"])
+                    self.spans.append((bbox, span))
+                    line_spans.append(span)
+
+                line_text = "".join(line_text_parts).strip()
+                if not line_text or "bbox" not in line:
+                    continue
+
+                style_span = self._pick_style_span(line_spans)
+                (
+                    font_name,
+                    font_size,
+                    color_hex,
+                    is_bold,
+                    is_italic,
+                ) = self._style_from_span(style_span)
+
+                line_bbox = fitz.Rect(line["bbox"])
+                self.lines.append(
+                    CachedLine(
+                        block_index=block_index,
+                        line_index=line_index,
+                        bbox=(line_bbox.x0, line_bbox.y0, line_bbox.x1, line_bbox.y1),
+                        text=line_text,
+                        font_name=font_name,
+                        font_size=font_size,
+                        color_hex=color_hex,
+                        is_bold=is_bold,
+                        is_italic=is_italic,
+                    )
+                )
+
+        self.spans.sort(key=lambda item: (item[0].y0, item[0].x0))
+        self.lines.sort(
+            key=lambda line: (line.bbox[1], line.bbox[0], line.block_index, line.line_index)
+        )
+
+    @staticmethod
+    def _pick_style_span(spans: list[dict[str, Any]]) -> dict[str, Any] | None:
+        if not spans:
+            return None
+        return max(spans, key=lambda span: len(str(span.get("text", "")).strip()))
+
+    @staticmethod
+    def _style_from_span(
+        span: dict[str, Any] | None,
+    ) -> tuple[str | None, float | None, str | None, bool, bool]:
+        if span is None:
+            return (None, None, None, False, False)
+
+        font_name = str(span.get("font", "") or "").strip() or None
+        flags = int(span.get("flags", 0) or 0)
+        color_int = int(span.get("color", 0) or 0)
+
+        font_size_raw = span.get("size", None)
+        font_size = None
+        if font_size_raw is not None:
+            font_size = round(float(font_size_raw), 2)
+
+        color_hex = f"#{color_int:06x}"
+        lowered_font = (font_name or "").lower()
+        is_italic = bool(flags & 2) or ("italic" in lowered_font) or ("oblique" in lowered_font)
+        is_bold = bool(flags & 16) or ("bold" in lowered_font)
+
+        return (font_name, font_size, color_hex, is_bold, is_italic)
+
+    @staticmethod
+    def _normalize_text(value: str) -> str:
+        return re.sub(r"\s+", " ", value).strip().lower()
+
+    @staticmethod
+    def _intersects(
+        source: tuple[float, float, float, float],
+        target: tuple[float, float, float, float],
+        *,
+        padding: float = 0.0,
+    ) -> bool:
+        sx0, sy0, sx1, sy1 = source
+        tx0, ty0, tx1, ty1 = target
+
+        tx0 -= padding
+        ty0 -= padding
+        tx1 += padding
+        ty1 += padding
+
+        return not (sx1 < tx0 or tx1 < sx0 or sy1 < ty0 or ty1 < sy0)
+
+    @staticmethod
+    def _is_monospace(font_name: str | None) -> bool:
+        lowered = (font_name or "").lower()
+        return "courier" in lowered or "mono" in lowered
+
+    def _should_split_line_group(self, lines: list[CachedLine]) -> bool:
+        if len(lines) <= 1:
+            return False
+
+        if all(self._is_monospace(line.font_name) for line in lines):
+            return True
+
+        signatures = [
+            (
+                line.font_name or "",
+                round(line.font_size or 0.0, 2),
+                line.is_bold,
+                line.is_italic,
+            )
+            for line in lines
+        ]
+        transitions = sum(
+            1
+            for previous, current in zip(signatures, signatures[1:], strict=False)
+            if previous != current
+        )
+        return transitions >= max(1, len(lines) - 1)
+
+    def _segment_from_lines(self, lines: list[CachedLine]) -> dict[str, Any]:
+        text_parts = [line.text.strip() for line in lines if line.text.strip()]
+        segment_text = " ".join(text_parts).strip()
+        if not segment_text:
+            segment_text = lines[0].text.strip()
+
+        left = min(line.bbox[0] for line in lines)
+        top = min(line.bbox[1] for line in lines)
+        right = max(line.bbox[2] for line in lines)
+        bottom = max(line.bbox[3] for line in lines)
+
+        style_line = max(lines, key=lambda line: len(line.text.strip()))
+
+        return {
+            "text": segment_text,
+            "norm_left": (left / self.page_w) if self.page_w > 0.0 else 0.0,
+            "norm_top": (top / self.page_h) if self.page_h > 0.0 else 0.0,
+            "norm_right": (right / self.page_w) if self.page_w > 0.0 else 0.0,
+            "norm_bottom": (bottom / self.page_h) if self.page_h > 0.0 else 0.0,
+            "font_name": style_line.font_name,
+            "font_size": style_line.font_size,
+            "color_hex": style_line.color_hex,
+            "is_bold": style_line.is_bold,
+            "is_italic": style_line.is_italic,
+            "fitz_text": segment_text,
+        }
+
+    def query_text_segments(
+        self,
+        *,
+        norm_left: float,
+        norm_top: float,
+        norm_right: float,
+        norm_bottom: float,
+        node_text: str,
+    ) -> list[dict[str, Any]]:
+        """Split merged text nodes into line/block-based segments when reliable."""
+        if len(self.lines) < 2:
+            return []
+
+        normalized_node_text = self._normalize_text(node_text)
+        if not normalized_node_text:
+            return []
+
+        if norm_right <= norm_left:
+            norm_right = norm_left + 0.05
+        if norm_bottom <= norm_top:
+            norm_bottom = norm_top + 0.02
+
+        target_bbox = (
+            norm_left * self.page_w,
+            norm_top * self.page_h,
+            norm_right * self.page_w,
+            norm_bottom * self.page_h,
+        )
+
+        candidate_lines = [
+            line for line in self.lines if self._intersects(line.bbox, target_bbox, padding=3.0)
+        ]
+        if len(candidate_lines) < 2:
+            return []
+
+        matched_lines: list[CachedLine] = []
+        cursor = 0
+
+        for line in candidate_lines:
+            normalized_line = self._normalize_text(line.text)
+            if not normalized_line:
+                continue
+
+            position = normalized_node_text.find(normalized_line, cursor)
+            if position < 0:
+                position = normalized_node_text.find(normalized_line)
+                if position < 0:
+                    continue
+
+            cursor = position + len(normalized_line)
+            matched_lines.append(line)
+
+        if len(matched_lines) < 2:
+            return []
+
+        grouped_by_block: list[list[CachedLine]] = []
+        for line in matched_lines:
+            if not grouped_by_block or grouped_by_block[-1][-1].block_index != line.block_index:
+                grouped_by_block.append([line])
+            else:
+                grouped_by_block[-1].append(line)
+
+        grouped_segments: list[list[CachedLine]] = []
+        for group in grouped_by_block:
+            if self._should_split_line_group(group):
+                grouped_segments.extend([[line] for line in group])
+            else:
+                grouped_segments.append(group)
+
+        if len(grouped_segments) < 2:
+            return []
+
+        return [self._segment_from_lines(group) for group in grouped_segments]
+
+    def query_style(
+        self,
+        *,
+        norm_left: float,
+        norm_top: float,
+        norm_right: float,
+        norm_bottom: float,
+        node_text: str,
+    ) -> dict[str, Any]:
+        """Query style by spatial overlap with text fallback."""
+        import fitz  # noqa: PLC0415
+
+        style_info: dict[str, Any] = {
+            "font_name": None,
+            "font_size": None,
+            "color_hex": None,
+            "is_bold": False,
+            "is_italic": False,
+            "fitz_text": None,
+        }
+
+        clean_node_text = node_text.strip().lower()
+        best_span: dict[str, Any] | None = None
+
+        if norm_top != float("inf") and norm_left != float("inf"):
+            if norm_right <= norm_left:
+                norm_right = norm_left + 0.05
+            if norm_bottom <= norm_top:
+                norm_bottom = norm_top + 0.02
+
+            target_rect = fitz.Rect(
+                norm_left * self.page_w,
+                norm_top * self.page_h,
+                norm_right * self.page_w,
+                norm_bottom * self.page_h,
+            )
+            search_rect = target_rect + (-3, -3, 3, 3)
+            max_overlap_area = 0.0
+
+            for span_rect, span in self.spans:
+                intersection = search_rect & span_rect
+                if intersection.is_empty:
+                    continue
+
+                overlap_area = float(intersection.width * intersection.height)
+                span_text = str(span.get("text", "")).strip().lower()
+                if clean_node_text and (
+                    span_text in clean_node_text or clean_node_text in span_text
+                ):
+                    best_span = span
+                    break
+                if overlap_area > max_overlap_area:
+                    max_overlap_area = overlap_area
+                    best_span = span
+
+        if best_span is None and clean_node_text:
+            for _, span in self.spans:
+                span_text = str(span.get("text", "")).strip().lower()
+                if span_text and (
+                    span_text == clean_node_text
+                    or span_text in clean_node_text
+                    or clean_node_text in span_text
+                ):
+                    best_span = span
+                    break
+
+        if best_span is None:
+            return style_info
+
+        font_name = str(best_span.get("font", ""))
+        color_int = int(best_span.get("color", 0))
+        flags = int(best_span.get("flags", 0))
+
+        style_info["font_name"] = font_name
+        style_info["font_size"] = round(float(best_span.get("size", 0.0)), 2)
+        style_info["fitz_text"] = str(best_span.get("text", "")).strip()
+        style_info["color_hex"] = f"#{color_int:06x}"
+        style_info["is_italic"] = bool(flags & 2) or ("italic" in font_name.lower())
+        style_info["is_bold"] = bool(flags & 16) or ("bold" in font_name.lower())
+        return style_info
+
+
+def _extract_label(docling_item: Any) -> str:
+    label = getattr(docling_item, "label", None)
+    if label is None:
+        return type(docling_item).__name__
+    return str(getattr(label, "value", str(label)))
+
+
+def _extract_parent_cref(docling_item: Any) -> str | None:
+    parent = getattr(docling_item, "parent", None)
+    if parent is None:
+        return None
+    cref = getattr(parent, "cref", None)
+    if isinstance(cref, str) and cref.strip():
+        return cref.strip()
+    as_text = str(parent).strip()
+    return as_text or None
+
+
+def _extract_self_ref(docling_item: Any) -> str | None:
+    self_ref = getattr(docling_item, "self_ref", None)
+    if isinstance(self_ref, str) and self_ref.strip():
+        return self_ref.strip()
+    return None
+
+
+def _normalize_docling_bbox(
+    prov: Any,
+    page_height: float,
+    page_width: float,
+) -> tuple[float, float, float, float]:
+    """Convert Docling bbox to normalized top-left coordinates."""
+    bbox = prov.bbox
+    left_raw = float(getattr(bbox, "l", 0.0))
+    top_raw = float(getattr(bbox, "t", 0.0))
+    right_raw = float(getattr(bbox, "r", 0.0))
+    bottom_raw = float(getattr(bbox, "b", 0.0))
+    coord_origin = str(getattr(bbox, "coord_origin", "TOP_LEFT")).upper()
+
+    left_val = min(left_raw, right_raw)
+    right_val = max(left_raw, right_raw)
+    top_val = min(top_raw, bottom_raw)
+    bottom_val = max(top_raw, bottom_raw)
+
+    if "BOTTOM" in coord_origin:
+        actual_top = page_height - bottom_val
+        actual_bottom = page_height - top_val
+    else:
+        actual_top = top_val
+        actual_bottom = bottom_val
+
+    norm_top = actual_top / page_height if actual_top > 1.0 and page_height > 0.0 else actual_top
+    norm_left = left_val / page_width if left_val > 1.0 and page_width > 0.0 else left_val
+    norm_bottom = (
+        actual_bottom / page_height if actual_bottom > 1.0 and page_height > 0.0 else actual_bottom
+    )
+    norm_right = right_val / page_width if right_val > 1.0 and page_width > 0.0 else right_val
+
+    return (norm_top, norm_left, norm_bottom, norm_right)
+
+
+def _canonicalize_ref(ref: str | None, body_ref: str) -> str:
+    if not isinstance(ref, str):
+        return body_ref
+    cleaned = ref.strip()
+    if not cleaned:
+        return body_ref
+    if cleaned == "#" or cleaned.lower() == "body":
+        return body_ref
+    if cleaned.startswith("/"):
+        return f"#{cleaned}"
+    if not cleaned.startswith("#"):
+        if "/" in cleaned:
+            return f"#/{cleaned.lstrip('/')}"
+        return cleaned
+    return cleaned
+
+
+def _parent_ref_of(ref: str, body_ref: str) -> str:
+    if ref == body_ref:
+        return body_ref
+    if not ref.startswith("#/"):
+        return body_ref
+    parts = [part for part in ref[2:].split("/") if part]
+    if len(parts) <= 1:
+        return body_ref
+    return "#/" + "/".join(parts[:-1])
+
+
+def _infer_container_label(ref: str) -> str:
+    if not ref.startswith("#/"):
+        return "AI-CONTAINER"
+    parts = [part for part in ref[2:].split("/") if part]
+    if not parts:
+        return "AI-CONTAINER"
+    return f"AI-{parts[0].rstrip('s').upper()}"
 
 
 class DoclingPyMuPDFMerger:
-    """Merges Docling semantic structure with PyMuPDF typography and vector graphics.
-
-    This class runs Docling conversion, opens the PDF with PyMuPDF, and
-    spatially correlates items from both sources. The result is a list of
-    ``CorrelatedItem`` objects enriched with font metrics and vector-line data.
-
-    Parameters
-    ----------
-    source : str
-        Path to the PDF file.
-
-    Attributes
-    ----------
-    docling_doc : object
-        The Docling document after conversion.
-    fitz_doc : fitz.Document | None
-        The PyMuPDF document (None for non-PDF files).
-    """
+    """Build a correlated Docling/PyMuPDF bridge tree."""
 
     def __init__(self, source: str) -> None:
         self.source = source
         self._is_pdf = source.lower().endswith(".pdf")
 
-        # Step A: Run Docling conversion
         _LOG.info("DoclingPyMuPDFMerger: Running Docling conversion for %s", source)
         from docling.document_converter import DocumentConverter  # noqa: PLC0415
 
@@ -177,18 +522,27 @@ class DoclingPyMuPDFMerger:
         result = converter.convert(source)
         self.docling_doc = result.document
 
-        # Step B: Open PyMuPDF document (PDF only)
         self.fitz_doc: Any = None
+        self.page_style_caches: dict[int, PageStyleCache] = {}
         if self._is_pdf:
             try:
                 import fitz  # noqa: PLC0415
 
                 self.fitz_doc = fitz.open(source)
+                self.page_style_caches = {
+                    int(page.number) + 1: PageStyleCache(page) for page in self.fitz_doc
+                }
             except Exception as exc:
                 _LOG.warning("Failed to open PDF with PyMuPDF: %s", exc)
 
+        body = getattr(self.docling_doc, "body", None)
+        body_ref = getattr(body, "self_ref", None)
+        self.body_ref = body_ref if isinstance(body_ref, str) and body_ref.strip() else "#/body"
+
+        self.ref_to_node: dict[str, BridgeNode] = {}
+        self.nodes_by_id: dict[str, BridgeNode] = {}
+
     def close(self) -> None:
-        """Close the PyMuPDF document if open."""
         if self.fitz_doc is not None:
             import contextlib
 
@@ -202,142 +556,452 @@ class DoclingPyMuPDFMerger:
     def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         self.close()
 
-    def correlate(self) -> list[CorrelatedItem]:
-        """Iterate Docling items and enrich each with PyMuPDF data.
-
-        Returns
-        -------
-        list[CorrelatedItem]
-            List of correlated items with font and vector-line enrichment.
-        """
-        correlated_items: list[CorrelatedItem] = []
-
-        # Cache PyMuPDF data per page to avoid redundant extraction
-        page_cache: dict[int, dict[str, Any]] = {}
-
-        try:
-            items_with_levels = list(self.docling_doc.iterate_items(with_groups=True))
-        except (AttributeError, TypeError) as exc:
-            _LOG.warning("DoclingDocument does not support iterate_items: %s", exc)
-            return []
-
-        for doc_item, level in items_with_levels:
-            item_wrapper = CorrelatedItem(doc_item, level)
-
-            # Only correlate if we have a PDF and valid bbox
-            if self.fitz_doc is not None and item_wrapper.bbox and item_wrapper.page_no > 0:
-                page_no = item_wrapper.page_no
-                docling_bbox = item_wrapper.bbox
-
-                # Fetch or extract PyMuPDF page data
-                if page_no not in page_cache:
-                    try:
-                        page_cache[page_no] = self._extract_pymupdf_page_data(page_no)
-                    except Exception as exc:
-                        _LOG.debug("PyMuPDF extraction failed for page %d: %s", page_no, exc)
-                        page_cache[page_no] = {"spans": [], "vector_lines": []}
-
-                pymupdf_data = page_cache[page_no]
-
-                # Correlate spans (fonts/formatting)
-                matching_spans = [
-                    s
-                    for s in pymupdf_data["spans"]
-                    if compute_bbox_overlap_ratio(docling_bbox, s["rect"]) > 0.3
-                ]
-                if matching_spans:
-                    item_wrapper.fonts = matching_spans
-                    item_wrapper.primary_font_name = str(matching_spans[0]["font"])
-                    item_wrapper.primary_font_size = float(matching_spans[0]["size"])
-                    item_wrapper.primary_color_hex = str(matching_spans[0]["color"])
-                    item_wrapper.is_bold = any(s["is_bold"] for s in matching_spans)
-                    item_wrapper.is_italic = any(s["is_italic"] for s in matching_spans)
-
-                # Correlate horizontal vector rules sitting directly below
-                item_bottom_y = docling_bbox[3]
-                for v_line in pymupdf_data["vector_lines"]:
-                    gap = v_line["top"] - item_bottom_y
-                    if 0.0 <= gap <= 15.0:
-                        vr = v_line["rect"]
-                        # Require horizontal overlap with item bbox
-                        if not (vr.x1 < docling_bbox[0] or vr.x0 > docling_bbox[2]):
-                            item_wrapper.vector_lines.append(v_line)
-
-            correlated_items.append(item_wrapper)
-
-        return correlated_items
-
-    def _extract_pymupdf_page_data(self, page_num: int) -> dict[str, Any]:
-        """Extract text spans and horizontal vector lines from a PyMuPDF page.
-
-        Parameters
-        ----------
-        page_num : int
-            1-indexed page number.
-
-        Returns
-        -------
-        dict
-            Dictionary with keys "spans" and "vector_lines".
-        """
-        import fitz  # noqa: PLC0415
-
-        page = self.fitz_doc[page_num - 1]  # fitz is 0-indexed
-
-        # Extract text spans with font metadata
-        spans: list[dict[str, Any]] = []
-        raw_dict = page.get_text("rawdict")
-        for block in raw_dict.get("blocks", []):
-            if block.get("type") != 0:
-                continue
-            for line in block.get("lines", []):
-                for span in line.get("spans", []):
-                    spans.append(
-                        {
-                            "rect": fitz.Rect(span["bbox"]),
-                            "text": span.get("text", ""),
-                            "font": span.get("font", ""),
-                            "size": round(float(span.get("size", 0.0)), 2),
-                            "color": f"#{int(span.get('color', 0)):06x}",
-                            "is_bold": bool(span.get("flags", 0) & (1 << 4)),
-                            "is_italic": bool(span.get("flags", 0) & (1 << 1)),
-                        }
-                    )
-
-        # Extract horizontal vector lines (answer blanks, rules)
-        vector_lines: list[dict[str, Any]] = []
-        for path in page.get_drawings():
-            for item in path.get("items", []):
-                if item[0] != "l":
-                    continue
-                p1, p2 = item[1], item[2]
-                # Keep only horizontal rules (dy < 2 pt, dx >= 20 pt)
-                if abs(p1.y - p2.y) < 2.0 and abs(p1.x - p2.x) >= 20.0:
-                    line_rect = fitz.Rect(
-                        min(p1.x, p2.x),
-                        min(p1.y, p2.y) - 2,
-                        max(p1.x, p2.x),
-                        max(p1.y, p2.y) + 2,
-                    )
-                    vector_lines.append(
-                        {
-                            "rect": line_rect,
-                            "length": round(abs(p1.x - p2.x), 2),
-                            "top": float(line_rect.y0),
-                        }
-                    )
-
-        return {"spans": spans, "vector_lines": vector_lines}
-
     @property
     def title(self) -> str:
-        """Return document title from Docling."""
-        return getattr(self.docling_doc, "name", "") or ""
+        return str(getattr(self.docling_doc, "name", "") or "")
 
     @property
     def page_count(self) -> int:
-        """Return page count from Docling."""
         pages = getattr(self.docling_doc, "pages", None)
-        if pages is not None:
-            return len(pages)
-        return 0
+        return len(pages) if pages is not None else 0
+
+    def build_bridge_tree(self) -> BridgeDocument:
+        root = BridgeNode(
+            docling_item=getattr(self.docling_doc, "body", None),
+            self_ref=self.body_ref,
+            label="AI-BODY",
+            name="Body",
+            is_synthetic=False,
+        )
+        self.ref_to_node[self.body_ref] = root
+        self.nodes_by_id[root.id] = root
+
+        all_nodes: list[BridgeNode] = []
+        self._extract_docling_nodes(all_nodes)
+        self._extract_table_cell_nodes(root)
+        self._attach_parent_child(all_nodes, root)
+        self._propagate_bounds(root)
+        self._sort_tree_spatially(root, column_tolerance=0.28)
+
+        return BridgeDocument(
+            root=root,
+            source=self.source,
+            title=self.title,
+            page_count=self.page_count,
+        )
+
+    def _extract_docling_nodes(self, all_nodes: list[BridgeNode]) -> None:
+        try:
+            items_with_levels = list(self.docling_doc.iterate_items(with_groups=True))
+        except TypeError:
+            items_with_levels = list(self.docling_doc.iterate_items())
+
+        for doc_item, level in items_with_levels:
+            node = BridgeNode(
+                docling_item=doc_item,
+                self_ref=_extract_self_ref(doc_item),
+                parent_cref=_extract_parent_cref(doc_item),
+                level=int(level),
+                label=_extract_label(doc_item),
+                name=type(doc_item).__name__,
+                text=str(getattr(doc_item, "text", "") or "").strip(),
+            )
+            self._extract_geometry_and_style(node)
+
+            for expanded_node in self._expand_docling_text_node(node):
+                self.nodes_by_id[expanded_node.id] = expanded_node
+                all_nodes.append(expanded_node)
+                if expanded_node.self_ref:
+                    self.ref_to_node[expanded_node.self_ref] = expanded_node
+
+    @staticmethod
+    def _is_text_item_node(node: BridgeNode) -> bool:
+        return node.name == "TextItem" or node.label.lower() in {"text", "paragraph", "caption"}
+
+    @staticmethod
+    def _float_or_fallback(value: Any, fallback: float | None) -> float | None:
+        if value is None:
+            return fallback
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return fallback
+
+    def _expand_docling_text_node(self, node: BridgeNode) -> list[BridgeNode]:
+        if not self._is_text_item_node(node):
+            return [node]
+
+        if not node.text or node.page_no <= 0:
+            return [node]
+
+        if node.norm_top == float("inf") or node.norm_left == float("inf"):
+            return [node]
+
+        cache = self.page_style_caches.get(node.page_no)
+        if cache is None:
+            return [node]
+
+        segments = cache.query_text_segments(
+            norm_left=node.norm_left,
+            norm_top=node.norm_top,
+            norm_right=node.norm_right,
+            norm_bottom=node.norm_bottom,
+            node_text=node.text,
+        )
+        if len(segments) < 2:
+            return [node]
+
+        expanded_nodes: list[BridgeNode] = []
+        segment_count = len(segments)
+
+        for segment_index, segment in enumerate(segments):
+            segment_text = str(segment.get("text", "") or "").strip()
+            if not segment_text:
+                continue
+
+            if node.self_ref and segment_index > 0:
+                segment_self_ref = f"{node.self_ref}/segments/{segment_index}"
+            else:
+                segment_self_ref = node.self_ref
+
+            metadata = dict(node.metadata)
+            metadata["docling_split_segment_index"] = segment_index
+            metadata["docling_split_segment_count"] = segment_count
+            if node.self_ref:
+                metadata["docling_split_source_ref"] = node.self_ref
+
+            expanded_nodes.append(
+                BridgeNode(
+                    docling_item=node.docling_item,
+                    self_ref=segment_self_ref,
+                    parent_cref=node.parent_cref,
+                    level=node.level,
+                    label=node.label,
+                    name=node.name,
+                    text=segment_text,
+                    page_no=node.page_no,
+                    norm_top=float(segment.get("norm_top", node.norm_top)),
+                    norm_left=float(segment.get("norm_left", node.norm_left)),
+                    norm_bottom=float(segment.get("norm_bottom", node.norm_bottom)),
+                    norm_right=float(segment.get("norm_right", node.norm_right)),
+                    is_synthetic=node.is_synthetic,
+                    font_name=(str(segment.get("font_name") or "").strip() or node.font_name),
+                    font_size=self._float_or_fallback(segment.get("font_size"), node.font_size),
+                    color_hex=(str(segment.get("color_hex") or "").strip() or node.color_hex),
+                    is_bold=bool(segment.get("is_bold", node.is_bold)),
+                    is_italic=bool(segment.get("is_italic", node.is_italic)),
+                    fitz_text=str(segment.get("fitz_text") or segment_text),
+                    metadata=metadata,
+                )
+            )
+
+        if len(expanded_nodes) < 2:
+            return [node]
+
+        return expanded_nodes
+
+    def _extract_geometry_and_style(self, node: BridgeNode) -> None:
+        doc_item = node.docling_item
+        prov_list = getattr(doc_item, "prov", None)
+        if not prov_list:
+            return
+
+        prov = prov_list[0]
+        page_no = int(getattr(prov, "page_no", 0) or 0)
+        if page_no <= 0:
+            return
+        node.page_no = page_no
+
+        if self.fitz_doc is None:
+            return
+
+        pdf_page = self.fitz_doc[page_no - 1]
+        node.norm_top, node.norm_left, node.norm_bottom, node.norm_right = _normalize_docling_bbox(
+            prov,
+            float(pdf_page.rect.height),
+            float(pdf_page.rect.width),
+        )
+
+        self._apply_style_from_cache(node)
+
+    def _apply_style_from_cache(self, node: BridgeNode) -> None:
+        cache = self.page_style_caches.get(node.page_no)
+        if cache is None:
+            return
+
+        style = cache.query_style(
+            norm_left=node.norm_left,
+            norm_top=node.norm_top,
+            norm_right=node.norm_right,
+            norm_bottom=node.norm_bottom,
+            node_text=node.text,
+        )
+        node.font_name = style["font_name"]
+        node.font_size = style["font_size"]
+        node.color_hex = style["color_hex"]
+        node.is_bold = bool(style["is_bold"])
+        node.is_italic = bool(style["is_italic"])
+        node.fitz_text = style["fitz_text"]
+
+    def _get_or_create_ref_node(self, ref: str, root: BridgeNode) -> BridgeNode:
+        canonical_ref = _canonicalize_ref(ref, self.body_ref)
+        existing = self.ref_to_node.get(canonical_ref)
+        if existing is not None:
+            return existing
+
+        container = BridgeNode(
+            self_ref=canonical_ref,
+            level=1,
+            label=_infer_container_label(canonical_ref),
+            name="SyntheticContainer",
+            is_synthetic=True,
+            metadata={
+                "role": "AI-synthetic_container",
+                "docling_self_ref": canonical_ref,
+            },
+        )
+        self.ref_to_node[canonical_ref] = container
+        self.nodes_by_id[container.id] = container
+
+        parent_ref = _parent_ref_of(canonical_ref, self.body_ref)
+        if parent_ref == canonical_ref:
+            parent_ref = self.body_ref
+        parent_node = (
+            root if parent_ref == self.body_ref else self._get_or_create_ref_node(parent_ref, root)
+        )
+        container.parent_id = parent_node.id
+        if container not in parent_node.children:
+            parent_node.children.append(container)
+
+        return container
+
+    def _extract_table_cell_nodes(self, root: BridgeNode) -> None:
+        tables = getattr(self.docling_doc, "tables", None)
+        if not tables:
+            return
+
+        for idx, table in enumerate(tables):
+            table_ref_raw = getattr(table, "self_ref", None) or f"#/tables/{idx}"
+            table_ref = _canonicalize_ref(str(table_ref_raw), self.body_ref)
+            table_node = self._get_or_create_ref_node(table_ref, root)
+
+            table_data = getattr(table, "data", None)
+            table_cells = (
+                getattr(table_data, "table_cells", None) if table_data is not None else None
+            )
+            if not table_cells:
+                continue
+
+            row_refs: dict[int, BridgeNode] = {}
+            for cell in table_cells:
+                row_idx = int(
+                    getattr(
+                        cell,
+                        "start_row_offset_idx",
+                        getattr(cell, "row", 0),
+                    )
+                    or 0
+                )
+                col_idx = int(
+                    getattr(
+                        cell,
+                        "start_col_offset_idx",
+                        getattr(cell, "col", 0),
+                    )
+                    or 0
+                )
+
+                row_ref = f"{table_ref}/rows/{row_idx}"
+                row_node = row_refs.get(row_idx)
+                if row_node is None:
+                    row_node = BridgeNode(
+                        self_ref=row_ref,
+                        parent_cref=table_ref,
+                        level=table_node.level + 1,
+                        label="AI-TABLE_ROW",
+                        name="TableRowContainer",
+                        is_synthetic=True,
+                        metadata={
+                            "role": "AI-table_row",
+                            "table_row_index": row_idx,
+                            "docling_self_ref": row_ref,
+                        },
+                    )
+                    row_node.parent_id = table_node.id
+                    row_refs[row_idx] = row_node
+                    self.nodes_by_id[row_node.id] = row_node
+                    self.ref_to_node[row_ref] = row_node
+                    table_node.children.append(row_node)
+
+                cell_ref = f"{row_ref}/cells/{col_idx}"
+                cell_text = str(getattr(cell, "text", "") or "").strip()
+                cell_node = BridgeNode(
+                    docling_item=cell,
+                    self_ref=cell_ref,
+                    parent_cref=row_ref,
+                    level=row_node.level + 1,
+                    label="AI-TABLE_CELL",
+                    name="TableCell",
+                    text=cell_text,
+                    metadata={
+                        "role": "AI-table_cell",
+                        "table_row_index": row_idx,
+                        "table_col_index": col_idx,
+                        "row_span": int(getattr(cell, "row_span", 1) or 1),
+                        "col_span": int(getattr(cell, "col_span", 1) or 1),
+                        "is_header": bool(getattr(cell, "column_header", False)),
+                        "docling_self_ref": cell_ref,
+                    },
+                )
+
+                bbox = getattr(cell, "bbox", None)
+                if bbox is not None and table_node.page_no > 0 and self.fitz_doc is not None:
+                    cell_node.page_no = table_node.page_no
+                    pdf_page = self.fitz_doc[cell_node.page_no - 1]
+                    page_width = float(pdf_page.rect.width)
+                    page_height = float(pdf_page.rect.height)
+
+                    left = float(getattr(bbox, "l", 0.0) or 0.0)
+                    top = float(getattr(bbox, "t", 0.0) or 0.0)
+                    right = float(getattr(bbox, "r", 0.0) or 0.0)
+                    bottom = float(getattr(bbox, "b", 0.0) or 0.0)
+
+                    cell_node.norm_left = (left / page_width) if page_width > 0.0 else left
+                    cell_node.norm_top = (top / page_height) if page_height > 0.0 else top
+                    cell_node.norm_right = (right / page_width) if page_width > 0.0 else right
+                    cell_node.norm_bottom = (bottom / page_height) if page_height > 0.0 else bottom
+
+                if (
+                    cell_node.page_no > 0
+                    and cell_node.norm_top != float("inf")
+                    and cell_node.norm_left != float("inf")
+                ):
+                    cache = self.page_style_caches.get(cell_node.page_no)
+                    if cache is not None:
+                        segments = cache.query_text_segments(
+                            norm_left=cell_node.norm_left,
+                            norm_top=cell_node.norm_top,
+                            norm_right=cell_node.norm_right,
+                            norm_bottom=cell_node.norm_bottom,
+                            node_text=cell_text,
+                        )
+                        if segments:
+                            best_segment = next(
+                                (
+                                    segment
+                                    for segment in segments
+                                    if str(segment.get("text", "")).strip() == cell_text
+                                ),
+                                segments[0],
+                            )
+                            cell_node.norm_top = float(
+                                best_segment.get("norm_top", cell_node.norm_top)
+                            )
+                            cell_node.norm_left = float(
+                                best_segment.get("norm_left", cell_node.norm_left)
+                            )
+                            cell_node.norm_bottom = float(
+                                best_segment.get("norm_bottom", cell_node.norm_bottom)
+                            )
+                            cell_node.norm_right = float(
+                                best_segment.get("norm_right", cell_node.norm_right)
+                            )
+                            cell_node.font_name = (
+                                str(best_segment.get("font_name") or "").strip()
+                                or cell_node.font_name
+                            )
+                            cell_node.font_size = self._float_or_fallback(
+                                best_segment.get("font_size"),
+                                cell_node.font_size,
+                            )
+                            cell_node.color_hex = (
+                                str(best_segment.get("color_hex") or "").strip()
+                                or cell_node.color_hex
+                            )
+                            cell_node.is_bold = bool(
+                                best_segment.get("is_bold", cell_node.is_bold)
+                            )
+                            cell_node.is_italic = bool(
+                                best_segment.get("is_italic", cell_node.is_italic)
+                            )
+                            cell_node.fitz_text = str(best_segment.get("fitz_text") or cell_text)
+
+                if cell_node.page_no <= 0:
+                    cell_node.page_no = table_node.page_no or 1
+
+                if cell_node.font_name is None or cell_node.font_size is None:
+                    self._apply_style_from_cache(cell_node)
+
+                cell_node.parent_id = row_node.id
+                row_node.children.append(cell_node)
+                self.nodes_by_id[cell_node.id] = cell_node
+                self.ref_to_node[cell_ref] = cell_node
+
+    def _attach_parent_child(self, all_nodes: list[BridgeNode], root: BridgeNode) -> None:
+        for node in all_nodes:
+            parent_ref_raw = node.parent_cref or self.body_ref
+            parent_ref = _canonicalize_ref(parent_ref_raw, self.body_ref)
+
+            if node.self_ref is not None:
+                self_ref = _canonicalize_ref(node.self_ref, self.body_ref)
+                if self_ref == parent_ref:
+                    parent_ref = self.body_ref
+
+            parent_node = (
+                root
+                if parent_ref == self.body_ref
+                else self._get_or_create_ref_node(parent_ref, root)
+            )
+            if parent_node.id == node.id:
+                parent_node = root
+
+            node.parent_id = parent_node.id
+            if node not in parent_node.children:
+                parent_node.children.append(node)
+
+    def _propagate_bounds(self, node: BridgeNode) -> None:
+        if not node.children:
+            return
+
+        for child in node.children:
+            self._propagate_bounds(child)
+            if child.page_no > 0:
+                node.page_no = (
+                    child.page_no if node.page_no == 0 else min(node.page_no, child.page_no)
+                )
+                node.norm_top = min(node.norm_top, child.norm_top)
+                node.norm_left = min(node.norm_left, child.norm_left)
+                node.norm_bottom = max(node.norm_bottom, child.norm_bottom)
+                node.norm_right = max(node.norm_right, child.norm_right)
+
+    def _sort_tree_spatially(self, node: BridgeNode, column_tolerance: float) -> None:
+        if not node.children:
+            return
+
+        def sort_key(child: BridgeNode) -> tuple[int, float, float]:
+            page_no = child.page_no if child.page_no > 0 else 10**9
+            left = child.norm_left if child.norm_left != float("inf") else 0.0
+            col_zone = int(left / column_tolerance) if column_tolerance > 0 else 0
+            top = child.norm_top if child.norm_top != float("inf") else 0.0
+            return (page_no, col_zone, top)
+
+        node.children.sort(key=sort_key)
+        for child in node.children:
+            self._sort_tree_spatially(child, column_tolerance)
+
+
+def compute_bbox_overlap_ratio(box1: list[float], box2: Any) -> float:
+    """Compatibility helper retained for tests/import stability."""
+    try:
+        import fitz  # noqa: PLC0415
+
+        rect1 = fitz.Rect(box1[0], box1[1], box1[2], box1[3])
+        area = rect1.get_area()
+        if area == 0:
+            return 0.0
+        intersection = rect1.intersect(box2)
+        if intersection.is_empty:
+            return 0.0
+        return float(intersection.get_area() / area)
+    except Exception:
+        return 0.0

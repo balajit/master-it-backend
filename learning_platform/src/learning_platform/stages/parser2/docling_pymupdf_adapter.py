@@ -85,15 +85,9 @@ class Parser2Adapter:
 
         # Use context manager to ensure proper cleanup
         with DoclingPyMuPDFMerger(source) as merger:
-            # Get correlated items (Docling + PyMuPDF enrichment for PDFs)
-            correlated_items = merger.correlate()
-
-            # Build document tree using direct mapping
-            root_node = build_document_tree(
-                items=correlated_items,
-                source=source,
-                docling_doc=merger.docling_doc,
-            )
+            # Build bridge tree then map into canonical DocumentNode tree.
+            bridge = merger.build_bridge_tree()
+            root_node = build_document_tree(bridge=bridge, source=source)
 
             # Extract document metadata
             title = merger.title or Path(source).stem

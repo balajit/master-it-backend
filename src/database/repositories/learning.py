@@ -1086,6 +1086,35 @@ async def get_lessons_by_plan_ids_for_course(
     return [_lesson_to_dict(r) for r in rows]
 
 
+async def get_lessons_by_titles_for_course(
+    course_id: int,
+    lesson_titles: List[str],
+) -> List[Dict[str, Any]]:
+    """Batch-fetch lessons by title restricted to one course."""
+    filtered_titles = [title for title in lesson_titles if title.strip()]
+    if not filtered_titles:
+        return []
+
+    async with AsyncSession(engine) as session:
+        rows = (
+            (
+                await session.execute(
+                    select(LessonModel)
+                    .join(SectionModel, SectionModel.id == LessonModel.section_id)
+                    .join(UnitModel, UnitModel.id == SectionModel.unit_id)
+                    .where(
+                        UnitModel.course_id == course_id,
+                        LessonModel.title.in_(filtered_titles),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return [_lesson_to_dict(r) for r in rows]
+
+
 async def get_sections_by_ids(section_ids: List[int]) -> List[Dict[str, Any]]:
     """Batch-fetch sections by their integer PKs.
 

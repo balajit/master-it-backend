@@ -284,6 +284,10 @@ class TestCourseStudyPlan:
                     "learning_platform.infrastructure.persistence.repositories.book.BookRepository.find_by_document",
                     new_callable=AsyncMock,
                 ) as mock_find_book,
+                patch(
+                    "learning_platform.infrastructure.persistence.repositories.learning_unit.LearningUnitRepository.find_by_document",
+                    new_callable=AsyncMock,
+                ) as mock_find_units,
             ):
                 mock_get_course.return_value = {
                     "id": 9,
@@ -329,6 +333,7 @@ class TestCourseStudyPlan:
                     ],
                 )
                 mock_find_book.return_value = book
+                mock_find_units.return_value = []
 
                 mock_get_by_course.return_value = [
                     {"id": 123, "plan_lesson_id": str(lp_lesson_uuid), "section_id": 77}
@@ -349,6 +354,120 @@ class TestCourseStudyPlan:
         mock_get_by_course.assert_awaited_once()
         assert len(mock_get_by_course.await_args_list) == 1
         assert mock_get_by_course.await_args_list[0].args[0] == 9
+
+    def test_study_plan_falls_back_to_title_mapping_when_plan_ids_miss(
+        self, app, mock_user
+    ):
+        self._mock_deps(app, mock_user)
+
+        async def _run():
+            with (
+                patch(
+                    "routers.courses.get_course", new_callable=AsyncMock
+                ) as mock_get_course,
+                patch(
+                    "routers.courses.get_documents_by_course", new_callable=AsyncMock
+                ) as mock_get_docs,
+                patch("routers.courses.lp_doc_uuid_from_storage_path") as mock_lp_uuid,
+                patch(
+                    "routers.courses.get_lessons_by_plan_ids_for_course",
+                    new_callable=AsyncMock,
+                ) as mock_get_by_course,
+                patch(
+                    "routers.courses.get_lessons_by_titles_for_course",
+                    new_callable=AsyncMock,
+                ) as mock_get_by_title,
+                patch(
+                    "routers.courses.get_sections_by_ids", new_callable=AsyncMock
+                ) as mock_sections,
+                patch(
+                    "learning_platform.infrastructure.persistence.repositories.book.BookRepository.find_by_document",
+                    new_callable=AsyncMock,
+                ) as mock_find_book,
+                patch(
+                    "learning_platform.infrastructure.persistence.repositories.learning_unit.LearningUnitRepository.find_by_document",
+                    new_callable=AsyncMock,
+                ) as mock_find_units,
+            ):
+                mock_get_course.return_value = {
+                    "id": 10,
+                    "title": "Fallback Course",
+                    "description": "",
+                    "number_of_credits": 3,
+                    "difficulty": "beginner",
+                    "status": "OPEN",
+                    "owner_id": 1,
+                    "created_at": "2026-01-01T00:00:00",
+                    "updated_at": "2026-01-01T00:00:00",
+                }
+                mock_get_docs.return_value = [
+                    {
+                        "id": "doc-fallback",
+                        "filename": "fallback.pdf",
+                        "storage_path": "/tmp/fallback.pdf",
+                        "content_type": "application/pdf",
+                        "size_bytes": 1024,
+                        "created_at": "2026-01-01T00:00:00",
+                    }
+                ]
+                mock_lp_uuid.return_value = UUID("7f3cf7e4-1126-f240-09dc-afb0fd3eafed")
+
+                from learning_platform.models.book import (
+                    BookChapter,
+                    BookLesson,
+                    CanonicalBook,
+                )
+                from learning_platform.models.learning_unit import (
+                    LearningUnit,
+                    UnitType,
+                )
+
+                lp_unit_uuid = UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")
+                book = CanonicalBook(
+                    document_id=UUID("7f3cf7e4-1126-f240-09dc-afb0fd3eafed"),
+                    chapters=[
+                        BookChapter(
+                            title="Fallback Chapter",
+                            lessons=[
+                                BookLesson(title="Lesson 1", unit_id=lp_unit_uuid)
+                            ],
+                        )
+                    ],
+                )
+                mock_find_book.return_value = book
+                mock_find_units.return_value = [
+                    LearningUnit(
+                        id=lp_unit_uuid,
+                        unit_type=UnitType.LESSON,
+                        title="Section 1.1 The Stories of Two Chemicals",
+                    )
+                ]
+
+                # Simulate missing plan_lesson_id mapping for this lesson.
+                mock_get_by_course.return_value = []
+                # Fallback uses lesson/unit titles within the same course.
+                mock_get_by_title.return_value = [
+                    {
+                        "id": 714,
+                        "title": "Section 1.1 The Stories of Two Chemicals",
+                        "section_id": 1396,
+                        "display_order": 1,
+                        "plan_lesson_id": "574107af-d4fd-43c7-ac56-a1bf28eccf74",
+                    }
+                ]
+                mock_sections.return_value = [{"id": 1396, "unit_id": 1675}]
+
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    return await client.get("/api/courses/10/study-plan")
+
+        resp = asyncio.run(_run())
+        assert resp.status_code == 200
+        payload = resp.json()
+        lesson = payload["chapters"][0]["lessons"][0]
+        assert lesson["lesson_id"] == 714
+        assert lesson["unit_id"] == 1675
 
     def test_study_plan_incomplete_documents_are_skipped(self, app, mock_user):
         self._mock_deps(app, mock_user)
