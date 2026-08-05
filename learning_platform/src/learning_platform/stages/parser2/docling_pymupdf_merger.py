@@ -43,6 +43,7 @@ class BridgeNode:
     is_italic: bool = False
     fitz_text: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    column_no: int = 0  # dynamic column assignment (0-based, set per-page after geometry pass)
 
     # Image fields — populated only for picture/figure/image nodes
     is_image: bool = False
@@ -50,6 +51,20 @@ class BridgeNode:
     image_format: str | None = None
     image_width: int | None = None
     image_height: int | None = None
+
+    @property
+    def center_x(self) -> float:
+        """Normalized horizontal center of the node's bounding box."""
+        if self.norm_left == float("inf") or self.norm_right == 0.0:
+            return 0.0
+        return (self.norm_left + self.norm_right) / 2.0
+
+    @property
+    def center_y(self) -> float:
+        """Normalized vertical center of the node's bounding box."""
+        if self.norm_top == float("inf") or self.norm_bottom == 0.0:
+            return 0.0
+        return (self.norm_top + self.norm_bottom) / 2.0
 
 
 @dataclass
@@ -594,10 +609,20 @@ class DoclingPyMuPDFMerger:
 
         all_nodes: list[BridgeNode] = []
         self._extract_docling_nodes(all_nodes)
+
+        # Assign column numbers per page based on dynamic horizontal distribution.
+        # Must happen after geometry is set but before sorting/parent-child linking.
+        nodes_by_page: dict[int, list[BridgeNode]] = {}
+        for node in all_nodes:
+            if node.page_no > 0:
+                nodes_by_page.setdefault(node.page_no, []).append(node)
+        for page_nodes in nodes_by_page.values():
+            self._assign_page_columns(page_nodes)
+
         self._extract_table_cell_nodes(root)
         self._attach_parent_child(all_nodes, root)
         self._propagate_bounds(root)
-        self._sort_tree_spatially(root, column_tolerance=0.28)
+        self._sort_tree_spatially(root)
 
         return BridgeDocument(
             root=root,
@@ -794,6 +819,30 @@ class DoclingPyMuPDFMerger:
             parent_node.children.append(container)
 
         return container
+
+    def _assign_page_columns(self, page_nodes: list[BridgeNode], num_columns: int = 2) -> None:
+        """Dynamically assign column numbers based on horizontal center positions.
+
+        Instead of rigid fixed-width buckets (the old ``round(norm_left /
+        tolerance)`` approach), this method infers column boundaries from the
+        actual distribution of node centers on the page.  The result is stored
+        as ``BridgeNode.column_no`` (0-based).
+
+        Only nodes with valid bounding boxes are assigned; nodes without
+        geometry keep ``column_no = 0``.
+        """
+        valid = [n for n in page_nodes if n.norm_left != float("inf") and n.norm_right > 0.0]
+        if not valid:
+            return
+
+        centers = [n.center_x for n in valid]
+        min_x = min(centers)
+        max_x = max(centers)
+        col_width = (max_x - min_x + 1e-9) / num_columns
+
+        for node in valid:
+            col_idx = int((node.center_x - min_x) / col_width)
+            node.column_no = min(col_idx, num_columns - 1)
 
     def _process_image_item(self, node: BridgeNode, doc_item: Any) -> None:
         """Extract a raw PIL.Image from a Docling picture/figure item and attach it to the node."""
@@ -1014,20 +1063,26 @@ class DoclingPyMuPDFMerger:
                 node.norm_bottom = max(node.norm_bottom, child.norm_bottom)
                 node.norm_right = max(node.norm_right, child.norm_right)
 
-    def _sort_tree_spatially(self, node: BridgeNode, column_tolerance: float) -> None:
+    def _sort_tree_spatially(self, node: BridgeNode) -> None:
+        """Sort children by reading order: page → column → y-top → x-left.
+
+        Uses the dynamically assigned ``column_no`` field rather than a
+        fixed column-tolerance bucket.  This avoids the misplacement of
+        figures that occurred when ``norm_left`` varied slightly across
+        columns causing nodes to fall into the wrong rigid bucket.
+        """
         if not node.children:
             return
 
-        def sort_key(child: BridgeNode) -> tuple[int, float, float]:
+        def sort_key(child: BridgeNode) -> tuple[int, int, float, float]:
             page_no = child.page_no if child.page_no > 0 else 10**9
-            left = child.norm_left if child.norm_left != float("inf") else 0.0
-            col_zone = int(left / column_tolerance) if column_tolerance > 0 else 0
             top = child.norm_top if child.norm_top != float("inf") else 0.0
-            return (page_no, col_zone, top)
+            left = child.norm_left if child.norm_left != float("inf") else 0.0
+            return (page_no, child.column_no, top, left)
 
         node.children.sort(key=sort_key)
         for child in node.children:
-            self._sort_tree_spatially(child, column_tolerance)
+            self._sort_tree_spatially(child)
 
 
 def compute_bbox_overlap_ratio(box1: list[float], box2: Any) -> float:

@@ -713,6 +713,7 @@ class DocumentNode(BaseModel):
 
     page: int = 0
     seq: int = 0
+    column_no: int = 0  # 0-based column assignment from dynamic page layout analysis
     source: SourceLocation = Field(default_factory=SourceLocation)
     bbox: BoundingBox = Field(default_factory=BoundingBox)
     style: BlockStyle | None = None

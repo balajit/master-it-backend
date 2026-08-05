@@ -145,9 +145,57 @@ class TestBridgeTreeBuilding:
 
         root.children = [right_top, page_two, left_low]
 
-        DoclingPyMuPDFMerger._sort_tree_spatially(merger, root, column_tolerance=0.28)
+        # Assign column_no manually — left-side nodes get col 0, right-side col 1.
+        # In real usage _assign_page_columns does this from bounding box centers.
+        left_low.column_no = 0  # norm_left=0.05 → left column
+        right_top.column_no = 1  # norm_left=0.75 → right column
+        page_two.column_no = 0
 
+        DoclingPyMuPDFMerger._sort_tree_spatially(merger, root)
+
+        # Expected order: left_low (p1, col0, y=0.25), right_top (p1, col1, y=0.10), page_two (p2)
         assert [child.text for child in root.children] == ["left-low", "right-top", "page-two"]
+
+    def test_assign_page_columns_splits_into_columns(self) -> None:
+        merger = DoclingPyMuPDFMerger.__new__(DoclingPyMuPDFMerger)
+
+        left = _bridge_node(
+            self_ref="#/texts/left",
+            parent_cref="#/body",
+            label="paragraph",
+            name="TextItem",
+            text="left",
+            page_no=1,
+            norm_left=0.05,
+            norm_top=0.10,
+            norm_right=0.45,
+            norm_bottom=0.20,
+        )
+        right = _bridge_node(
+            self_ref="#/texts/right",
+            parent_cref="#/body",
+            label="paragraph",
+            name="TextItem",
+            text="right",
+            page_no=1,
+            norm_left=0.55,
+            norm_top=0.10,
+            norm_right=0.95,
+            norm_bottom=0.20,
+        )
+
+        DoclingPyMuPDFMerger._assign_page_columns(merger, [left, right], num_columns=2)
+
+        # left center_x ≈ 0.25, right center_x ≈ 0.75 → different columns
+        assert left.column_no != right.column_no
+        assert left.column_no < right.column_no  # left col < right col
+
+    def test_assign_page_columns_no_op_when_no_valid_nodes(self) -> None:
+        merger = DoclingPyMuPDFMerger.__new__(DoclingPyMuPDFMerger)
+        # node with no valid bbox
+        no_bbox = BridgeNode(label="paragraph", name="TextItem", text="orphan")
+        DoclingPyMuPDFMerger._assign_page_columns(merger, [no_bbox], num_columns=2)
+        assert no_bbox.column_no == 0  # unchanged default
 
     def test_propagates_bounds_from_nested_children(self) -> None:
         merger = DoclingPyMuPDFMerger.__new__(DoclingPyMuPDFMerger)

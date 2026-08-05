@@ -225,6 +225,7 @@ def _make_list_group_node(node: BridgeNode) -> DocumentNode:
 def _apply_common_attributes(mapped: DocumentNode, node: BridgeNode, source: str) -> None:
     mapped.page = node.page_no
     mapped.level = node.level
+    mapped.column_no = node.column_no
     mapped.source = SourceLocation(
         file=source,
         page=node.page_no,
