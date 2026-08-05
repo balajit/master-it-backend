@@ -10,6 +10,8 @@ from docling.datamodel.base_models import InputFormat
 import fitz
 from typing import Dict, Any, List, Optional, Tuple
 
+import base64
+import io
 import fitz
 import uuid
 from typing import List, Dict, Any, Optional, Tuple
@@ -18,6 +20,7 @@ from docling.document_converter import DocumentConverter, PdfFormatOption
 from docling.datamodel.pipeline_options import PdfPipelineOptions
 from docling.datamodel.base_models import InputFormat
 
+from PIL import Image
 
 class PageStyleCache:
     """Pre-loads and indexes all PyMuPDF text spans for a page by bounding box and text."""
@@ -298,6 +301,36 @@ class UUIDTreeBuilder:
         for child in node.children:
             self.sort_tree_spatially(child, column_tolerance=column_tolerance)
 
+    def _process_image_item(self, doc_item: Any, node: UUIDCorrelatedNode):
+        """Extracts and attaches PIL Image data as a Base64 encoded string."""
+        image_obj: Optional[Image.Image] = None
+
+        # Try docling get_image method or image attribute
+        if hasattr(doc_item, "get_image"):
+            try:
+                image_obj = doc_item.get_image(self.docling_doc)
+            except Exception:
+                image_obj = getattr(doc_item, "image", None)
+        else:
+            image_obj = getattr(doc_item, "image", None)
+
+        if image_obj:
+            node.is_image = True
+            node.image_width = image_obj.width
+            node.image_height = image_obj.height
+            node.image_format = image_obj.format or "PNG"
+
+            # Convert Image to Base64 byte string
+            buffered = io.BytesIO()
+            img_format = (
+                node.image_format
+                if node.image_format.upper() in ["JPEG", "PNG", "WEBP"]
+                else "PNG"
+            )
+            image_obj.save(buffered, format=img_format)
+            img_str = base64.b64encode(buffered.getvalue()).decode("utf-8")
+            node.image_base64 = f"data:image/{img_format.lower()};base64,{img_str}"
+            
     def build_tree(self) -> UUIDCorrelatedNode:
         body_item = self.docling_doc.body
         body_self_ref = getattr(body_item, "self_ref", "#/body")
@@ -330,6 +363,10 @@ class UUIDTreeBuilder:
                 )
 
                 self._apply_style_from_cache(node)
+                
+            # Check and process images for Picture items
+            if node.label.upper() in ["PICTURE", "IMAGE", "FIGURE"]:
+                self._process_image_item(doc_item, node)
 
 
         # Extract nested Table Cells if present
@@ -382,6 +419,11 @@ class UUIDTreeBuilder:
         # Display Docling text vs PyMuPDF text for cross-verification
         docling_text = f' -> Docling: "{node.text[:25]}"' if node.text else ""
         fitz_text = f' | Fitz: "{node.fitz_text[:25]}"' if node.fitz_text else " | Fitz: [NO MATCH]"
+
+        img_str = (
+            f" [IMAGE: {node.image_width}x{node.image_height}]" if node.is_image else ""
+        )
+        
         # Style string formatting
         style_str = ""
         if node.font_name:
@@ -396,7 +438,7 @@ class UUIDTreeBuilder:
 
         docling_name_label_str = node.name +"-"+node.label
         connector = "└── " if is_last else "├── "
-        print(f"[{docling_name_label_str}]{prefix}{connector}[{node.label}]{ref_str} {id_str}{parent_str}{style_str}{docling_text}{fitz_text}")
+        print(f"[{docling_name_label_str}]{prefix}{connector}[{node.label}]{ref_str} {id_str}{parent_str}{style_str}{img_str}{docling_text}{fitz_text}")
 
         count = len(node.children)
         child_prefix = prefix + ("    " if is_last else "│   ")
