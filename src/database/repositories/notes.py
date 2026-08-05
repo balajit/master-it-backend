@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from sqlalchemy import exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,8 +26,8 @@ def _note_to_dict(note: UserNoteModel) -> Dict[str, Any]:
 async def create_note(
     user_id: int,
     content: str,
-    unit_id: Optional[int],
-    lesson_id: Optional[int],
+    unit_id: Optional[UUID],
+    lesson_id: Optional[UUID],
 ) -> Dict[str, Any]:
     async with AsyncSession(engine) as session:
         note = UserNoteModel(
@@ -40,7 +42,7 @@ async def create_note(
         return _note_to_dict(note)
 
 
-async def get_note_by_id(note_id: int) -> Optional[Dict[str, Any]]:
+async def get_note_by_id(note_id: UUID) -> Optional[Dict[str, Any]]:
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserNoteModel).where(UserNoteModel.id == note_id)
@@ -50,7 +52,7 @@ async def get_note_by_id(note_id: int) -> Optional[Dict[str, Any]]:
 
 
 async def update_note(
-    note_id: int,
+    note_id: UUID,
     user_id: int,
     content: str,
 ) -> Optional[Dict[str, Any]]:
@@ -70,7 +72,7 @@ async def update_note(
         return _note_to_dict(note)
 
 
-async def delete_note(note_id: int, user_id: int) -> bool:
+async def delete_note(note_id: UUID, user_id: int) -> bool:
     """Delete a note. Returns True if deleted, False if not found or not owner."""
     async with AsyncSession(engine) as session:
         result = await session.execute(
@@ -87,7 +89,9 @@ async def delete_note(note_id: int, user_id: int) -> bool:
         return True
 
 
-async def get_notes_for_unit(unit_id: int, user_id: int) -> List[Dict[str, Any]]:
+async def get_notes_for_unit(unit_id: UUID, user_id: int) -> List[Dict[str, Any]]:
+    if not isinstance(unit_id, UUID):
+        return []
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserNoteModel)
@@ -100,7 +104,9 @@ async def get_notes_for_unit(unit_id: int, user_id: int) -> List[Dict[str, Any]]
         return [_note_to_dict(n) for n in result.scalars().all()]
 
 
-async def get_notes_for_lesson(lesson_id: int, user_id: int) -> List[Dict[str, Any]]:
+async def get_notes_for_lesson(lesson_id: UUID, user_id: int) -> List[Dict[str, Any]]:
+    if not isinstance(lesson_id, UUID):
+        return []
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserNoteModel)
@@ -116,20 +122,31 @@ async def get_notes_for_lesson(lesson_id: int, user_id: int) -> List[Dict[str, A
 async def get_notes_by_course(
     course_id: int,
     user_id: int,
-    unit_ids: List[int],
-    lesson_ids: List[int],
+    unit_ids: Sequence[int | UUID],
+    lesson_ids: Sequence[int | UUID],
 ) -> List[Dict[str, Any]]:
     """Return all notes for a user scoped to a course's units and lessons."""
     async with AsyncSession(engine) as session:
         from sqlalchemy import or_
+
+        unit_uuid_ids: list[UUID] = [
+            value for value in unit_ids if isinstance(value, UUID)
+        ]
+        lesson_uuid_ids: list[UUID] = [
+            value for value in lesson_ids if isinstance(value, UUID)
+        ]
 
         result = await session.execute(
             select(UserNoteModel)
             .where(
                 UserNoteModel.user_id == user_id,
                 or_(
-                    UserNoteModel.unit_id.in_(unit_ids) if unit_ids else False,
-                    UserNoteModel.lesson_id.in_(lesson_ids) if lesson_ids else False,
+                    UserNoteModel.unit_id.in_(unit_uuid_ids)
+                    if unit_uuid_ids
+                    else False,
+                    UserNoteModel.lesson_id.in_(lesson_uuid_ids)
+                    if lesson_uuid_ids
+                    else False,
                 ),
             )
             .order_by(UserNoteModel.created_at)
@@ -137,7 +154,9 @@ async def get_notes_by_course(
         return [_note_to_dict(n) for n in result.scalars().all()]
 
 
-async def has_notes_for_unit(unit_id: int, user_id: int) -> bool:
+async def has_notes_for_unit(unit_id: int | UUID, user_id: int) -> bool:
+    if not isinstance(unit_id, UUID):
+        return False
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(
@@ -150,18 +169,23 @@ async def has_notes_for_unit(unit_id: int, user_id: int) -> bool:
         return bool(result.scalar())
 
 
-async def has_notes_for_lessons(lesson_ids: List[int], user_id: int) -> Dict[int, bool]:
+async def has_notes_for_lessons(
+    lesson_ids: List[int | UUID], user_id: int
+) -> Dict[UUID, bool]:
     """Return a mapping of lesson_id → bool for whether the user has notes."""
-    if not lesson_ids:
+    uuid_lesson_ids: list[UUID] = [
+        value for value in lesson_ids if isinstance(value, UUID)
+    ]
+    if not uuid_lesson_ids:
         return {}
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserNoteModel.lesson_id)
             .where(
-                UserNoteModel.lesson_id.in_(lesson_ids),
+                UserNoteModel.lesson_id.in_(uuid_lesson_ids),
                 UserNoteModel.user_id == user_id,
             )
             .distinct()
         )
         ids_with_notes = {row[0] for row in result.all()}
-        return {lid: lid in ids_with_notes for lid in lesson_ids}
+        return {lid: lid in ids_with_notes for lid in uuid_lesson_ids}

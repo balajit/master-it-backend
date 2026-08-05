@@ -1332,6 +1332,27 @@ def test_pipeline_e2e_pdf_elements_order_fidelity_to_book() -> None:
     book_hits = _collect_book_hits(book)
     _assert_stage_hits("book", book_hits)
 
+    # ── Image processing verification ────────────────────────────────────────
+    # The test PDF contains a 1×1 PNG image on page 2 (between E022 and E023).
+    # Verify the book assembler produced at least one ImageItem with non-empty
+    # base64-encoded image data.
+    image_items = [
+        item
+        for chapter in book.chapters
+        for lesson in chapter.lessons
+        for page in lesson.pages
+        for item in page.items
+        if getattr(item, "type", "") == "image"
+    ]
+    assert image_items, (
+        "book: expected at least one ImageItem (type='image') from the test PDF figure"
+    )
+    populated_image_items = [item for item in image_items if getattr(item, "data", "")]
+    assert populated_image_items, (
+        "book: at least one ImageItem must have non-empty base64 image data populated; "
+        f"found {len(image_items)} image item(s) but all had empty data"
+    )
+
 
 def test_pipeline_e2e_pdf_fixture_reuse_behavior() -> None:
     path = _ensure_test_pipeline_e2e_pdf()

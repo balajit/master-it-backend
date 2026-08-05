@@ -22,11 +22,38 @@ Design Principles
 
 from __future__ import annotations
 
+import base64
 from enum import IntEnum, StrEnum
 from typing import Annotated, Any, Literal
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer
+
+
+def _image_bytes_validator(v: Any) -> bytes | None:
+    """Accept raw bytes or a base64-encoded string; always store as raw bytes."""
+    if v is None:
+        return None
+    if isinstance(v, (bytes, bytearray)):
+        return bytes(v)
+    if isinstance(v, str):
+        return base64.b64decode(v)
+    return bytes(v)
+
+
+def _image_bytes_json_serializer(v: bytes | None) -> str | None:
+    """Serialize raw bytes as a base64 string in JSON mode."""
+    if v is None:
+        return None
+    return base64.b64encode(v).decode("ascii")
+
+
+# Raw bytes in Python; base64 string when serialized to JSON.
+ImageBytes = Annotated[
+    bytes,
+    BeforeValidator(_image_bytes_validator),
+    PlainSerializer(_image_bytes_json_serializer, return_type=str, when_used="json"),
+]
 
 # ──────────────────────────────────────────────────────────────────────────────
 # Enums
@@ -384,6 +411,11 @@ class Figure(BaseModel):
     ``caption_node_id`` references a sibling ``DocumentNode`` node that
     serves as the figure caption when the caption is a separate node.
     ``caption_text`` stores an inline caption when it is embedded.
+
+    ``image_base64`` holds raw image bytes (pydantic ``Base64Bytes``).
+    It is populated in-memory during the pipeline run and stripped before
+    persisting to ``lp_documents.nodes`` — images are stored separately
+    in ``lp_document_images`` and lazily fetched via the image endpoint.
     """
 
     type: Literal["figure"] = "figure"
@@ -397,6 +429,7 @@ class Figure(BaseModel):
     mimetype: str = ""
     storage_key: str = ""
     size_bytes: int = 0
+    image_base64: ImageBytes | None = None  # raw bytes in memory; stripped on DB serialization
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 

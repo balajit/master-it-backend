@@ -729,13 +729,13 @@ class TestV1LessonsRouter:
         assert resp.status_code == 404
 
     async def test_get_lesson_notes_empty(self, client: AsyncClient) -> None:
-        lesson_id = await self._scaffold(client)
+        lesson_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/lessons/{lesson_id}/notes")
         assert resp.status_code == 200
         assert resp.json() == []
 
     async def test_get_lesson_flashcards_empty(self, client: AsyncClient) -> None:
-        lesson_id = await self._scaffold(client)
+        lesson_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/lessons/{lesson_id}/flashcards")
         assert resp.status_code == 200
         assert resp.json() == []
@@ -952,11 +952,9 @@ class TestV1SectionUnlockRouter:
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestV1NotesRouter:
-    async def _scaffold_lesson(self, client: AsyncClient) -> int:
-        course_id = await _create_course(client, suffix=" (notes)")
-        unit_id = await _create_unit(client, course_id)
-        section_id = await _create_section(client, unit_id)
-        return await _create_lesson(client, section_id)
+    async def _scaffold_lesson(self, client: AsyncClient) -> str:
+        _ = client
+        return str(uuid.uuid4())
 
     async def test_create_note_for_lesson(self, client: AsyncClient) -> None:
         lesson_id = await self._scaffold_lesson(client)
@@ -990,7 +988,10 @@ class TestV1NotesRouter:
         assert resp.json()["content"] == "updated"
 
     async def test_update_note_404(self, client: AsyncClient) -> None:
-        resp = await client.put("/api/v1/notes/999999", json={"content": "x"})
+        resp = await client.put(
+            f"/api/v1/notes/{uuid.uuid4()}",
+            json={"content": "x"},
+        )
         assert resp.status_code == 404
 
     async def test_delete_note(self, client: AsyncClient) -> None:
@@ -1004,12 +1005,11 @@ class TestV1NotesRouter:
         assert resp.status_code == 204
 
     async def test_delete_note_404(self, client: AsyncClient) -> None:
-        resp = await client.delete("/api/v1/notes/999999")
+        resp = await client.delete(f"/api/v1/notes/{uuid.uuid4()}")
         assert resp.status_code == 404
 
     async def test_get_unit_notes_empty(self, client: AsyncClient) -> None:
-        course_id = await _create_course(client, suffix=" (unit notes)")
-        unit_id = await _create_unit(client, course_id)
+        unit_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/units/{unit_id}/notes")
         assert resp.status_code == 200
         assert resp.json() == []
@@ -1030,9 +1030,8 @@ class TestV1NotesRouter:
 class TestV1FlashcardsRouter:
     async def _scaffold(self, client: AsyncClient) -> dict:
         course_id = await _create_course(client, suffix=" (flashcard)")
-        unit_id = await _create_unit(client, course_id)
-        section_id = await _create_section(client, unit_id)
-        lesson_id = await _create_lesson(client, section_id)
+        unit_id = str(uuid.uuid4())
+        lesson_id = str(uuid.uuid4())
         return {"course_id": course_id, "unit_id": unit_id, "lesson_id": lesson_id}
 
     async def test_create_flashcard_user_scope(self, client: AsyncClient) -> None:
@@ -1080,8 +1079,7 @@ class TestV1FlashcardsRouter:
         assert len(resp.json()) >= 1
 
     async def test_get_unit_flashcards_empty(self, client: AsyncClient) -> None:
-        course_id = await _create_course(client, suffix=" (fc unit)")
-        unit_id = await _create_unit(client, course_id)
+        unit_id = str(uuid.uuid4())
         resp = await client.get(f"/api/v1/units/{unit_id}/flashcards")
         assert resp.status_code == 200
         assert resp.json() == []
@@ -1112,7 +1110,8 @@ class TestV1FlashcardsRouter:
 
     async def test_update_flashcard_404(self, client: AsyncClient) -> None:
         resp = await client.put(
-            "/api/v1/flashcards/999999", json={"front": "X", "back": "Y"}
+            f"/api/v1/flashcards/{uuid.uuid4()}",
+            json={"front": "X", "back": "Y"},
         )
         assert resp.status_code == 404
 
@@ -1132,7 +1131,7 @@ class TestV1FlashcardsRouter:
         assert resp.status_code == 204
 
     async def test_delete_flashcard_404(self, client: AsyncClient) -> None:
-        resp = await client.delete("/api/v1/flashcards/999999")
+        resp = await client.delete(f"/api/v1/flashcards/{uuid.uuid4()}")
         assert resp.status_code == 404
 
 

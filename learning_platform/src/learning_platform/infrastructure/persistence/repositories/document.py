@@ -10,6 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
 from learning_platform.infrastructure.persistence.repositories.base import BaseRepository
+from learning_platform.infrastructure.persistence.repositories.document_image import (
+    DocumentImageRepository,
+)
 from learning_platform.models.document import CanonicalDocument, DocumentMetadata, DocumentNode
 
 _NODE_LIST_ADAPTER: TypeAdapter[list[DocumentNode]] = TypeAdapter(list[DocumentNode])
@@ -49,6 +52,7 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
             existing.metadata_json = doc.metadata.model_dump()
             existing.nodes_json = self._serialize_nodes(doc.nodes)
             await self.save(existing)
+            await DocumentImageRepository(self._session).save_for_document(existing.id, doc.nodes)
             return existing.id
 
         row = CanonicalDocumentRow(
@@ -60,6 +64,7 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
             nodes_json=self._serialize_nodes(doc.nodes),
         )
         await self.save(row)
+        await DocumentImageRepository(self._session).save_for_document(row.id, doc.nodes)
         return row.id
 
     async def find_document(self, doc_id: UUID) -> CanonicalDocument | None:
@@ -86,11 +91,27 @@ class DocumentRepository(BaseRepository[CanonicalDocumentRow]):
     # ── internal ─────────────────────────────────────────────────────────
 
     @staticmethod
+    def _strip_image_base64(node_dict: dict[str, object]) -> None:
+        """Recursively strip ``image_base64`` from Figure content blocks in-place."""
+        content = node_dict.get("content")
+        if isinstance(content, dict) and content.get("type") == "figure":
+            content.pop("image_base64", None)
+        for child in node_dict.get("children") or []:
+            if isinstance(child, dict):
+                DocumentRepository._strip_image_base64(child)
+
+    @staticmethod
     def _serialize_nodes(nodes: list[DocumentNode]) -> list[dict[str, object]]:
-        """Recursively serialize the node tree to a JSON-safe list."""
+        """Recursively serialize the node tree to a JSON-safe list.
+
+        ``image_base64`` is stripped from all Figure content blocks before
+        persisting — binary image data is stored separately in
+        ``lp_document_images`` and fetched lazily via the image endpoint.
+        """
         result: list[dict[str, object]] = []
         for node in nodes:
             d = node.model_dump(mode="json")
+            DocumentRepository._strip_image_base64(d)
             result.append(d)
         return result
 

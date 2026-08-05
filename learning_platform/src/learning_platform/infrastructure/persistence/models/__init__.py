@@ -14,6 +14,7 @@ from learning_platform.infrastructure.persistence.models.concept import (
     ConceptRow,
 )
 from learning_platform.infrastructure.persistence.models.document import CanonicalDocumentRow
+from learning_platform.infrastructure.persistence.models.document_image import DocumentImageRow
 from learning_platform.infrastructure.persistence.models.document_process import DocumentProcessRow
 from learning_platform.infrastructure.persistence.models.knowledge_graph import (
     GraphEdgeRow,
@@ -46,6 +47,7 @@ __all__ = [
     "BookProcessRow",
     "CanonicalDocumentRow",
     "CheckpointRow",
+    "DocumentImageRow",
     "ConceptRelationshipRow",
     "ConceptRow",
     "DocumentProcessRow",

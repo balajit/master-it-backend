@@ -6,6 +6,7 @@ import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Any, Dict, List
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 
@@ -557,14 +558,14 @@ async def create_note(
         unit_id=body.unit_id,
         lesson_id=body.lesson_id,
     )
-    if body.unit_id is not None:
+    if isinstance(body.unit_id, int):
         invalidate_study_page_cache(body.unit_id)
     return NoteResponse(**note)
 
 
 @router.put("/notes/{note_id}", response_model=NoteResponse)
 async def update_note(
-    note_id: int,
+    note_id: UUID,
     body: NoteUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> NoteResponse:
@@ -573,14 +574,14 @@ async def update_note(
     note = await _update_note(note_id=note_id, user_id=user["id"], content=body.content)
     if note is None:
         raise HTTPException(status_code=404, detail="Note not found or access denied")
-    if note.get("unit_id") is not None:
+    if isinstance(note.get("unit_id"), int):
         invalidate_study_page_cache(note["unit_id"])
     return NoteResponse(**note)
 
 
 @router.delete("/notes/{note_id}", status_code=204)
 async def delete_note(
-    note_id: int,
+    note_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> None:
     from database.repositories.notes import delete_note as _delete_note
@@ -592,13 +593,13 @@ async def delete_note(
     if note is None or note["user_id"] != user["id"]:
         raise HTTPException(status_code=404, detail="Note not found or access denied")
     await _delete_note(note_id=note_id, user_id=user["id"])
-    if note.get("unit_id") is not None:
+    if isinstance(note.get("unit_id"), int):
         invalidate_study_page_cache(note["unit_id"])
 
 
 @router.get("/units/{unit_id}/notes", response_model=List[NoteResponse])
 async def get_unit_notes(
-    unit_id: int,
+    unit_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[NoteResponse]:
     from database.repositories.notes import get_notes_for_unit
@@ -609,7 +610,7 @@ async def get_unit_notes(
 
 @router.get("/lessons/{lesson_id}/notes", response_model=List[NoteResponse])
 async def get_lesson_notes(
-    lesson_id: int,
+    lesson_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[NoteResponse]:
     from database.repositories.notes import get_notes_for_lesson
@@ -670,7 +671,7 @@ async def create_flashcard(
         lesson_id=body.lesson_id,
         is_generated=False,
     )
-    if body.unit_id is not None:
+    if isinstance(body.unit_id, int):
         invalidate_study_page_cache(body.unit_id)
     return FlashcardResponse(**card)
 
@@ -694,7 +695,7 @@ async def generate_flashcards_endpoint(
 
 @router.put("/flashcards/{card_id}", response_model=FlashcardResponse)
 async def update_flashcard(
-    card_id: int,
+    card_id: UUID,
     body: FlashcardUpdate,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> FlashcardResponse:
@@ -710,14 +711,14 @@ async def update_flashcard(
         raise HTTPException(
             status_code=404, detail="Flashcard not found or access denied"
         )
-    if card.get("unit_id") is not None:
+    if isinstance(card.get("unit_id"), int):
         invalidate_study_page_cache(card["unit_id"])
     return FlashcardResponse(**card)
 
 
 @router.delete("/flashcards/{card_id}", status_code=204)
 async def delete_flashcard(
-    card_id: int,
+    card_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> None:
     from database.repositories.flashcards import (
@@ -731,13 +732,13 @@ async def delete_flashcard(
             status_code=404, detail="Flashcard not found or access denied"
         )
     await _delete_flashcard(card_id=card_id, created_by=user["id"])
-    if card.get("unit_id") is not None:
+    if isinstance(card.get("unit_id"), int):
         invalidate_study_page_cache(card["unit_id"])
 
 
 @router.get("/units/{unit_id}/flashcards", response_model=List[FlashcardResponse])
 async def get_unit_flashcards(
-    unit_id: int,
+    unit_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[FlashcardResponse]:
     from database.repositories.flashcards import get_flashcards_for_unit
@@ -748,7 +749,7 @@ async def get_unit_flashcards(
 
 @router.get("/lessons/{lesson_id}/flashcards", response_model=List[FlashcardResponse])
 async def get_lesson_flashcards(
-    lesson_id: int,
+    lesson_id: UUID,
     user: Dict[str, Any] = Depends(get_current_user),
 ) -> List[FlashcardResponse]:
     from database.repositories.flashcards import get_flashcards_for_lesson

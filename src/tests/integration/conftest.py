@@ -25,6 +25,7 @@ import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy import text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
@@ -64,15 +65,27 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     )
 
     try:
-        async with engine.connect() as conn:
+        async with engine.begin() as conn:
+            await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+            await conn.execute(text("CREATE SCHEMA public"))
             await conn.run_sync(Base.metadata.create_all)
+            await conn.execute(
+                text(
+                    """
+                    INSERT INTO users (id, email, name, picture_url, phone)
+                    VALUES (1000000, 'integration@example.com', 'Integration User', '', '')
+                    ON CONFLICT (id) DO NOTHING
+                    """
+                )
+            )
     except Exception as exc:  # noqa: BLE001
         pytest.skip(f"PostgreSQL not reachable at {TEST_DATABASE_URL}: {exc}")
 
     yield engine
 
-    async with engine.connect() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+    async with engine.begin() as conn:
+        await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
+        await conn.execute(text("CREATE SCHEMA public"))
 
     await engine.dispose()
 
@@ -106,7 +119,7 @@ async def db_session(db_engine: AsyncEngine) -> AsyncGenerator[AsyncSession, Non
 def mock_user() -> dict[str, Any]:
     """Fake authenticated user injected via dependency_overrides."""
     return {
-        "id": 1,
+        "id": 1000000,
         "email": "integration@example.com",
         "name": "Integration User",
         "picture_url": "",

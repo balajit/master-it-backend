@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import inspect
 import logging
 import shutil
@@ -13,7 +14,7 @@ from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.api.schemas import DocumentTreeNodeResponse
-from learning_platform.models.document import DocumentNode
+from learning_platform.models.document import DocumentNode, Figure
 from learning_platform.security import InvalidPathError, resolve_safe_path
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,33 @@ def get_study_plan_repository_class() -> Any:
     return documents_routes.StudyPlanRepository
 
 
-def build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
-    """Recursively build a tree response from a DocumentNode."""
+def _has_figure_nodes(node: DocumentNode) -> bool:
+    """Return True if any node in the subtree has Figure content."""
+    if isinstance(node.content, Figure):
+        return True
+    return any(_has_figure_nodes(child) for child in node.children)
+
+
+def build_tree_node(
+    node: DocumentNode,
+    *,
+    doc_id: UUID | None = None,
+    figure_image_inline: bool = False,
+) -> DocumentTreeNodeResponse:
+    """Recursively build a tree response from a DocumentNode.
+
+    For Figure nodes:
+    - When *figure_image_inline* is False (default): populate ``image_url``
+      with the path to the dedicated image endpoint.
+    - When *figure_image_inline* is True: populate ``image_data`` with the
+      base64-encoded image bytes (if available in memory).
+    """
     content = node.content
     content_type = content.type
     title = ""
     text = ""
+    image_url = ""
+    image_data = ""
 
     if hasattr(content, "level"):
         title = content_type
@@ -77,6 +99,14 @@ def build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
         title = content.term
         text = content.definition
 
+    if isinstance(content, Figure):
+        if figure_image_inline:
+            if content.image_base64 is not None:
+                image_data = base64.b64encode(content.image_base64).decode("ascii")
+        else:
+            if doc_id is not None:
+                image_url = f"/api/documents/{doc_id}/nodes/{node.id}/image"
+
     return DocumentTreeNodeResponse(
         id=node.id,
         type=content_type,
@@ -84,7 +114,12 @@ def build_tree_node(node: DocumentNode) -> DocumentTreeNodeResponse:
         level=node.level,
         title=title,
         text=text[:500] if text else "",
-        children=[build_tree_node(child) for child in node.children],
+        image_url=image_url,
+        image_data=image_data,
+        children=[
+            build_tree_node(child, doc_id=doc_id, figure_image_inline=figure_image_inline)
+            for child in node.children
+        ],
     )
 
 

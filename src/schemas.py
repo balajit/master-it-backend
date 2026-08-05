@@ -3,6 +3,7 @@ from __future__ import annotations
 import enum
 from datetime import datetime
 from typing import Annotated, Any, List, Literal, Optional
+from uuid import UUID
 
 from pydantic import BaseModel, EmailStr, Field, model_validator
 
@@ -845,8 +846,8 @@ class NoteCreate(BaseModel):
     """Create a user note attached to exactly one unit or lesson."""
 
     content: str
-    unit_id: Optional[int] = None
-    lesson_id: Optional[int] = None
+    unit_id: Optional[UUID] = None
+    lesson_id: Optional[UUID] = None
 
     @model_validator(mode="after")
     def validate_target(self) -> NoteCreate:
@@ -861,10 +862,10 @@ class NoteUpdate(BaseModel):
 
 
 class NoteResponse(BaseModel):
-    id: int
+    id: UUID
     content: str
-    unit_id: Optional[int] = None
-    lesson_id: Optional[int] = None
+    unit_id: Optional[UUID] = None
+    lesson_id: Optional[UUID] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
 
@@ -883,8 +884,8 @@ class FlashcardCreate(BaseModel):
     back: str
     scope: Literal["user", "course"]
     course_id: Optional[int] = None
-    unit_id: Optional[int] = None
-    lesson_id: Optional[int] = None
+    unit_id: Optional[UUID] = None
+    lesson_id: Optional[UUID] = None
 
     @model_validator(mode="after")
     def validate_scope_and_target(self) -> FlashcardCreate:
@@ -920,14 +921,14 @@ class FlashcardUpdate(BaseModel):
 
 
 class FlashcardResponse(BaseModel):
-    id: int
+    id: UUID
     front: str
     back: str
     user_id: Optional[int] = None
     created_by: int
     course_id: Optional[int] = None
-    unit_id: Optional[int] = None
-    lesson_id: Optional[int] = None
+    unit_id: Optional[UUID] = None
+    lesson_id: Optional[UUID] = None
     is_generated: bool
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -941,7 +942,7 @@ class FlashcardGenerateRequest(BaseModel):
     """
 
     scope: Literal["unit", "lesson"]
-    target_id: int
+    target_id: UUID
     card_scope: Literal["user", "course"]
     force: bool = False
 

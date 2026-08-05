@@ -8,6 +8,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from learning_platform.api.auth import get_current_user
@@ -26,8 +27,10 @@ from learning_platform.api.schemas import (
     UnitsListResponse,
 )
 from learning_platform.cache import pipeline_cache
+from learning_platform.config import Settings, get_settings
 
 from .documents_common import (
+    _has_figure_nodes,
     authorize_persisted_document_owner,
     build_tree_node,
     get_concept_repository_class,
@@ -53,6 +56,7 @@ async def view_document_tree(
     doc_id: UUID,
     session: AsyncSession = Depends(get_session),  # type: ignore[assignment]
     user: dict = Depends(get_current_user),
+    settings: Settings = Depends(get_settings),
 ) -> DocumentTreeResponse:
     """View the canonical document tree for a processed document."""
     await authorize_persisted_document_owner(session, doc_id, user)
@@ -68,13 +72,23 @@ async def view_document_tree(
             raise HTTPException(status_code=404, detail=f"Document {doc_id} not found")
 
     root_node = document.nodes[0] if document.nodes else None
-    root_response = build_tree_node(root_node) if root_node else None
+    has_images = _has_figure_nodes(root_node) if root_node is not None else False
+    root_response = (
+        build_tree_node(
+            root_node,
+            doc_id=doc_id,
+            figure_image_inline=settings.figure_image_inline,
+        )
+        if root_node is not None
+        else None
+    )
 
     return DocumentTreeResponse(
         doc_id=doc_id,
         source=document.source,
         title=document.title,
         total_nodes=len(document.nodes),
+        has_images=has_images,
         root=root_response,
     )
 
@@ -324,3 +338,37 @@ async def export_json(
         ],
         "export_dir": str(export_dir),
     }
+
+
+@router.get(
+    "/{doc_id}/nodes/{node_id}/image",
+    summary="Fetch binary image for a figure node",
+    description=(
+        "Return the raw image bytes for a figure document node. "
+        "The URL for this endpoint is returned as ``image_url`` on each figure node "
+        "in the document tree response when ``FIGURE_IMAGE_INLINE`` is False (default)."
+    ),
+    responses={
+        200: {"content": {"image/png": {}, "image/jpeg": {}, "image/webp": {}}},
+        404: {"model": ErrorResponse, "description": "Image not found"},
+    },
+)
+async def get_node_image(
+    doc_id: UUID,
+    node_id: UUID,
+    session: AsyncSession = Depends(get_session),  # type: ignore[assignment]
+    user: dict = Depends(get_current_user),
+) -> Response:
+    """Return the binary image stored for a specific figure document node."""
+    await authorize_persisted_document_owner(session, doc_id, user)
+
+    from learning_platform.infrastructure.persistence.repositories.document_image import (  # noqa: PLC0415
+        DocumentImageRepository,
+    )
+
+    row = await DocumentImageRepository(session).find_by_node_id(node_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail=f"No image found for node {node_id}")
+
+    media_type = f"image/{row.image_format.lower()}"
+    return Response(content=row.image_data, media_type=media_type)

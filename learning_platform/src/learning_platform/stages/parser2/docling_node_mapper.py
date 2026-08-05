@@ -134,7 +134,21 @@ def _map_content_node(node: BridgeNode) -> DocumentNode:
         language = str(node.metadata.get("language", "") or "")
         return DocumentNode(id=uuid4(), content=CodeBlock(code=node.text, language=language))
     if name == "PictureItem" or lowered in {"picture", "figure", "image"}:
-        return DocumentNode(id=uuid4(), content=Figure(caption_text=node.text))
+        figure = Figure(caption_text=node.text)
+        if node.image_pil is not None:
+            import io  # noqa: PLC0415
+
+            buf = io.BytesIO()
+            fmt = (node.image_format or "PNG").upper()
+            if fmt not in {"JPEG", "PNG", "WEBP"}:
+                fmt = "PNG"
+            node.image_pil.save(buf, format=fmt)
+            figure.image_base64 = buf.getvalue()
+            figure.format = fmt
+            figure.mimetype = f"image/{fmt.lower()}"
+            figure.width = float(node.image_width or 0)
+            figure.height = float(node.image_height or 0)
+        return DocumentNode(id=uuid4(), content=figure)
     if name == "TextItem" or lowered in {"text", "paragraph", "caption"}:
         return _make_text_node(node)
 

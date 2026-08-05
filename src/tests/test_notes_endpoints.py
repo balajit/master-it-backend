@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -25,21 +26,21 @@ if _src_dir not in sys.path:
 NOW = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 MOCK_NOTE: dict[str, Any] = {
-    "id": 1,
+    "id": uuid.uuid4(),
     "user_id": 1,
     "content": "My note content",
-    "unit_id": 10,
+    "unit_id": uuid.uuid4(),
     "lesson_id": None,
     "created_at": NOW,
     "updated_at": None,
 }
 
 MOCK_LESSON_NOTE: dict[str, Any] = {
-    "id": 2,
+    "id": uuid.uuid4(),
     "user_id": 1,
     "content": "Lesson note",
     "unit_id": None,
-    "lesson_id": 5,
+    "lesson_id": uuid.uuid4(),
     "created_at": NOW,
     "updated_at": None,
 }
@@ -94,7 +95,10 @@ class TestCreateNote:
                 ) as client:
                     resp = await client.post(
                         "/api/v1/notes",
-                        json={"content": "My note content", "unit_id": 10},
+                        json={
+                            "content": "My note content",
+                            "unit_id": str(MOCK_NOTE["unit_id"]),
+                        },
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -102,7 +106,7 @@ class TestCreateNote:
         resp = _run(go())
         assert resp.status_code == 201
         data = resp.json()
-        assert data["unit_id"] == 10
+        assert data["unit_id"] == str(MOCK_NOTE["unit_id"])
         assert data["content"] == "My note content"
 
     def test_create_note_for_lesson(self, app, mock_user):
@@ -118,14 +122,17 @@ class TestCreateNote:
                 ) as client:
                     resp = await client.post(
                         "/api/v1/notes",
-                        json={"content": "Lesson note", "lesson_id": 5},
+                        json={
+                            "content": "Lesson note",
+                            "lesson_id": str(MOCK_LESSON_NOTE["lesson_id"]),
+                        },
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
 
         resp = _run(go())
         assert resp.status_code == 201
-        assert resp.json()["lesson_id"] == 5
+        assert resp.json()["lesson_id"] == str(MOCK_LESSON_NOTE["lesson_id"])
 
     def test_create_note_no_target_returns_422(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -153,7 +160,11 @@ class TestCreateNote:
             ) as client:
                 resp = await client.post(
                     "/api/v1/notes",
-                    json={"content": "bad", "unit_id": 1, "lesson_id": 2},
+                    json={
+                        "content": "bad",
+                        "unit_id": str(uuid.uuid4()),
+                        "lesson_id": str(uuid.uuid4()),
+                    },
                     headers={"Authorization": "Bearer fake"},
                 )
             return resp
@@ -179,7 +190,7 @@ class TestUpdateNote:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.put(
-                        "/api/v1/notes/1",
+                        f"/api/v1/notes/{MOCK_NOTE['id']}",
                         json={"content": "Updated content"},
                         headers={"Authorization": "Bearer fake"},
                     )
@@ -201,7 +212,7 @@ class TestUpdateNote:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.put(
-                        "/api/v1/notes/999",
+                        f"/api/v1/notes/{uuid.uuid4()}",
                         json={"content": "x"},
                         headers={"Authorization": "Bearer fake"},
                     )
@@ -233,7 +244,7 @@ class TestDeleteNote:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/notes/1",
+                        f"/api/v1/notes/{MOCK_NOTE['id']}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -253,7 +264,7 @@ class TestDeleteNote:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/notes/999",
+                        f"/api/v1/notes/{uuid.uuid4()}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -274,7 +285,7 @@ class TestDeleteNote:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/notes/1",
+                        f"/api/v1/notes/{MOCK_NOTE['id']}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -299,7 +310,7 @@ class TestGetUnitNotes:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/units/10/notes",
+                        f"/api/v1/units/{MOCK_NOTE['unit_id']}/notes",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -307,7 +318,7 @@ class TestGetUnitNotes:
         resp = _run(go())
         assert resp.status_code == 200
         assert len(resp.json()) == 1
-        assert resp.json()[0]["unit_id"] == 10
+        assert resp.json()[0]["unit_id"] == str(MOCK_NOTE["unit_id"])
 
     def test_returns_empty_list_when_no_notes(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -321,7 +332,7 @@ class TestGetUnitNotes:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/units/10/notes",
+                        f"/api/v1/units/{uuid.uuid4()}/notes",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -347,11 +358,11 @@ class TestGetLessonNotes:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/lessons/5/notes",
+                        f"/api/v1/lessons/{MOCK_LESSON_NOTE['lesson_id']}/notes",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
 
         resp = _run(go())
         assert resp.status_code == 200
-        assert resp.json()[0]["lesson_id"] == 5
+        assert resp.json()[0]["lesson_id"] == str(MOCK_LESSON_NOTE["lesson_id"])

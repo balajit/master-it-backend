@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -30,13 +31,13 @@ if _src_dir not in sys.path:
 NOW = datetime(2026, 1, 1, 0, 0, 0, tzinfo=timezone.utc)
 
 MOCK_CARD: dict[str, Any] = {
-    "id": 1,
+    "id": uuid.uuid4(),
     "user_id": 1,
     "created_by": 1,
     "front": "What is SGD?",
     "back": "Stochastic Gradient Descent",
     "course_id": None,
-    "unit_id": 10,
+    "unit_id": uuid.uuid4(),
     "lesson_id": None,
     "is_generated": False,
     "created_at": NOW,
@@ -45,7 +46,7 @@ MOCK_CARD: dict[str, Any] = {
 
 MOCK_GEN_CARD: dict[str, Any] = {
     **MOCK_CARD,
-    "id": 2,
+    "id": uuid.uuid4(),
     "is_generated": True,
     "front": "Gradient",
     "back": "Rate of change",
@@ -104,7 +105,7 @@ class TestCreateFlashcard:
                             "front": "What is SGD?",
                             "back": "SGD",
                             "scope": "user",
-                            "unit_id": 10,
+                            "unit_id": str(MOCK_CARD["unit_id"]),
                         },
                         headers={"Authorization": "Bearer fake"},
                     )
@@ -113,7 +114,7 @@ class TestCreateFlashcard:
         resp = _run(go())
         assert resp.status_code == 201
         assert resp.json()["front"] == "What is SGD?"
-        assert resp.json()["unit_id"] == 10
+        assert resp.json()["unit_id"] == str(MOCK_CARD["unit_id"])
 
     def test_course_scoped_card_created(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -170,7 +171,12 @@ class TestCreateFlashcard:
             ) as client:
                 resp = await client.post(
                     "/api/v1/flashcards",
-                    json={"front": "Q", "back": "A", "scope": "course", "unit_id": 1},
+                    json={
+                        "front": "Q",
+                        "back": "A",
+                        "scope": "course",
+                        "unit_id": str(uuid.uuid4()),
+                    },
                     headers={"Authorization": "Bearer fake"},
                 )
             return resp
@@ -185,25 +191,32 @@ class TestCreateFlashcard:
 class TestGenerateFlashcards:
     def test_generate_returns_cards(self, app, mock_user):
         _override_auth(app, mock_user)
+        target_id = str(uuid.uuid4())
 
         async def go():
             with patch(
                 "routers.v1.generate_flashcards",
                 new=AsyncMock(return_value=[MOCK_GEN_CARD]),
-            ):
+            ) as mock_generate:
                 async with httpx.AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.post(
                         "/api/v1/flashcards/generate",
-                        json={"scope": "unit", "target_id": 10, "card_scope": "user"},
+                        json={
+                            "scope": "unit",
+                            "target_id": target_id,
+                            "card_scope": "user",
+                        },
                         headers={"Authorization": "Bearer fake"},
                     )
-            return resp
+            return resp, mock_generate
 
-        resp = _run(go())
+        resp, mock_generate = _run(go())
         assert resp.status_code == 201
         assert resp.json()[0]["is_generated"] is True
+        mock_generate.assert_awaited_once()
+        mock_generate.assert_awaited_once()
 
     def test_generate_409_when_cards_exist_no_force(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -218,20 +231,25 @@ class TestGenerateFlashcards:
                         detail="Generated flashcards already exist for this target. Pass force=true to replace them.",
                     )
                 ),
-            ):
+            ) as mock_generate:
                 async with httpx.AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.post(
                         "/api/v1/flashcards/generate",
-                        json={"scope": "unit", "target_id": 10, "card_scope": "user"},
+                        json={
+                            "scope": "unit",
+                            "target_id": str(uuid.uuid4()),
+                            "card_scope": "user",
+                        },
                         headers={"Authorization": "Bearer fake"},
                     )
-            return resp
+            return resp, mock_generate
 
-        resp = _run(go())
+        resp, mock_generate = _run(go())
         assert resp.status_code == 409
         assert "force=true" in resp.json()["detail"]
+        mock_generate.assert_awaited_once()
 
     def test_generate_with_force_replaces_cards(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -240,7 +258,7 @@ class TestGenerateFlashcards:
             with patch(
                 "routers.v1.generate_flashcards",
                 new=AsyncMock(return_value=[MOCK_GEN_CARD]),
-            ):
+            ) as mock_generate:
                 async with httpx.AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
@@ -248,16 +266,17 @@ class TestGenerateFlashcards:
                         "/api/v1/flashcards/generate",
                         json={
                             "scope": "unit",
-                            "target_id": 10,
+                            "target_id": str(uuid.uuid4()),
                             "card_scope": "user",
                             "force": True,
                         },
                         headers={"Authorization": "Bearer fake"},
                     )
-            return resp
+            return resp, mock_generate
 
-        resp = _run(go())
+        resp, mock_generate = _run(go())
         assert resp.status_code == 201
+        mock_generate.assert_awaited_once()
 
     def test_generate_empty_when_no_lp_data(self, app, mock_user):
         _override_auth(app, mock_user)
@@ -266,20 +285,25 @@ class TestGenerateFlashcards:
             with patch(
                 "routers.v1.generate_flashcards",
                 new=AsyncMock(return_value=[]),
-            ):
+            ) as mock_generate:
                 async with httpx.AsyncClient(
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.post(
                         "/api/v1/flashcards/generate",
-                        json={"scope": "unit", "target_id": 99, "card_scope": "user"},
+                        json={
+                            "scope": "unit",
+                            "target_id": str(uuid.uuid4()),
+                            "card_scope": "user",
+                        },
                         headers={"Authorization": "Bearer fake"},
                     )
-            return resp
+            return resp, mock_generate
 
-        resp = _run(go())
+        resp, mock_generate = _run(go())
         assert resp.status_code == 201
         assert resp.json() == []
+        mock_generate.assert_awaited_once()
 
 
 # ── PUT /flashcards/{id} ──────────────────────────────────────────────────────
@@ -299,7 +323,7 @@ class TestUpdateFlashcard:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.put(
-                        "/api/v1/flashcards/1",
+                        f"/api/v1/flashcards/{MOCK_CARD['id']}",
                         json={"front": "Updated Q"},
                         headers={"Authorization": "Bearer fake"},
                     )
@@ -317,7 +341,7 @@ class TestUpdateFlashcard:
                 transport=ASGITransport(app=app), base_url="http://test"
             ) as client:
                 resp = await client.put(
-                    "/api/v1/flashcards/1",
+                    f"/api/v1/flashcards/{uuid.uuid4()}",
                     json={},
                     headers={"Authorization": "Bearer fake"},
                 )
@@ -338,7 +362,7 @@ class TestUpdateFlashcard:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.put(
-                        "/api/v1/flashcards/999",
+                        f"/api/v1/flashcards/{uuid.uuid4()}",
                         json={"front": "X"},
                         headers={"Authorization": "Bearer fake"},
                     )
@@ -370,7 +394,7 @@ class TestDeleteFlashcard:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/flashcards/1",
+                        f"/api/v1/flashcards/{MOCK_CARD['id']}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -391,7 +415,7 @@ class TestDeleteFlashcard:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/flashcards/1",
+                        f"/api/v1/flashcards/{MOCK_CARD['id']}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -411,7 +435,7 @@ class TestDeleteFlashcard:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.delete(
-                        "/api/v1/flashcards/1",
+                        f"/api/v1/flashcards/{uuid.uuid4()}",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -436,7 +460,7 @@ class TestGetUnitFlashcards:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/units/10/flashcards",
+                        f"/api/v1/units/{MOCK_CARD['unit_id']}/flashcards",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -457,7 +481,7 @@ class TestGetUnitFlashcards:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/units/10/flashcards",
+                        f"/api/v1/units/{uuid.uuid4()}/flashcards",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
@@ -473,7 +497,7 @@ class TestGetUnitFlashcards:
 class TestGetLessonFlashcards:
     def test_returns_lesson_cards(self, app, mock_user):
         _override_auth(app, mock_user)
-        lesson_card = {**MOCK_CARD, "unit_id": None, "lesson_id": 5}
+        lesson_card = {**MOCK_CARD, "unit_id": None, "lesson_id": uuid.uuid4()}
 
         async def go():
             with patch(
@@ -484,14 +508,14 @@ class TestGetLessonFlashcards:
                     transport=ASGITransport(app=app), base_url="http://test"
                 ) as client:
                     resp = await client.get(
-                        "/api/v1/lessons/5/flashcards",
+                        f"/api/v1/lessons/{lesson_card['lesson_id']}/flashcards",
                         headers={"Authorization": "Bearer fake"},
                     )
             return resp
 
         resp = _run(go())
         assert resp.status_code == 200
-        assert resp.json()[0]["lesson_id"] == 5
+        assert resp.json()[0]["lesson_id"] == str(lesson_card["lesson_id"])
 
 
 # ── GET /courses/{id}/flashcards ──────────────────────────────────────────────

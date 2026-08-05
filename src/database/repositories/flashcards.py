@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from sqlalchemy import delete, exists, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,8 +32,8 @@ async def create_flashcard(
     back: str,
     user_id: Optional[int],
     course_id: Optional[int],
-    unit_id: Optional[int],
-    lesson_id: Optional[int],
+    unit_id: Optional[UUID],
+    lesson_id: Optional[UUID],
     is_generated: bool = False,
 ) -> Dict[str, Any]:
     async with AsyncSession(engine) as session:
@@ -65,7 +66,7 @@ async def bulk_create_flashcards(
         return [_card_to_dict(m) for m in models]
 
 
-async def get_flashcard_by_id(card_id: int) -> Optional[Dict[str, Any]]:
+async def get_flashcard_by_id(card_id: UUID) -> Optional[Dict[str, Any]]:
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserFlashcardModel).where(UserFlashcardModel.id == card_id)
@@ -75,7 +76,7 @@ async def get_flashcard_by_id(card_id: int) -> Optional[Dict[str, Any]]:
 
 
 async def update_flashcard(
-    card_id: int,
+    card_id: UUID,
     created_by: int,
     front: Optional[str],
     back: Optional[str],
@@ -99,7 +100,7 @@ async def update_flashcard(
         return _card_to_dict(card)
 
 
-async def delete_flashcard(card_id: int, created_by: int) -> bool:
+async def delete_flashcard(card_id: UUID, created_by: int) -> bool:
     """Delete a flashcard. Returns True if deleted, False if not found or not creator."""
     async with AsyncSession(engine) as session:
         result = await session.execute(
@@ -119,8 +120,8 @@ async def delete_flashcard(card_id: int, created_by: int) -> bool:
 def _visibility_filter(
     user_id: int,
     course_id: Optional[int] = None,
-    unit_id: Optional[int] = None,
-    lesson_id: Optional[int] = None,
+    unit_id: Optional[UUID] = None,
+    lesson_id: Optional[UUID] = None,
 ) -> list:  # type: ignore[type-arg]
     """Build WHERE clauses: user-owned OR course-scoped within the same course/unit/lesson."""
     from sqlalchemy import or_
@@ -144,7 +145,9 @@ def _visibility_filter(
     return [user_owned]
 
 
-async def get_flashcards_for_unit(unit_id: int, user_id: int) -> List[Dict[str, Any]]:
+async def get_flashcards_for_unit(unit_id: UUID, user_id: int) -> List[Dict[str, Any]]:
+    if not isinstance(unit_id, UUID):
+        return []
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserFlashcardModel)
@@ -158,8 +161,10 @@ async def get_flashcards_for_unit(unit_id: int, user_id: int) -> List[Dict[str, 
 
 
 async def get_flashcards_for_lesson(
-    lesson_id: int, user_id: int
+    lesson_id: UUID, user_id: int
 ) -> List[Dict[str, Any]]:
+    if not isinstance(lesson_id, UUID):
+        return []
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(UserFlashcardModel)
@@ -187,7 +192,9 @@ async def get_flashcards_for_course(
         return [_card_to_dict(c) for c in result.scalars().all()]
 
 
-async def has_flashcards_for_unit(unit_id: int, user_id: int) -> bool:
+async def has_flashcards_for_unit(unit_id: int | UUID, user_id: int) -> bool:
+    if not isinstance(unit_id, UUID):
+        return False
     async with AsyncSession(engine) as session:
         result = await session.execute(
             select(
@@ -201,10 +208,13 @@ async def has_flashcards_for_unit(unit_id: int, user_id: int) -> bool:
 
 
 async def has_flashcards_for_lessons(
-    lesson_ids: List[int], user_id: int
-) -> Dict[int, bool]:
+    lesson_ids: List[int | UUID], user_id: int
+) -> Dict[UUID, bool]:
     """Return a mapping of lesson_id → bool for visible flashcard existence."""
-    if not lesson_ids:
+    uuid_lesson_ids: list[UUID] = [
+        value for value in lesson_ids if isinstance(value, UUID)
+    ]
+    if not uuid_lesson_ids:
         return {}
     from sqlalchemy import or_
 
@@ -212,7 +222,7 @@ async def has_flashcards_for_lessons(
         result = await session.execute(
             select(UserFlashcardModel.lesson_id)
             .where(
-                UserFlashcardModel.lesson_id.in_(lesson_ids),
+                UserFlashcardModel.lesson_id.in_(uuid_lesson_ids),
                 or_(
                     UserFlashcardModel.user_id == user_id,
                     UserFlashcardModel.user_id.is_(None),
@@ -221,14 +231,14 @@ async def has_flashcards_for_lessons(
             .distinct()
         )
         ids_with_cards = {row[0] for row in result.all()}
-        return {lid: lid in ids_with_cards for lid in lesson_ids}
+        return {lid: lid in ids_with_cards for lid in uuid_lesson_ids}
 
 
 async def get_generated_flashcards(
     user_id: Optional[int],
     course_id: Optional[int] = None,
-    unit_id: Optional[int] = None,
-    lesson_id: Optional[int] = None,
+    unit_id: Optional[UUID] = None,
+    lesson_id: Optional[UUID] = None,
 ) -> List[Dict[str, Any]]:
     """Fetch existing generated flashcards for a target+scope combination."""
     async with AsyncSession(engine) as session:
@@ -250,8 +260,8 @@ async def get_generated_flashcards(
 async def delete_generated_flashcards(
     user_id: Optional[int],
     course_id: Optional[int] = None,
-    unit_id: Optional[int] = None,
-    lesson_id: Optional[int] = None,
+    unit_id: Optional[UUID] = None,
+    lesson_id: Optional[UUID] = None,
 ) -> int:
     """Delete existing generated flashcards for a target+scope. Returns count deleted."""
     async with AsyncSession(engine) as session:

@@ -35,6 +35,12 @@ class Settings(BaseSettings):
     # --- Parser backend ---
     parser_backend: str = "parser2"
 
+    # --- Figure image delivery ---
+    figure_image_inline: bool = False
+    # When False (default): tree endpoint returns image_url per figure node (lazy fetch).
+    # When True: tree endpoint embeds base64 image_data inline.
+    # Toggle via env var: FIGURE_IMAGE_INLINE=true
+
     # --- LLM ---
     llm_provider: str = "ollama"  # ollama | openai | anthropic
     llm_model: str = "llama3.1"

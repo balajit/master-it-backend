@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
+from uuid import UUID
 
 from fastapi import HTTPException
 
@@ -11,7 +12,7 @@ from services.learning import invalidate_study_page_cache
 async def generate_flashcards(
     *,
     scope: str,
-    target_id: int,
+    target_id: UUID,
     card_scope: str,
     user_id: int,
     force: bool = False,
@@ -28,8 +29,8 @@ async def generate_flashcards(
                 If False and generated cards already exist, raises HTTP 409.
     """
     owner_id: Optional[int] = user_id if card_scope == "user" else None
-    unit_id: Optional[int] = target_id if scope == "unit" else None
-    lesson_id: Optional[int] = target_id if scope == "lesson" else None
+    unit_id: Optional[UUID] = target_id if scope == "unit" else None
+    lesson_id: Optional[UUID] = target_id if scope == "lesson" else None
 
     # Check for existing generated cards
     existing = await fc_repo.get_generated_flashcards(
@@ -76,7 +77,7 @@ async def generate_flashcards(
     result = await fc_repo.bulk_create_flashcards(records)
 
     # Invalidate study page cache so has_flashcards flags update
-    resolved_unit_id: Optional[int] = unit_id
+    resolved_unit_id: Optional[int] = None
     if lesson_id is not None:
         # We don't have unit_id here directly; pass None to clear all
         resolved_unit_id = None
@@ -85,7 +86,7 @@ async def generate_flashcards(
     return result
 
 
-async def _get_seeds(scope: str, target_id: int) -> List[Dict[str, str]]:
+async def _get_seeds(scope: str, target_id: UUID) -> List[Dict[str, str]]:
     """Retrieve FlashcardSeed data from the learning platform for a unit or lesson.
 
     Returns a list of {"front": ..., "back": ...} dicts.
@@ -97,10 +98,12 @@ async def _get_seeds(scope: str, target_id: int) -> List[Dict[str, str]]:
             generate_seeds_for_lesson,
         )
 
+        target_int = _uuid_to_legacy_int(target_id)
+
         if scope == "unit":
-            seeds = await generate_seeds_for_unit(target_id)
+            seeds = await generate_seeds_for_unit(target_int)
         else:
-            seeds = await generate_seeds_for_lesson(target_id)
+            seeds = await generate_seeds_for_lesson(target_int)
 
         return [{"front": s.front, "back": s.back} for s in seeds]
     except ImportError:
@@ -109,3 +112,7 @@ async def _get_seeds(scope: str, target_id: int) -> List[Dict[str, str]]:
     except Exception:
         # Graceful degradation: LP unavailable should not crash the endpoint
         return []
+
+
+def _uuid_to_legacy_int(value: UUID) -> int:
+    return value.int % (2**31 - 1)

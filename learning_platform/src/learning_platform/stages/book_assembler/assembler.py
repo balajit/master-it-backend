@@ -17,7 +17,6 @@ The resulting shape is always:
 
 from __future__ import annotations
 
-import base64
 import logging
 import re
 from collections import defaultdict
@@ -1133,13 +1132,12 @@ class BookAssembler:
             )
 
         if isinstance(content, Figure):
-            # Embed image as base64 if image_data is available
+            # Embed image as base64 if image_base64 bytes are available
             data = ""
-            if hasattr(content, "image_data") and content.image_data:
-                if isinstance(content.image_data, bytes):
-                    data = base64.b64encode(content.image_data).decode()
-                else:
-                    data = str(content.image_data)
+            if content.image_base64 is not None:
+                import base64 as _base64  # noqa: PLC0415
+
+                data = _base64.b64encode(content.image_base64).decode("ascii")
             caption = ""
             if hasattr(content, "caption_text"):
                 caption = content.caption_text

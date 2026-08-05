@@ -10,6 +10,7 @@ Covers:
 from __future__ import annotations
 
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -32,13 +33,15 @@ from schemas import (  # noqa: E402
 
 class TestNoteCreate:
     def test_unit_target_valid(self):
-        note = NoteCreate(content="hello", unit_id=1)
-        assert note.unit_id == 1
+        unit_id = uuid.uuid4()
+        note = NoteCreate(content="hello", unit_id=unit_id)
+        assert note.unit_id == unit_id
         assert note.lesson_id is None
 
     def test_lesson_target_valid(self):
-        note = NoteCreate(content="hello", lesson_id=5)
-        assert note.lesson_id == 5
+        lesson_id = uuid.uuid4()
+        note = NoteCreate(content="hello", lesson_id=lesson_id)
+        assert note.lesson_id == lesson_id
         assert note.unit_id is None
 
     def test_neither_target_raises(self):
@@ -47,11 +50,11 @@ class TestNoteCreate:
 
     def test_both_targets_raises(self):
         with pytest.raises(ValueError, match="Exactly one"):
-            NoteCreate(content="hello", unit_id=1, lesson_id=2)
+            NoteCreate(content="hello", unit_id=uuid.uuid4(), lesson_id=uuid.uuid4())
 
     def test_content_required(self):
         with pytest.raises(Exception):
-            NoteCreate(unit_id=1)  # type: ignore[call-arg]
+            NoteCreate(unit_id=uuid.uuid4())  # type: ignore[call-arg]
 
 
 class TestNoteUpdate:
@@ -69,14 +72,16 @@ class TestNoteUpdate:
 
 class TestFlashcardCreate:
     def test_user_scope_with_unit_id_valid(self):
-        card = FlashcardCreate(front="Q", back="A", scope="user", unit_id=1)
+        unit_id = uuid.uuid4()
+        card = FlashcardCreate(front="Q", back="A", scope="user", unit_id=unit_id)
         assert card.scope == "user"
-        assert card.unit_id == 1
+        assert card.unit_id == unit_id
         assert card.course_id is None
 
     def test_user_scope_with_lesson_id_valid(self):
-        card = FlashcardCreate(front="Q", back="A", scope="user", lesson_id=3)
-        assert card.lesson_id == 3
+        lesson_id = uuid.uuid4()
+        card = FlashcardCreate(front="Q", back="A", scope="user", lesson_id=lesson_id)
+        assert card.lesson_id == lesson_id
 
     def test_course_scope_with_course_id_valid(self):
         card = FlashcardCreate(front="Q", back="A", scope="course", course_id=2)
@@ -88,11 +93,17 @@ class TestFlashcardCreate:
 
     def test_multiple_targets_raises(self):
         with pytest.raises(ValueError, match="Exactly one"):
-            FlashcardCreate(front="Q", back="A", scope="user", unit_id=1, lesson_id=2)
+            FlashcardCreate(
+                front="Q",
+                back="A",
+                scope="user",
+                unit_id=uuid.uuid4(),
+                lesson_id=uuid.uuid4(),
+            )
 
     def test_course_scope_without_course_id_raises(self):
         with pytest.raises(ValueError, match="scope='course' requires course_id"):
-            FlashcardCreate(front="Q", back="A", scope="course", unit_id=1)
+            FlashcardCreate(front="Q", back="A", scope="course", unit_id=uuid.uuid4())
 
     def test_user_scope_with_course_id_raises(self):
         with pytest.raises(ValueError, match="scope='user' cannot use course_id"):
@@ -101,7 +112,12 @@ class TestFlashcardCreate:
     def test_three_targets_raises(self):
         with pytest.raises(ValueError, match="Exactly one"):
             FlashcardCreate(
-                front="Q", back="A", scope="user", unit_id=1, lesson_id=2, course_id=3
+                front="Q",
+                back="A",
+                scope="user",
+                unit_id=uuid.uuid4(),
+                lesson_id=uuid.uuid4(),
+                course_id=3,
             )
 
 
@@ -134,20 +150,31 @@ class TestFlashcardUpdate:
 
 class TestFlashcardGenerateRequest:
     def test_defaults(self):
-        req = FlashcardGenerateRequest(scope="unit", target_id=5, card_scope="user")
+        req = FlashcardGenerateRequest(
+            scope="unit",
+            target_id=uuid.uuid4(),
+            card_scope="user",
+        )
         assert req.force is False
 
     def test_force_true(self):
         req = FlashcardGenerateRequest(
-            scope="lesson", target_id=10, card_scope="course", force=True
+            scope="lesson",
+            target_id=uuid.uuid4(),
+            card_scope="course",
+            force=True,
         )
         assert req.force is True
         assert req.scope == "lesson"
 
     def test_invalid_scope_raises(self):
         with pytest.raises(Exception):
-            FlashcardGenerateRequest(scope="section", target_id=1, card_scope="user")  # type: ignore[arg-type]
+            FlashcardGenerateRequest(  # type: ignore[arg-type]
+                scope="section", target_id=uuid.uuid4(), card_scope="user"
+            )
 
     def test_invalid_card_scope_raises(self):
         with pytest.raises(Exception):
-            FlashcardGenerateRequest(scope="unit", target_id=1, card_scope="admin")  # type: ignore[arg-type]
+            FlashcardGenerateRequest(  # type: ignore[arg-type]
+                scope="unit", target_id=uuid.uuid4(), card_scope="admin"
+            )

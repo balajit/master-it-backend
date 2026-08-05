@@ -44,6 +44,13 @@ class BridgeNode:
     fitz_text: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
+    # Image fields — populated only for picture/figure/image nodes
+    is_image: bool = False
+    image_pil: Any | None = None  # raw PIL.Image, discarded after mapper conversion
+    image_format: str | None = None
+    image_width: int | None = None
+    image_height: int | None = None
+
 
 @dataclass
 class BridgeDocument:
@@ -516,9 +523,18 @@ class DoclingPyMuPDFMerger:
         self._is_pdf = source.lower().endswith(".pdf")
 
         _LOG.info("DoclingPyMuPDFMerger: Running Docling conversion for %s", source)
-        from docling.document_converter import DocumentConverter  # noqa: PLC0415
+        from docling.datamodel.base_models import InputFormat  # noqa: PLC0415
+        from docling.datamodel.pipeline_options import PdfPipelineOptions  # noqa: PLC0415
+        from docling.document_converter import DocumentConverter, PdfFormatOption  # noqa: PLC0415
 
-        converter = DocumentConverter()
+        pdf_options = PdfPipelineOptions()
+        pdf_options.generate_picture_images = True  # populate PictureItem.image for extraction
+
+        converter = DocumentConverter(
+            format_options={
+                InputFormat.PDF: PdfFormatOption(pipeline_options=pdf_options),
+            }
+        )
         result = converter.convert(source)
         self.docling_doc = result.document
 
@@ -613,6 +629,10 @@ class DoclingPyMuPDFMerger:
                 all_nodes.append(expanded_node)
                 if expanded_node.self_ref:
                     self.ref_to_node[expanded_node.self_ref] = expanded_node
+
+            # Extract PIL image for picture/figure/image nodes
+            if node.label.upper() in {"PICTURE", "IMAGE", "FIGURE"}:
+                self._process_image_item(node, doc_item)
 
     @staticmethod
     def _is_text_item_node(node: BridgeNode) -> bool:
@@ -774,6 +794,26 @@ class DoclingPyMuPDFMerger:
             parent_node.children.append(container)
 
         return container
+
+    def _process_image_item(self, node: BridgeNode, doc_item: Any) -> None:
+        """Extract a raw PIL.Image from a Docling picture/figure item and attach it to the node."""
+        image_obj: Any = None
+
+        if hasattr(doc_item, "get_image"):
+            try:
+                image_obj = doc_item.get_image(self.docling_doc)
+            except Exception:  # noqa: BLE001
+                image_obj = getattr(doc_item, "image", None)
+        else:
+            image_obj = getattr(doc_item, "image", None)
+
+        if image_obj is not None:
+            node.is_image = True
+            node.image_pil = image_obj
+            node.image_width = int(getattr(image_obj, "width", 0) or 0)
+            node.image_height = int(getattr(image_obj, "height", 0) or 0)
+            fmt = str(getattr(image_obj, "format", None) or "PNG").upper()
+            node.image_format = fmt if fmt in {"JPEG", "PNG", "WEBP"} else "PNG"
 
     def _extract_table_cell_nodes(self, root: BridgeNode) -> None:
         tables = getattr(self.docling_doc, "tables", None)

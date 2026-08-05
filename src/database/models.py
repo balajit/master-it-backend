@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum
+import uuid
 from datetime import datetime
 from typing import Any, Dict, Optional
 
@@ -338,17 +339,13 @@ class UserNoteModel(Base):
         Index("idx_user_notes_lesson_id", "lesson_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=False
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    unit_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("units.id"), nullable=True
-    )
-    lesson_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("lessons.id"), nullable=True
-    )
+    unit_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
+    lesson_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -367,7 +364,7 @@ class UserFlashcardModel(Base):
         Index("idx_user_flashcards_lesson_id", "lesson_id"),
     )
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     # NULL = course-scoped; NOT NULL = user-owned
     user_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("users.id"), nullable=True
@@ -381,12 +378,8 @@ class UserFlashcardModel(Base):
     course_id: Mapped[Optional[int]] = mapped_column(
         Integer, ForeignKey("courses.id"), nullable=True
     )
-    unit_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("units.id"), nullable=True
-    )
-    lesson_id: Mapped[Optional[int]] = mapped_column(
-        Integer, ForeignKey("lessons.id"), nullable=True
-    )
+    unit_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
+    lesson_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     is_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

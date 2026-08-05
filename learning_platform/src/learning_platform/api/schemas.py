@@ -46,6 +46,8 @@ class DocumentTreeNodeResponse(BaseModel):
     level: int = 0
     title: str = ""
     text: str = ""
+    image_url: str = ""  # URL to fetch binary image (figure nodes, FIGURE_IMAGE_INLINE=False)
+    image_data: str = ""  # base64-encoded inline image (figure nodes, FIGURE_IMAGE_INLINE=True)
     children: list[DocumentTreeNodeResponse] = Field(default_factory=list)
 
 
@@ -56,6 +58,7 @@ class DocumentTreeResponse(BaseModel):
     source: str = ""
     title: str = ""
     total_nodes: int = 0
+    has_images: bool = False  # True when the document contains at least one Figure node
     root: DocumentTreeNodeResponse | None = None
 
 
