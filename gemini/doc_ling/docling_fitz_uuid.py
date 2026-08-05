@@ -176,6 +176,14 @@ class UUIDCorrelatedNode:
         # Cross-verification field: The exact text captured from PyMuPDF span
         self.fitz_text: Optional[str] = None
 
+        # Image Fields
+        self.is_image: bool = False
+        self.image_source: Optional[str] = None  # "pymupdf" or "docling"
+        self.image_base64: Optional[str] = None
+        self.image_format: Optional[str] = None
+        self.image_width: Optional[int] = None
+        self.image_height: Optional[int] = None
+
 
 class UUIDTreeBuilder:
     def __init__(self, pdf_path: str):
