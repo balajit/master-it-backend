@@ -306,6 +306,436 @@ class TestGenerateFlashcards:
         mock_generate.assert_awaited_once()
 
 
+# ── POST /flashcards/generate (lesson scope) ──────────────────────────────────
+
+
+class _FakeLessonGenerator:
+    def __init__(self, seeds: list[dict[str, str]]):
+        self.seeds = seeds
+
+    async def generate(self) -> list[dict[str, str]]:
+        return self.seeds
+
+
+class _RaisingLessonGenerator:
+    async def generate(self) -> list[dict[str, str]]:
+        raise RuntimeError("boom")
+
+
+class TestGenerateLessonFlashcards:
+    def _lesson_card(self, target_id):
+        return {
+            **MOCK_GEN_CARD,
+            "id": uuid.uuid4(),
+            "unit_id": None,
+            "lesson_id": target_id,
+        }
+
+    @staticmethod
+    def _request_dict(target_id, status="in_progress", request_id=None):
+        return {
+            "request_id": request_id or uuid.uuid4(),
+            "user_id": 1,
+            "scope": "lesson",
+            "target_id": target_id,
+            "status": status,
+            "created_at": NOW,
+            "updated_at": None,
+        }
+
+    def _patch_request_repo(self, target_id, created=True, status="in_progress"):
+        request = self._request_dict(target_id, status=status)
+        create_mock = AsyncMock(return_value=(request, created))
+        complete_mock = AsyncMock()
+        return (
+            patch(
+                "database.repositories.flashcard_requests.create_flashcards_request",
+                new=create_mock,
+            ),
+            patch(
+                "database.repositories.flashcard_requests.complete_flashcards_request",
+                new=complete_mock,
+            ),
+            create_mock,
+            complete_mock,
+        )
+
+    def test_lesson_scope_generates_and_persists_cards(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_FakeLessonGenerator(
+                        [{"front": "Gradient", "back": "Rate of change"}]
+                    ),
+                ) as mock_generator,
+                patch("routers.v1.CuratorAgent", return_value=object()) as mock_curator,
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(return_value=[self._lesson_card(target_id)]),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return (
+                resp,
+                mock_generator,
+                mock_curator,
+                mock_bulk,
+                create_mock,
+                complete_mock,
+            )
+
+        (
+            resp,
+            mock_generator,
+            mock_curator,
+            mock_bulk,
+            create_mock,
+            complete_mock,
+        ) = _run(go())
+        assert resp.status_code == 201
+        assert resp.json()[0]["lesson_id"] == str(target_id)
+        assert resp.json()[0]["is_generated"] is True
+        mock_generator.assert_called_once_with(
+            lesson_id=target_id, curator=mock_curator.return_value
+        )
+        create_mock.assert_awaited_once_with(
+            scope="lesson", target_id=target_id, user_id=1
+        )
+        mock_bulk.assert_awaited_once()
+        record = mock_bulk.await_args.args[0][0]
+        assert record["lesson_id"] == target_id
+        assert record["unit_id"] is None
+        assert record["course_id"] is None
+        assert record["user_id"] == 1
+        assert record["created_by"] == 1
+        assert record["is_generated"] is True
+        complete_mock.assert_awaited_once_with(
+            create_mock.return_value[0]["request_id"], "completed"
+        )
+
+    def test_lesson_scope_duplicate_inflight_returns_request_info(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id, created=False, status="in_progress")
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    new=AsyncMock(side_effect=AssertionError("must not be used")),
+                ) as mock_generator,
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_generator, mock_bulk, create_mock, complete_mock
+
+        resp, mock_generator, mock_bulk, create_mock, complete_mock = _run(go())
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["request_id"] == str(create_mock.return_value[0]["request_id"])
+        assert body["scope"] == "lesson"
+        assert body["target_id"] == str(target_id)
+        assert body["status"] == "in_progress"
+        mock_generator.assert_not_called()
+        mock_bulk.assert_not_awaited()
+        complete_mock.assert_not_awaited()
+
+    def test_lesson_scope_course_card_scope_leaves_user_id_none(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_FakeLessonGenerator([{"front": "F", "back": "B"}]),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(return_value=[self._lesson_card(target_id)]),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "course",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_bulk
+
+        resp, mock_bulk = _run(go())
+        assert resp.status_code == 201
+        assert mock_bulk.await_args.args[0][0]["user_id"] is None
+
+    def test_lesson_scope_existing_cards_are_not_a_conflict(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_FakeLessonGenerator(
+                        [{"front": "Gradient", "back": "Rate of change"}]
+                    ),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.get_generated_flashcards",
+                    new=AsyncMock(return_value=[self._lesson_card(target_id)]),
+                ) as mock_get,
+                patch(
+                    "database.repositories.flashcards.delete_generated_flashcards",
+                    new=AsyncMock(),
+                ) as mock_delete,
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(return_value=[self._lesson_card(target_id)]),
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_get, mock_delete
+
+        resp, mock_get, mock_delete = _run(go())
+        assert resp.status_code == 201
+        mock_get.assert_not_awaited()
+        mock_delete.assert_not_awaited()
+
+    def test_lesson_scope_force_does_not_delete_existing(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_FakeLessonGenerator(
+                        [{"front": "Gradient", "back": "Rate of change"}]
+                    ),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.delete_generated_flashcards",
+                    new=AsyncMock(),
+                ) as mock_delete,
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(return_value=[self._lesson_card(target_id)]),
+                ),
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                            "force": True,
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_delete
+
+        resp, mock_delete = _run(go())
+        assert resp.status_code == 201
+        mock_delete.assert_not_awaited()
+
+    def test_lesson_scope_no_cards_returns_empty(self, app, mock_user):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_FakeLessonGenerator([]),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(return_value=[]),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_bulk, create_mock, complete_mock
+
+        resp, mock_bulk, create_mock, complete_mock = _run(go())
+        assert resp.status_code == 201
+        assert resp.json() == []
+        mock_bulk.assert_awaited_once()
+        complete_mock.assert_awaited_once_with(
+            create_mock.return_value[0]["request_id"], "completed"
+        )
+
+    def test_lesson_scope_generator_failure_returns_empty_and_marks_failed(
+        self, app, mock_user
+    ):
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    return_value=_RaisingLessonGenerator(),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_bulk, create_mock, complete_mock
+
+        resp, mock_bulk, create_mock, complete_mock = _run(go())
+        assert resp.status_code == 201
+        assert resp.json() == []
+        mock_bulk.assert_not_awaited()
+        complete_mock.assert_awaited_once_with(
+            create_mock.return_value[0]["request_id"], "failed"
+        )
+
+    def test_unit_scope_does_not_use_lesson_generator(self, app, mock_user):
+        _override_auth(app, mock_user)
+
+        async def go():
+            with (
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    new=AsyncMock(side_effect=AssertionError("must not be used")),
+                ) as mock_generator,
+                patch(
+                    "routers.v1.generate_flashcards",
+                    new=AsyncMock(return_value=[MOCK_GEN_CARD]),
+                ) as mock_generate,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "unit",
+                            "target_id": str(uuid.uuid4()),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_generator, mock_generate
+
+        resp, mock_generator, mock_generate = _run(go())
+        assert resp.status_code == 201
+        mock_generator.assert_not_awaited()
+        mock_generate.assert_awaited_once()
+
+
 # ── PUT /flashcards/{id} ──────────────────────────────────────────────────────
 
 

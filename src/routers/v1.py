@@ -5,12 +5,13 @@ from __future__ import annotations
 import asyncio
 import logging
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Union
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 
 from auth import get_current_user
+from learning_platform.agents.curator import CuratorAgent
 from database import (
     get_all_user_progress,
     get_course,
@@ -33,6 +34,7 @@ from schemas import (
     EnrollResponse,
     FlashcardCreate,
     FlashcardGenerateRequest,
+    FlashcardRequestResponse,
     FlashcardResponse,
     FlashcardUpdate,
     GoalResponse,
@@ -60,6 +62,7 @@ from schemas import (
     UserQuizProgressUpdate,
 )
 from services.enrollment import check_and_unlock_next_section, provision_enrollment
+from services.flashcard_generator import FlashCardGenerator
 from services.flashcards import generate_flashcards
 from services.learning import (
     format_duration,
@@ -677,12 +680,25 @@ async def create_flashcard(
 
 
 @router.post(
-    "/flashcards/generate", response_model=List[FlashcardResponse], status_code=201
+    "/flashcards/generate",
+    response_model=Union[List[FlashcardResponse], FlashcardRequestResponse],
+    status_code=201,
 )
 async def generate_flashcards_endpoint(
     body: FlashcardGenerateRequest,
+    response: Response,
     user: Dict[str, Any] = Depends(get_current_user),
-) -> List[FlashcardResponse]:
+) -> Union[List[FlashcardResponse], FlashcardRequestResponse]:
+    if body.scope == "lesson":
+        result = await _generate_lesson_flashcards(
+            lesson_id=body.target_id,
+            card_scope=body.card_scope,
+            user_id=user["id"],
+        )
+        if isinstance(result, FlashcardRequestResponse):
+            response.status_code = 200
+        return result
+
     cards = await generate_flashcards(
         scope=body.scope,
         target_id=body.target_id,
@@ -691,6 +707,61 @@ async def generate_flashcards_endpoint(
         force=body.force,
     )
     return [FlashcardResponse(**c) for c in cards]
+
+
+async def _generate_lesson_flashcards(
+    *,
+    lesson_id: UUID,
+    card_scope: str,
+    user_id: int,
+) -> Union[List[FlashcardResponse], FlashcardRequestResponse]:
+    """Generate flashcards for a lesson via the Curator agent.
+
+    The (long-running) LLM call is guarded by a row in
+    ``user_flashcards_request``: if a generation request for the lesson is
+    already in flight, the existing request is returned instead of running
+    again.  Newly generated cards are appended — existing generated cards for
+    the lesson are never deleted and never treated as a conflict.
+    """
+    from database.repositories.flashcard_requests import (
+        complete_flashcards_request as _complete_flashcards_request,
+        create_flashcards_request as _create_flashcards_request,
+    )
+    from database.repositories.flashcards import (
+        bulk_create_flashcards as _bulk_create_flashcards,
+    )
+
+    request, created = await _create_flashcards_request(
+        scope="lesson", target_id=lesson_id, user_id=user_id
+    )
+    if not created:
+        return FlashcardRequestResponse(**request)
+
+    owner_id: Optional[int] = user_id if card_scope == "user" else None
+    generator = FlashCardGenerator(lesson_id=lesson_id, curator=CuratorAgent())
+    try:
+        seeds = await generator.generate()
+        records = [
+            {
+                "created_by": user_id,
+                "front": seed["front"],
+                "back": seed["back"],
+                "user_id": owner_id,
+                "course_id": None,
+                "unit_id": None,
+                "lesson_id": lesson_id,
+                "is_generated": True,
+            }
+            for seed in seeds
+        ]
+        result = await _bulk_create_flashcards(records)
+        await _complete_flashcards_request(request["request_id"], "completed")
+        invalidate_study_page_cache(None)
+        return [FlashcardResponse(**c) for c in result]
+    except Exception:
+        logger.exception("Flashcard generation failed for lesson %s", lesson_id)
+        await _complete_flashcards_request(request["request_id"], "failed")
+        return []
 
 
 @router.put("/flashcards/{card_id}", response_model=FlashcardResponse)

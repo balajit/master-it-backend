@@ -17,6 +17,7 @@ from sqlalchemy import (
     UniqueConstraint,
     Uuid,
     func,
+    text,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
@@ -381,6 +382,43 @@ class UserFlashcardModel(Base):
     unit_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     lesson_id: Mapped[Optional[uuid.UUID]] = mapped_column(Uuid, nullable=True)
     is_generated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
+
+
+class UserFlashcardsRequestModel(Base):
+    """Tracks in-flight flashcard generation requests.
+
+    A partial unique index on (scope, target_id) for the active statuses
+    guarantees only one pending/in_progress generation per target, so
+    concurrent generate calls for the same lesson/unit share a single LLM run.
+    """
+
+    __tablename__ = "user_flashcards_request"
+    __table_args__ = (
+        Index("ix_user_flashcards_request_scope_target", "scope", "target_id"),
+        Index("ix_user_flashcards_request_user_id", "user_id"),
+        Index(
+            "uq_user_flashcards_request_active",
+            "scope",
+            "target_id",
+            unique=True,
+            postgresql_where=text("status IN ('pending', 'in_progress')"),
+        ),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id"), nullable=False
+    )
+    scope: Mapped[str] = mapped_column(String, nullable=False)
+    target_id: Mapped[uuid.UUID] = mapped_column(Uuid, nullable=False)
+    # pending | in_progress | completed | failed
+    status: Mapped[str] = mapped_column(String, nullable=False, default="in_progress")
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

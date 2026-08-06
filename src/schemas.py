@@ -947,6 +947,19 @@ class FlashcardGenerateRequest(BaseModel):
     force: bool = False
 
 
+class FlashcardRequestResponse(BaseModel):
+    """Returned by POST /flashcards/generate when a request for the target is
+    already in flight (200), instead of kicking off a duplicate LLM run."""
+
+    request_id: UUID
+    user_id: int
+    scope: str
+    target_id: UUID
+    status: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+
+
 # ── Response schemas for OpenAPI spec completeness ───────────────────────────
 
 

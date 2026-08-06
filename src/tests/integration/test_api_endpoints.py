@@ -1136,6 +1136,102 @@ class TestV1FlashcardsRouter:
 
 
 # ===========================================================================
+# V1 router — Flashcard generation request tracking
+# ===========================================================================
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestFlashcardRequestTracking:
+    async def test_create_then_duplicate_returns_same_request(
+        self, client: AsyncClient, mock_user: dict
+    ) -> None:
+        from database.repositories.flashcard_requests import (
+            complete_flashcards_request,
+            create_flashcards_request,
+        )
+
+        target_id = uuid.uuid4()
+        try:
+            first, created = await create_flashcards_request(
+                "lesson", target_id, user_id=mock_user["id"]
+            )
+            assert created is True
+            assert first["status"] == "in_progress"
+
+            second, created_again = await create_flashcards_request(
+                "lesson", target_id, user_id=mock_user["id"]
+            )
+            assert created_again is False
+            assert second["request_id"] == first["request_id"]
+            assert second["status"] == "in_progress"
+        finally:
+            await complete_flashcards_request(first["request_id"], "completed")
+
+    async def test_dedup_is_global_across_users(self, client: AsyncClient) -> None:
+        from database.repositories.flashcard_requests import (
+            complete_flashcards_request,
+            create_flashcards_request,
+        )
+
+        target_id = uuid.uuid4()
+        first, created = await create_flashcards_request(
+            "lesson", target_id, user_id=1000000
+        )
+        try:
+            assert created is True
+            other, created_again = await create_flashcards_request(
+                "lesson", target_id, user_id=1000001
+            )
+            assert created_again is False
+            assert other["request_id"] == first["request_id"]
+        finally:
+            await complete_flashcards_request(first["request_id"], "completed")
+
+    async def test_completed_request_releases_the_lock(
+        self, client: AsyncClient, mock_user: dict
+    ) -> None:
+        from database.repositories.flashcard_requests import (
+            complete_flashcards_request,
+            create_flashcards_request,
+            get_active_flashcards_request,
+        )
+
+        target_id = uuid.uuid4()
+        first, created = await create_flashcards_request(
+            "lesson", target_id, user_id=mock_user["id"]
+        )
+        assert created is True
+
+        await complete_flashcards_request(first["request_id"], "completed")
+        assert await get_active_flashcards_request("lesson", target_id) is None
+
+        second, created_again = await create_flashcards_request(
+            "lesson", target_id, user_id=mock_user["id"]
+        )
+        assert created_again is True
+        assert second["request_id"] != first["request_id"]
+        await complete_flashcards_request(second["request_id"], "completed")
+
+    async def test_failed_request_releases_the_lock(
+        self, client: AsyncClient, mock_user: dict
+    ) -> None:
+        from database.repositories.flashcard_requests import (
+            complete_flashcards_request,
+            create_flashcards_request,
+            get_active_flashcards_request,
+        )
+
+        target_id = uuid.uuid4()
+        request, created = await create_flashcards_request(
+            "lesson", target_id, user_id=mock_user["id"]
+        )
+        assert created is True
+
+        await complete_flashcards_request(request["request_id"], "failed")
+        assert await get_active_flashcards_request("lesson", target_id) is None
+
+
+# ===========================================================================
 # Users router — /me and permission-gated endpoints
 # ===========================================================================
 
