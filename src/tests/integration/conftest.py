@@ -16,7 +16,9 @@ Run with a custom DB URL:
 
 from __future__ import annotations
 
+import asyncio
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator
@@ -33,6 +35,8 @@ from sqlalchemy.pool import NullPool
 _src_dir: str = str(Path(__file__).resolve().parent.parent.parent)
 if _src_dir not in sys.path:
     sys.path.insert(0, _src_dir)
+
+ROOT: Path = Path(__file__).resolve().parent.parent.parent.parent
 
 
 # ---------------------------------------------------------------------------
@@ -51,15 +55,31 @@ TEST_DATABASE_URL: str = os.environ.get("TEST_DATABASE_URL", _DEFAULT_TEST_DB_UR
 # ---------------------------------------------------------------------------
 
 
+def _run_alembic_upgrade() -> subprocess.CompletedProcess[str]:
+    """Apply migrations (alembic upgrade head) against the test DB.
+
+    Keeps alembic as the single source of truth for the schema and prevents
+    drift between ``create_all``-built test schemas and migrations.
+    """
+    env: dict[str, str] = os.environ.copy()
+    env["DATABASE_URL"] = TEST_DATABASE_URL
+    return subprocess.run(
+        ["uv", "run", "alembic", "upgrade", "head"],
+        cwd=str(ROOT),
+        env=env,
+        capture_output=True,
+        text=True,
+    )
+
+
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
 async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
     """Create an async engine connected to the test Postgres DB.
 
     Skips the entire session if the database is unreachable.
-    All tables are created before the session starts and dropped after.
+    The schema is rebuilt from migrations (alembic upgrade head) before the
+    session starts and dropped after.
     """
-    from database.base import Base
-
     engine: AsyncEngine = create_async_engine(
         TEST_DATABASE_URL, echo=False, poolclass=NullPool
     )
@@ -68,7 +88,15 @@ async def db_engine() -> AsyncGenerator[AsyncEngine, None]:
         async with engine.begin() as conn:
             await conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE"))
             await conn.execute(text("CREATE SCHEMA public"))
-            await conn.run_sync(Base.metadata.create_all)
+        proc: subprocess.CompletedProcess[str] = await asyncio.to_thread(
+            _run_alembic_upgrade
+        )
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"`alembic upgrade head` failed\nstdout:\n{proc.stdout}\n"
+                f"stderr:\n{proc.stderr}"
+            )
+        async with engine.begin() as conn:
             await conn.execute(
                 text(
                     """

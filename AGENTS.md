@@ -22,6 +22,12 @@
 
 - Package manager is **uv**. Do not use pip, poetry, or conda.
 - Edit `pyproject.toml` via `uv add`/`uv remove`, not by hand.
+- **Alembic migrations must be backward compatible and additive.** Existing databases can never be dropped or recreated. Drops are not the default strategy:
+  - Never `drop_table`; create a new table instead.
+  - Never run destructive SQL (`DROP`/`TRUNCATE`) in `upgrade()`.
+  - Renames require the create-then-copy-then-drop pattern: add the new column, backfill data via `op.execute`, then drop the old column.
+  - `drop_index`/`drop_constraint` are allowed; `drop_column` only with a replacement/backfill step.
+- Migration history is a single baseline (`alembic/versions/b6c7d8e9f0a1_initial_schema.py`, revision `b6c7d8e9f0a1`, `down_revision=None`); new migrations chain from `head`. `src/tests/test_migrations_additive.py` enforces the rules above.
 
 ## Runtime Tools & Commands
 - Environment Setup & Adding Modules: `uv add <package>`
