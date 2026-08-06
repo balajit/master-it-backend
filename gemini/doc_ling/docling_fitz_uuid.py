@@ -7,7 +7,11 @@ from PIL import Image
 
 # Docling imports
 from docling.document_converter import DocumentConverter, PdfFormatOption
-from docling.datamodel.pipeline_options import PdfPipelineOptions
+from docling.datamodel.pipeline_options import (
+    PdfPipelineOptions,
+    TableStructureOptions,
+    TableFormerMode,
+)
 from docling.datamodel.base_models import InputFormat
 
 
@@ -170,6 +174,17 @@ class UUIDTreeBuilder:
         pipeline_options.do_table_structure = True
         pipeline_options.do_ocr = True
 
+        # --- ESSENTIAL ADDITIONS FOR VISUAL/GRID DOCUMENTS ---
+        pipeline_options.generate_page_images = True
+        pipeline_options.generate_picture_images = True
+        pipeline_options.generate_table_images = True
+
+        # Helps detect complex visual table structures and grids
+        pipeline_options.table_structure_options = TableStructureOptions(
+            mode=TableFormerMode.ACCURATE,  # Uses ACCURATE instead of FAST
+            do_cell_matching=True,  # Strict cell matching to drawn/implicit grid lines
+        )
+
         converter = DocumentConverter(
             format_options={InputFormat.PDF: PdfFormatOption(pipeline_options=pipeline_options)}
         )
@@ -184,20 +199,27 @@ class UUIDTreeBuilder:
         self.self_ref_to_uuid: Dict[str, str] = {}
         self.uuid_to_node: Dict[str, UUIDCorrelatedNode] = {}
 
-    def _assign_page_columns(self, page_nodes: List[UUIDCorrelatedNode], num_columns: int = 2):
-        """Deduces column numbers using horizontal center points of bounding boxes on a page."""
+    def _assign_page_columns(
+        self, page_nodes: List[UUIDCorrelatedNode], default_cols: int = 18
+    ):
+        """Dynamically estimates grid/column positioning based on document content width."""
         valid_nodes = [n for n in page_nodes if n.norm_left != float("inf")]
         if not valid_nodes:
             return
 
-        centers = [n.center_x for n in valid_nodes]
-        min_x, max_x = min(centers), max(centers)
-        col_width = (max_x - min_x + 1e-5) / num_columns
+        # Check x-span of elements on page
+        min_x = min(n.norm_left for n in valid_nodes)
+        max_x = max(n.norm_right for n in valid_nodes)
+        total_span = max_x - min_x
 
+        if total_span <= 0:
+            return
+
+        # Assign column based on relative horizontal percentage across 18 grid slots
         for node in valid_nodes:
-            # Estimate column index from 0 to num_columns-1
-            col_idx = int((node.center_x - min_x) / col_width)
-            node.column_no = min(col_idx, num_columns - 1)
+            rel_pos = (node.center_x - min_x) / total_span
+            col_idx = int(rel_pos * default_cols)
+            node.column_no = max(0, min(col_idx, default_cols - 1))
 
     def _normalize_docling_bbox(self, prov, page_height: float, page_width: float):
         bbox = prov.bbox
@@ -267,9 +289,15 @@ class UUIDTreeBuilder:
         if "/" in self_ref:
             parts = self_ref.strip("#/").split("/")
             if parts[0]:
-                label = parts[0].rstrip("s").upper()
+                extracted_label = parts[0].rstrip("s").upper()
+                # If label is generic or UNSPECIFIED, treat as a generic CONTAINER
+                label = (
+                    "CONTAINER" if extracted_label == "UNSPECIFIED" else extracted_label
+                )
 
-        container_node = UUIDCorrelatedNode(docling_item=label, level=1, self_ref=self_ref)
+        container_node = UUIDCorrelatedNode(
+            docling_item=label, level=1, self_ref=self_ref
+        )
         self.self_ref_to_uuid[self_ref] = container_node.id
         self.uuid_to_node[container_node.id] = container_node
 
@@ -288,9 +316,18 @@ class UUIDTreeBuilder:
         for child in node.children:
             self._propagate_bounds(child)
             if child.page_no > 0:
-                node.page_no = child.page_no if node.page_no == 0 else min(node.page_no, child.page_no)
-                node.norm_top = min(node.norm_top, child.norm_top)
-                node.norm_left = min(node.norm_left, child.norm_left)
+                node.page_no = (
+                    child.page_no
+                    if node.page_no == 0
+                    else min(node.page_no, child.page_no)
+                )
+
+                # Update bounds avoiding infinity bugs
+                if child.norm_top != float("inf"):
+                    node.norm_top = min(node.norm_top, child.norm_top)
+                if child.norm_left != float("inf"):
+                    node.norm_left = min(node.norm_left, child.norm_left)
+
                 node.norm_bottom = max(node.norm_bottom, child.norm_bottom)
                 node.norm_right = max(node.norm_right, child.norm_right)
 
@@ -375,29 +412,54 @@ class UUIDTreeBuilder:
                 )
 
                 if hasattr(table, "data") and hasattr(table.data, "table_cells"):
+                    rows_dict: Dict[int, List[Any]] = {}
                     for cell in table.data.table_cells:
-                        cell_node = UUIDCorrelatedNode(cell, level=2)
-                        cell_node.label = "TABLE_CELL"
-                        cell_node.text = getattr(cell, "text", "").strip()
-                        cell_node.parent_id = table_node.id
+                        # Docling table cells have row_offset_idx (or fallback to start_row_offset_idx)
+                        row_idx = getattr(
+                            cell,
+                            "row_offset_idx",
+                            getattr(cell, "start_row_offset_idx", 0),
+                        )
+                        rows_dict.setdefault(row_idx, []).append(cell)
 
-                        if hasattr(cell, "prov") and cell.prov:
-                            prov = cell.prov[0]
-                            cell_node.page_no = prov.page_no
-                            pdf_page = self.fitz_doc[cell_node.page_no - 1]
-                            (
-                                cell_node.norm_top,
-                                cell_node.norm_left,
-                                cell_node.norm_bottom,
-                                cell_node.norm_right,
-                            ) = self._normalize_docling_bbox(
-                                prov, pdf_page.rect.height, pdf_page.rect.width
-                            )
-                        else:
-                            cell_node.page_no = table_node.page_no or 1
 
-                        self._apply_style_from_cache(cell_node)
-                        table_node.children.append(cell_node)
+                    # 2. Iterate through sorted rows and create TABLE_ROW nodes
+                    for row_idx in sorted(rows_dict.keys()):
+                        row_cells = rows_dict[row_idx]
+
+                        # Create the intermediate TABLE_ROW node
+                        row_self_ref = f"{table_ref}/rows/{row_idx}"
+                        row_node = UUIDCorrelatedNode(docling_item="TABLE_ROW", level=2, self_ref=row_self_ref)
+                        row_node.label = "TABLE_ROW"
+                        row_node.parent_id = table_node.id
+
+                        # Sort cells within the row left-to-right by column index
+                        row_cells.sort(key=lambda c: getattr(c, "col_offset_idx", getattr(c, "start_col_offset_idx", 0)))
+
+                        for cell in row_cells:
+                            cell_node = UUIDCorrelatedNode(cell, level=2)
+                            cell_node.label = "TABLE_CELL"
+                            cell_node.text = getattr(cell, "text", "").strip()
+                            cell_node.parent_id = row_node.id
+
+                            if hasattr(cell, "prov") and cell.prov:
+                                prov = cell.prov[0]
+                                cell_node.page_no = prov.page_no
+                                pdf_page = self.fitz_doc[cell_node.page_no - 1]
+                                (
+                                    cell_node.norm_top,
+                                    cell_node.norm_left,
+                                    cell_node.norm_bottom,
+                                    cell_node.norm_right,
+                                ) = self._normalize_docling_bbox(
+                                    prov, pdf_page.rect.height, pdf_page.rect.width
+                                )
+                            else:
+                                cell_node.page_no = table_node.page_no or 1
+
+                            self._apply_style_from_cache(cell_node)
+
+                        table_node.children.append(row_node)
 
         # Parent-child linking
         for node in all_nodes:
@@ -449,7 +511,7 @@ class UUIDTreeBuilder:
 
 
 if __name__ == "__main__":
-    builder = UUIDTreeBuilder("pdfs/csg.pdf")
+    builder = UUIDTreeBuilder("pdfs/ptable.pdf")
     root = builder.build_tree()
 
     print("\nVisualizing Tree with Correct Multi-Column & Image Spatial Alignment:")

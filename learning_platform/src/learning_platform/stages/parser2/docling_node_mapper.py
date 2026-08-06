@@ -24,6 +24,8 @@ from learning_platform.models.document import (
     SourceLocation,
     StyledText,
     TableBlock,
+    TableCell,
+    TableRow,
     TextItem,
     TextRun,
 )
@@ -49,6 +51,12 @@ def _build_children(
     id_map: dict[str, DocumentNode],
 ) -> None:
     for child in bridge_parent.children:
+        if (
+            isinstance(parent_node.content, TableBlock)
+            and child.metadata.get("role") == "AI-table_row"
+        ):
+            # Rows/cells are folded into TableBlock.rows by _build_table_block.
+            continue
         mapped_child = _map_bridge_node(child, source)
         mapped_child.parent_id = parent_node.id
         parent_node.children.append(mapped_child)
@@ -82,6 +90,10 @@ def _map_bridge_node(node: BridgeNode, source: str) -> DocumentNode:
             content=Paragraph(text=StyledText(runs=[TextRun(text="")])),
             metadata={"role": "document_root", "label": "AI-BODY"},
         )
+    elif node.is_synthetic and node.label.lower() in {"picture", "figure", "image"}:
+        # Synthetic picture nodes carry real image data (e.g. fitz fallback),
+        # so they must map to a Figure, not an empty container.
+        mapped = _map_content_node(node)
     elif node.is_synthetic:
         mapped = DocumentNode(
             id=uuid4(),
@@ -114,19 +126,14 @@ def _map_content_node(node: BridgeNode) -> DocumentNode:
         return _make_heading_node(node, level)
     if lowered == "form_area":
         return DocumentNode(id=uuid4(), content=FormAreaBlock())
-    if name == "ListItem" or lowered == "list_item":
+    if name == "ListItem" or lowered in {"list_item", "checkbox_item"}:
         return _make_list_item_node(node)
     if lowered == "list":
         return _make_list_group_node(node)
     if name == "TableItem" or lowered == "table":
         return DocumentNode(
             id=uuid4(),
-            content=TableBlock(
-                rows=[],
-                headers=[],
-                row_count=0,
-                column_count=0,
-            ),
+            content=_build_table_block(node),
         )
     if name == "FormulaItem" or lowered in {"formula", "equation"}:
         return DocumentNode(id=uuid4(), content=Equation(latex=node.text, is_block=True))
@@ -151,6 +158,13 @@ def _map_content_node(node: BridgeNode) -> DocumentNode:
         return DocumentNode(id=uuid4(), content=figure)
     if name == "TextItem" or lowered in {"text", "paragraph", "caption"}:
         return _make_text_node(node)
+    elif name == "GroupItem" and lowered == "unspecified":
+        return DocumentNode(
+            id=uuid4(),
+            content=Paragraph(
+                text=StyledText(runs=[TextRun(text=f"GroupItem with {node.label}")])
+            ),
+        )
 
     return DocumentNode(
         id=uuid4(),
@@ -204,11 +218,23 @@ def _make_list_item_node(node: BridgeNode) -> DocumentNode:
             style=style,
             items=[
                 ListItem(
-                    text=StyledText(runs=[TextRun(text=node.text, style=_inline_style(node))])
+                    text=StyledText(runs=[TextRun(text=node.text, style=_inline_style(node))]),
+                    checked=_list_item_checked(node.text),
                 )
             ],
         ),
     )
+
+
+def _list_item_checked(text: str) -> bool | None:
+    """Derive the checked state of a checkbox-style list item."""
+    import re
+
+    if re.match(r"^\s*(?:\[[xX]\]|☑|✓)\s+", text):
+        return True
+    if re.match(r"^\s*(?:\[\s*\]|☐)\s+", text):
+        return False
+    return None
 
 
 def _make_list_group_node(node: BridgeNode) -> DocumentNode:
@@ -219,6 +245,82 @@ def _make_list_group_node(node: BridgeNode) -> DocumentNode:
             style=style,
             items=[],
         ),
+    )
+
+
+def _block_style(node: BridgeNode) -> BlockStyle | None:
+    """Build a BlockStyle from a bridge node's PyMuPDF font metadata."""
+    if not (node.font_name or node.font_size):
+        return None
+    return BlockStyle(
+        font=FontInfo(
+            name=node.font_name or "",
+            size=node.font_size or 0.0,
+            is_bold=node.is_bold,
+            is_italic=node.is_italic,
+            color=node.color_hex or "",
+        )
+    )
+
+
+def _build_table_block(node: BridgeNode) -> TableBlock:
+    """Build a TableBlock from the table's AI-TABLE_ROW/AI-TABLE_CELL children."""
+    rows: list[TableRow] = []
+    header_texts: list[str] = []
+    max_col = 0
+
+    for row_node in node.children:
+        if row_node.metadata.get("role") != "AI-table_row":
+            continue
+
+        row_cells = [
+            cell for cell in row_node.children if cell.metadata.get("role") == "AI-table_cell"
+        ]
+        row_cells.sort(key=lambda cell: int(cell.metadata.get("table_col_index", 0) or 0))
+
+        cells: list[TableCell] = []
+        row_is_header = False
+        for cell_node in row_cells:
+            is_header = bool(cell_node.metadata.get("is_header", False))
+            col_idx = int(cell_node.metadata.get("table_col_index", 0) or 0)
+            max_col = max(max_col, col_idx + 1)
+            if is_header:
+                row_is_header = True
+                header_texts.append(cell_node.text)
+            cells.append(
+                TableCell(
+                    content=[TextRun(text=cell_node.text, style=_inline_style(cell_node))],
+                    row_span=int(cell_node.metadata.get("row_span", 1) or 1),
+                    col_span=int(cell_node.metadata.get("col_span", 1) or 1),
+                    header=is_header,
+                    style=_block_style(cell_node),
+                    metadata={
+                        "table_row_index": int(cell_node.metadata.get("table_row_index", 0) or 0),
+                        "table_col_index": col_idx,
+                    },
+                )
+            )
+
+        if cells:
+            rows.append(
+                TableRow(
+                    cells=cells,
+                    is_header=row_is_header,
+                    metadata={
+                        "table_row_index": int(row_node.metadata.get("table_row_index", 0) or 0),
+                    },
+                )
+            )
+
+    if not header_texts and rows:
+        header_texts = ["".join(run.text for run in cell.content) for cell in rows[0].cells]
+    column_count = max_col if max_col > 0 else max((len(row.cells) for row in rows), default=0)
+
+    return TableBlock(
+        rows=rows,
+        headers=header_texts,
+        row_count=len(rows),
+        column_count=column_count,
     )
 
 
@@ -351,13 +453,18 @@ def _hydrate_list_groups(root: DocumentNode) -> None:
             kept: list[DocumentNode] = []
             for child in node.children:
                 if isinstance(child.content, ListBlock) and len(child.content.items) == 1:
-                    if not node.content.items and node.content.style != child.content.style:
+                    if not node.content.items:
                         node.content = node.content.model_copy(
                             update={"style": child.content.style}
                         )
-
                     if node.style is None and child.style is not None:
                         node.style = child.style.model_copy(deep=True)
+
+                    # Re-parent nested sub-lists onto the group before dropping
+                    # the item wrapper so nesting is preserved.
+                    for grandchild in child.children:
+                        grandchild.parent_id = node.id
+                        kept.append(grandchild)
 
                     node.content.items.append(child.content.items[0])
                 else:

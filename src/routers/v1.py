@@ -722,6 +722,13 @@ async def _generate_lesson_flashcards(
     already in flight, the existing request is returned instead of running
     again.  Newly generated cards are appended — existing generated cards for
     the lesson are never deleted and never treated as a conflict.
+
+    Any exception raised after the request is recorded (including failures to
+    even construct the generator) marks the request ``failed``; a ``failed``
+    request is not in flight, so a later call re-runs generation instead of
+    returning the stale request. Requests abandoned mid-flight (e.g. a process
+    crash) are expired by the request repository and reprocessed on the next
+    call.
     """
     from database.repositories.flashcard_requests import (
         complete_flashcards_request as _complete_flashcards_request,
@@ -738,8 +745,8 @@ async def _generate_lesson_flashcards(
         return FlashcardRequestResponse(**request)
 
     owner_id: Optional[int] = user_id if card_scope == "user" else None
-    generator = FlashCardGenerator(lesson_id=lesson_id, curator=CuratorAgent())
     try:
+        generator = FlashCardGenerator(lesson_id=lesson_id, curator=CuratorAgent())
         seeds = await generator.generate()
         records = [
             {

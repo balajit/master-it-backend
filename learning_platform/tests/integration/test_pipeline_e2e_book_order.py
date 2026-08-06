@@ -43,6 +43,7 @@ from learning_platform.models.document import (
     ListBlock,
     Paragraph,
     TableBlock,
+    TableCell,
     TextItem,
 )
 from learning_platform.models.knowledge_graph import KnowledgeGraph, NodeType
@@ -424,10 +425,14 @@ def _node_fragments(node: DocumentNode) -> list[str]:
         return [item.text.plain_text for item in content.items]
     if isinstance(content, TableBlock):
         fragments: list[str] = []
-        fragments.extend(content.headers)
         for row in content.rows:
             for cell in row.cells:
                 fragments.append("".join(run.text for run in cell.content))
+        seen: set[str] = set(fragments)
+        for header in content.headers:
+            if header not in seen:
+                fragments.append(header)
+                seen.add(header)
         return fragments
     if isinstance(content, Figure):
         return [content.caption_text, content.alt_text]
@@ -438,7 +443,30 @@ def _node_fragments(node: DocumentNode) -> list[str]:
     return []
 
 
-def _extract_font_info(node: DocumentNode) -> tuple[str, bool | None, bool | None]:
+def _fragment_font_info(
+    node: DocumentNode, fragment_index: int
+) -> tuple[str, bool | None, bool | None]:
+    content = node.content
+
+    # Table cell runs are authoritative over the block-level table style.
+    if isinstance(content, TableBlock):
+        cells: list[TableCell] = []
+        for row in content.rows:
+            cells.extend(row.cells)
+        runs: list[Any] = []
+        if fragment_index < len(cells):
+            runs = list(cells[fragment_index].content)
+        else:
+            fragments = _node_fragments(node)
+            fragment = fragments[fragment_index] if fragment_index < len(fragments) else ""
+            matching_cell = next(
+                (cell for cell in cells if "".join(run.text for run in cell.content) == fragment),
+                None,
+            )
+            if matching_cell is not None:
+                runs = list(matching_cell.content)
+        return _font_info_from_runs(runs)
+
     if node.style is not None and node.style.font is not None:
         font = node.style.font
         return (
@@ -447,15 +475,22 @@ def _extract_font_info(node: DocumentNode) -> tuple[str, bool | None, bool | Non
             bool(font.is_italic),
         )
 
-    content = node.content
-    text_runs: list[Any] = []
-    if isinstance(content, (Heading, Paragraph, TextItem)):
-        text_runs = list(content.text.runs)
-    elif isinstance(content, ListBlock):
-        for item in content.items:
-            text_runs.extend(item.text.runs)
+    runs = _fragment_runs(content, fragment_index)
+    return _font_info_from_runs(runs)
 
-    for run in text_runs:
+
+def _fragment_runs(content: Any, fragment_index: int) -> list[Any]:
+    runs: list[Any] = []
+    if isinstance(content, (Heading, Paragraph, TextItem)):
+        if fragment_index == 0:
+            runs = list(content.text.runs)
+    elif isinstance(content, ListBlock) and fragment_index < len(content.items):
+        runs = list(content.items[fragment_index].text.runs)
+    return runs
+
+
+def _font_info_from_runs(runs: list[Any]) -> tuple[str, bool | None, bool | None]:
+    for run in runs:
         style = getattr(run, "style", None)
         if style is None or style.font is None:
             continue
@@ -473,8 +508,8 @@ def _collect_node_hits(nodes: list[DocumentNode]) -> list[StageHit]:
     hits: list[StageHit] = []
     for node_index, node in enumerate(nodes):
         fragments = _node_fragments(node)
-        font_name, bold, italic = _extract_font_info(node)
         for fragment_index, fragment in enumerate(fragments):
+            font_name, bold, italic = _fragment_font_info(node, fragment_index)
             marker_matches = list(MARKER_RE.finditer(fragment or ""))
             for marker_index, marker_match in enumerate(marker_matches):
                 hits.append(
@@ -918,10 +953,15 @@ def _book_item_fragments(item: Any) -> list[str]:
     if item_type == "list":
         return [str(value) for value in getattr(item, "items", [])]
     if item_type == "table":
-        fragments = [str(value) for value in getattr(item, "headers", [])]
+        fragments: list[str] = []
         for row in getattr(item, "rows", []):
-            for cell in row:
-                fragments.append(str(cell))
+            fragments.extend(str(cell) for cell in row)
+        seen: set[str] = set(fragments)
+        for header in getattr(item, "headers", []):
+            header_text = str(header)
+            if header_text not in seen:
+                fragments.append(header_text)
+                seen.add(header_text)
         return fragments
     if item_type == "form_area":
         return [str(value) for value in getattr(item, "items", [])]
@@ -937,30 +977,51 @@ def _book_item_fragments(item: Any) -> list[str]:
     return []
 
 
-def _book_item_font_info(item: Any) -> tuple[str, bool | None, bool | None]:
+def _book_item_font_info(item: Any, fragment_index: int) -> tuple[str, bool | None, bool | None]:
     item_type = getattr(item, "type", "")
-    if item_type == "list":
-        metadata = getattr(item, "metadata", None)
-        if isinstance(metadata, dict):
-            item_runs = metadata.get("item_text_runs")
-            if isinstance(item_runs, list):
-                for run_group in item_runs:
-                    if not isinstance(run_group, list):
+    metadata = getattr(item, "metadata", None)
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    if item_type == "table":
+        run_groups = metadata.get("cell_text_runs")
+        if isinstance(run_groups, list) and fragment_index < len(run_groups):
+            run_group = run_groups[fragment_index]
+            if isinstance(run_group, list):
+                for run in run_group:
+                    if not isinstance(run, dict):
                         continue
-                    for run in run_group:
-                        if not isinstance(run, dict):
-                            continue
-                        run_style = run.get("style")
-                        if not isinstance(run_style, dict):
-                            continue
-                        font = run_style.get("font")
-                        if not isinstance(font, dict):
-                            continue
-                        return (
-                            str(font.get("name", "")).strip().lower(),
-                            bool(font.get("is_bold")) if "is_bold" in font else None,
-                            bool(font.get("is_italic")) if "is_italic" in font else None,
-                        )
+                    run_style = run.get("style")
+                    if not isinstance(run_style, dict):
+                        continue
+                    font = run_style.get("font")
+                    if not isinstance(font, dict):
+                        continue
+                    return (
+                        str(font.get("name", "")).strip().lower(),
+                        bool(font.get("is_bold")) if "is_bold" in font else None,
+                        bool(font.get("is_italic")) if "is_italic" in font else None,
+                    )
+
+    if item_type == "list":
+        item_runs = metadata.get("item_text_runs")
+        if isinstance(item_runs, list) and fragment_index < len(item_runs):
+            run_group = item_runs[fragment_index]
+            if isinstance(run_group, list):
+                for run in run_group:
+                    if not isinstance(run, dict):
+                        continue
+                    run_style = run.get("style")
+                    if not isinstance(run_style, dict):
+                        continue
+                    font = run_style.get("font")
+                    if not isinstance(font, dict):
+                        continue
+                    return (
+                        str(font.get("name", "")).strip().lower(),
+                        bool(font.get("is_bold")) if "is_bold" in font else None,
+                        bool(font.get("is_italic")) if "is_italic" in font else None,
+                    )
 
     style = getattr(item, "style", None)
     if not isinstance(style, dict):
@@ -983,8 +1044,8 @@ def _collect_book_hits(book: CanonicalBook) -> list[StageHit]:
             for page in sorted(lesson.pages, key=lambda pg: pg.order):
                 for item in sorted(page.items, key=lambda value: value.order):
                     fragments = _book_item_fragments(item)
-                    font_name, bold, italic = _book_item_font_info(item)
                     for fragment_index, fragment in enumerate(fragments):
+                        font_name, bold, italic = _book_item_font_info(item, fragment_index)
                         marker_matches = list(MARKER_RE.finditer(fragment or ""))
                         for marker_index, marker_match in enumerate(marker_matches):
                             hits.append(

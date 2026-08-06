@@ -1230,6 +1230,47 @@ class TestFlashcardRequestTracking:
         await complete_flashcards_request(request["request_id"], "failed")
         assert await get_active_flashcards_request("lesson", target_id) is None
 
+    async def test_stale_inflight_request_can_be_reprocessed(
+        self, client: AsyncClient, mock_user: dict
+    ) -> None:
+        """An abandoned (stale) in_progress request must not block reprocessing.
+
+        Simulates a request that crashed mid-generation and was never marked
+        completed/failed: with ``stale_after_seconds=0`` the recorded request
+        is immediately expired and replaced on the next call.
+        """
+        from database.repositories.flashcard_requests import (
+            complete_flashcards_request,
+            create_flashcards_request,
+            get_active_flashcards_request,
+        )
+
+        target_id = uuid.uuid4()
+        request, created = await create_flashcards_request(
+            "lesson", target_id, user_id=mock_user["id"]
+        )
+        assert created is True
+
+        # The in-flight request is stale the instant stale_after_seconds=0.
+        assert (
+            await get_active_flashcards_request(
+                "lesson", target_id, stale_after_seconds=0
+            )
+            is None
+        )
+
+        # A retry must NOT return the stale request; it expires it and starts fresh.
+        retry, created_again = await create_flashcards_request(
+            "lesson",
+            target_id,
+            user_id=mock_user["id"],
+            stale_after_seconds=0,
+        )
+        assert created_again is True
+        assert retry["request_id"] != request["request_id"]
+        assert retry["status"] == "in_progress"
+        await complete_flashcards_request(retry["request_id"], "completed")
+
 
 # ===========================================================================
 # Users router — /me and permission-gated endpoints

@@ -1085,6 +1085,19 @@ class BookAssembler:
                     row_cells.append(cell_text)
                 serialized_rows.append(row_cells)
 
+            cell_runs: list[list[dict[str, object]]] = []
+            has_cell_runs = False
+            for row in content.rows if content.rows else []:
+                for cell in row.cells:
+                    run_meta = BookAssembler._runs_metadata(cell.content)
+                    if run_meta is None:
+                        cell_runs.append([])
+                        continue
+                    has_cell_runs = True
+                    cell_runs.append(run_meta)
+            if has_cell_runs:
+                table_metadata["cell_text_runs"] = cell_runs
+
             return TableItem(
                 order=order,
                 caption=content.caption if hasattr(content, "caption") else None,
@@ -1236,6 +1249,12 @@ class BookAssembler:
     def _styled_text_metadata(styled_text: object) -> list[dict[str, object]] | None:
         runs = getattr(styled_text, "runs", None)
         if not isinstance(runs, list) or not runs:
+            return None
+        return BookAssembler._runs_metadata(runs)
+
+    @staticmethod
+    def _runs_metadata(runs: list[object]) -> list[dict[str, object]] | None:
+        if not runs:
             return None
 
         serialized_runs: list[dict[str, object]] = []

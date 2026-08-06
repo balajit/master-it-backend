@@ -13,6 +13,8 @@ from dataclasses import dataclass, field
 from typing import Any
 from uuid import uuid4
 
+from docling.datamodel.pipeline_options import TableFormerMode, TableStructureOptions
+
 _LOG = logging.getLogger(__name__)
 
 
@@ -543,7 +545,18 @@ class DoclingPyMuPDFMerger:
         from docling.document_converter import DocumentConverter, PdfFormatOption  # noqa: PLC0415
 
         pdf_options = PdfPipelineOptions()
+        pdf_options.do_table_structure = True
         pdf_options.generate_picture_images = True  # populate PictureItem.image for extraction
+        # --- ESSENTIAL ADDITIONS FOR VISUAL/GRID DOCUMENTS ---
+        pdf_options.generate_page_images = True
+        pdf_options.generate_picture_images = True
+        pdf_options.generate_table_images = True
+
+        # Helps detect complex visual table structures and grids
+        pdf_options.table_structure_options = TableStructureOptions(
+            mode=TableFormerMode.ACCURATE,  # Uses ACCURATE instead of FAST
+            do_cell_matching=True,  # Strict cell matching to drawn/implicit grid lines
+        )
 
         converter = DocumentConverter(
             format_options={
@@ -609,6 +622,7 @@ class DoclingPyMuPDFMerger:
 
         all_nodes: list[BridgeNode] = []
         self._extract_docling_nodes(all_nodes)
+        self._extract_fitz_fallback_images(all_nodes)
 
         # Assign column numbers per page based on dynamic horizontal distribution.
         # Must happen after geometry is set but before sorting/parent-child linking.
@@ -820,13 +834,19 @@ class DoclingPyMuPDFMerger:
 
         return container
 
-    def _assign_page_columns(self, page_nodes: list[BridgeNode], num_columns: int = 2) -> None:
-        """Dynamically assign column numbers based on horizontal center positions.
+    def _assign_page_columns(
+        self,
+        page_nodes: list[BridgeNode],
+        num_columns: int = 2,
+        gap_threshold: float = 0.05,
+    ) -> None:
+        """Dynamically assign column numbers based on horizontal distribution.
 
-        Instead of rigid fixed-width buckets (the old ``round(norm_left /
-        tolerance)`` approach), this method infers column boundaries from the
-        actual distribution of node centers on the page.  The result is stored
-        as ``BridgeNode.column_no`` (0-based).
+        Columns are detected from real horizontal gaps between node bounding
+        boxes, not from bucket-splitting the page width.  A single-column page
+        (where lines span overlapping x-intervals) stays in column 0, so wide
+        headings and paragraphs are not misclassified as a second column.
+        The result is stored as ``BridgeNode.column_no`` (0-based).
 
         Only nodes with valid bounding boxes are assigned; nodes without
         geometry keep ``column_no = 0``.
@@ -835,14 +855,22 @@ class DoclingPyMuPDFMerger:
         if not valid:
             return
 
-        centers = [n.center_x for n in valid]
-        min_x = min(centers)
-        max_x = max(centers)
-        col_width = (max_x - min_x + 1e-9) / num_columns
+        ordered = sorted(valid, key=lambda n: (n.norm_left, n.norm_top))
+        current_max_right = -float("inf")
+        column_starts: list[float] = [ordered[0].norm_left]
+        for node in ordered:
+            if current_max_right != -float("inf") and (
+                node.norm_left - current_max_right > gap_threshold
+            ):
+                column_starts.append(node.norm_left)
+            current_max_right = max(current_max_right, node.norm_right)
 
         for node in valid:
-            col_idx = int((node.center_x - min_x) / col_width)
-            node.column_no = min(col_idx, num_columns - 1)
+            column_no = 0
+            for start in column_starts[1:]:
+                if node.norm_left >= start - 1e-9:
+                    column_no += 1
+            node.column_no = min(column_no, num_columns - 1)
 
     def _process_image_item(self, node: BridgeNode, doc_item: Any) -> None:
         """Extract a raw PIL.Image from a Docling picture/figure item and attach it to the node."""
@@ -864,6 +892,108 @@ class DoclingPyMuPDFMerger:
             fmt = str(getattr(image_obj, "format", None) or "PNG").upper()
             node.image_format = fmt if fmt in {"JPEG", "PNG", "WEBP"} else "PNG"
 
+    def _extract_fitz_fallback_images(self, all_nodes: list[BridgeNode]) -> None:
+        """Recover embedded raster images PyMuPDF sees that Docling's layout
+        model failed to classify as picture regions.
+
+        Only image rects not already covered by a Docling picture node are
+        emitted, so normal detections are never duplicated.
+        """
+        if self.fitz_doc is None:
+            return
+
+        import fitz  # noqa: PLC0415
+        from PIL import Image  # noqa: PLC0415
+
+        existing_pictures = [
+            node for node in all_nodes if node.label.lower() in {"picture", "figure", "image"}
+        ]
+
+        for page_no, pdf_page in enumerate(self.fitz_doc, start=1):
+            page_w = float(pdf_page.rect.width)
+            page_h = float(pdf_page.rect.height)
+            if page_w <= 0.0 or page_h <= 0.0:
+                continue
+
+            for image_info in pdf_page.get_images(full=True):
+                xref = int(image_info[0])
+                for raw_rect in pdf_page.get_image_rects(xref):
+                    rect = fitz.Rect(raw_rect)
+                    norm = (
+                        rect.x0 / page_w,
+                        rect.y0 / page_h,
+                        rect.x1 / page_w,
+                        rect.y1 / page_h,
+                    )
+                    if (norm[2] - norm[0]) * (norm[3] - norm[1]) <= 0.0:
+                        continue
+                    if self._covered_by_picture(norm, existing_pictures):
+                        continue
+
+                    try:
+                        pix = pdf_page.get_pixmap(clip=rect)
+                        pil_image = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+                    except Exception:  # noqa: BLE001 - skip undecodable raster
+                        continue
+                    pil_image.format = "PNG"
+
+                    node = BridgeNode(
+                        self_ref=None,
+                        parent_cref=None,
+                        level=1,
+                        label="picture",
+                        name="PictureItem",
+                        text="",
+                        page_no=page_no,
+                        norm_top=norm[1],
+                        norm_left=norm[0],
+                        norm_bottom=norm[3],
+                        norm_right=norm[2],
+                        is_synthetic=True,
+                        is_image=True,
+                        image_pil=pil_image,
+                        image_format="PNG",
+                        image_width=pix.width,
+                        image_height=pix.height,
+                        metadata={
+                            "role": "AI-synthetic_picture",
+                            "image_source": "fitz_fallback",
+                            "xref": xref,
+                        },
+                    )
+                    self.nodes_by_id[node.id] = node
+                    all_nodes.append(node)
+                    existing_pictures.append(node)
+
+    @staticmethod
+    def _covered_by_picture(
+        norm_rect: tuple[float, float, float, float],
+        picture_nodes: list[BridgeNode],
+        overlap_threshold: float = 0.5,
+    ) -> bool:
+        """Return True when an existing picture node covers most of ``norm_rect``."""
+        left, top, right, bottom = norm_rect
+        rect_area = (right - left) * (bottom - top)
+        if rect_area <= 0.0:
+            return True
+        for picture in picture_nodes:
+            p_left = picture.norm_left
+            p_top = picture.norm_top
+            p_right = picture.norm_right
+            p_bottom = picture.norm_bottom
+            if p_left == float("inf") or p_right == 0.0:
+                continue
+            inter_left = max(left, p_left)
+            inter_top = max(top, p_top)
+            inter_right = min(right, p_right)
+            inter_bottom = min(bottom, p_bottom)
+            if inter_right <= inter_left or inter_bottom <= inter_top:
+                continue
+            inter_area = (inter_right - inter_left) * (inter_bottom - inter_top)
+            if inter_area / rect_area >= overlap_threshold:
+                return True
+        return False
+
     def _extract_table_cell_nodes(self, root: BridgeNode) -> None:
         tables = getattr(self.docling_doc, "tables", None)
         if not tables:
@@ -874,157 +1004,124 @@ class DoclingPyMuPDFMerger:
             table_ref = _canonicalize_ref(str(table_ref_raw), self.body_ref)
             table_node = self._get_or_create_ref_node(table_ref, root)
 
-            table_data = getattr(table, "data", None)
-            table_cells = (
-                getattr(table_data, "table_cells", None) if table_data is not None else None
-            )
+            if not (hasattr(table, "data") and hasattr(table.data, "table_cells")):
+                continue
+            table_cells = table.data.table_cells
             if not table_cells:
                 continue
 
-            row_refs: dict[int, BridgeNode] = {}
+            rows_dict: dict[int, list[Any]] = {}
             for cell in table_cells:
+                # Docling table cells expose row_offset_idx (or fall back to
+                # start_row_offset_idx)
                 row_idx = int(
                     getattr(
                         cell,
-                        "start_row_offset_idx",
-                        getattr(cell, "row", 0),
+                        "row_offset_idx",
+                        getattr(cell, "start_row_offset_idx", 0),
                     )
                     or 0
                 )
-                col_idx = int(
-                    getattr(
-                        cell,
-                        "start_col_offset_idx",
-                        getattr(cell, "col", 0),
+                rows_dict.setdefault(row_idx, []).append(cell)
+
+            for row_idx in sorted(rows_dict.keys()):
+                row_cells = rows_dict[row_idx]
+                # Sort cells within the row left-to-right by column index
+                row_cells.sort(
+                    key=lambda cell: int(
+                        getattr(
+                            cell,
+                            "col_offset_idx",
+                            getattr(cell, "start_col_offset_idx", 0),
+                        )
+                        or 0
                     )
-                    or 0
                 )
 
                 row_ref = f"{table_ref}/rows/{row_idx}"
-                row_node = row_refs.get(row_idx)
-                if row_node is None:
-                    row_node = BridgeNode(
-                        self_ref=row_ref,
-                        parent_cref=table_ref,
-                        level=table_node.level + 1,
-                        label="AI-TABLE_ROW",
-                        name="TableRowContainer",
-                        is_synthetic=True,
-                        metadata={
-                            "role": "AI-table_row",
-                            "table_row_index": row_idx,
-                            "docling_self_ref": row_ref,
-                        },
-                    )
-                    row_node.parent_id = table_node.id
-                    row_refs[row_idx] = row_node
-                    self.nodes_by_id[row_node.id] = row_node
-                    self.ref_to_node[row_ref] = row_node
-                    table_node.children.append(row_node)
-
-                cell_ref = f"{row_ref}/cells/{col_idx}"
-                cell_text = str(getattr(cell, "text", "") or "").strip()
-                cell_node = BridgeNode(
-                    docling_item=cell,
-                    self_ref=cell_ref,
-                    parent_cref=row_ref,
-                    level=row_node.level + 1,
-                    label="AI-TABLE_CELL",
-                    name="TableCell",
-                    text=cell_text,
+                row_node = BridgeNode(
+                    self_ref=row_ref,
+                    parent_cref=table_ref,
+                    level=table_node.level + 1,
+                    label="AI-TABLE_ROW",
+                    name="TableRowContainer",
+                    is_synthetic=True,
                     metadata={
-                        "role": "AI-table_cell",
+                        "role": "AI-table_row",
                         "table_row_index": row_idx,
-                        "table_col_index": col_idx,
-                        "row_span": int(getattr(cell, "row_span", 1) or 1),
-                        "col_span": int(getattr(cell, "col_span", 1) or 1),
-                        "is_header": bool(getattr(cell, "column_header", False)),
-                        "docling_self_ref": cell_ref,
+                        "docling_self_ref": row_ref,
                     },
                 )
+                row_node.parent_id = table_node.id
+                self.nodes_by_id[row_node.id] = row_node
+                self.ref_to_node[row_ref] = row_node
+                table_node.children.append(row_node)
 
-                bbox = getattr(cell, "bbox", None)
-                if bbox is not None and table_node.page_no > 0 and self.fitz_doc is not None:
-                    cell_node.page_no = table_node.page_no
-                    pdf_page = self.fitz_doc[cell_node.page_no - 1]
-                    page_width = float(pdf_page.rect.width)
-                    page_height = float(pdf_page.rect.height)
-
-                    left = float(getattr(bbox, "l", 0.0) or 0.0)
-                    top = float(getattr(bbox, "t", 0.0) or 0.0)
-                    right = float(getattr(bbox, "r", 0.0) or 0.0)
-                    bottom = float(getattr(bbox, "b", 0.0) or 0.0)
-
-                    cell_node.norm_left = (left / page_width) if page_width > 0.0 else left
-                    cell_node.norm_top = (top / page_height) if page_height > 0.0 else top
-                    cell_node.norm_right = (right / page_width) if page_width > 0.0 else right
-                    cell_node.norm_bottom = (bottom / page_height) if page_height > 0.0 else bottom
-
-                if (
-                    cell_node.page_no > 0
-                    and cell_node.norm_top != float("inf")
-                    and cell_node.norm_left != float("inf")
-                ):
-                    cache = self.page_style_caches.get(cell_node.page_no)
-                    if cache is not None:
-                        segments = cache.query_text_segments(
-                            norm_left=cell_node.norm_left,
-                            norm_top=cell_node.norm_top,
-                            norm_right=cell_node.norm_right,
-                            norm_bottom=cell_node.norm_bottom,
-                            node_text=cell_text,
+                for cell in row_cells:
+                    col_idx = int(
+                        getattr(
+                            cell,
+                            "col_offset_idx",
+                            getattr(cell, "start_col_offset_idx", 0),
                         )
-                        if segments:
-                            best_segment = next(
-                                (
-                                    segment
-                                    for segment in segments
-                                    if str(segment.get("text", "")).strip() == cell_text
-                                ),
-                                segments[0],
-                            )
-                            cell_node.norm_top = float(
-                                best_segment.get("norm_top", cell_node.norm_top)
-                            )
-                            cell_node.norm_left = float(
-                                best_segment.get("norm_left", cell_node.norm_left)
-                            )
-                            cell_node.norm_bottom = float(
-                                best_segment.get("norm_bottom", cell_node.norm_bottom)
-                            )
-                            cell_node.norm_right = float(
-                                best_segment.get("norm_right", cell_node.norm_right)
-                            )
-                            cell_node.font_name = (
-                                str(best_segment.get("font_name") or "").strip()
-                                or cell_node.font_name
-                            )
-                            cell_node.font_size = self._float_or_fallback(
-                                best_segment.get("font_size"),
-                                cell_node.font_size,
-                            )
-                            cell_node.color_hex = (
-                                str(best_segment.get("color_hex") or "").strip()
-                                or cell_node.color_hex
-                            )
-                            cell_node.is_bold = bool(
-                                best_segment.get("is_bold", cell_node.is_bold)
-                            )
-                            cell_node.is_italic = bool(
-                                best_segment.get("is_italic", cell_node.is_italic)
-                            )
-                            cell_node.fitz_text = str(best_segment.get("fitz_text") or cell_text)
+                        or 0
+                    )
+                    cell_ref = f"{row_ref}/cells/{col_idx}"
+                    cell_text = str(getattr(cell, "text", "") or "").strip()
+                    cell_node = BridgeNode(
+                        docling_item=cell,
+                        self_ref=cell_ref,
+                        parent_cref=row_ref,
+                        level=row_node.level + 1,
+                        label="AI-TABLE_CELL",
+                        name="TableCell",
+                        text=cell_text,
+                        metadata={
+                            "role": "AI-table_cell",
+                            "table_row_index": row_idx,
+                            "table_col_index": col_idx,
+                            "row_span": int(getattr(cell, "row_span", 1) or 1),
+                            "col_span": int(getattr(cell, "col_span", 1) or 1),
+                            "is_header": bool(getattr(cell, "column_header", False)),
+                            "docling_self_ref": cell_ref,
+                        },
+                    )
+                    cell_node.column_no = col_idx
 
-                if cell_node.page_no <= 0:
-                    cell_node.page_no = table_node.page_no or 1
+                    if hasattr(cell, "prov") and cell.prov:
+                        prov = cell.prov[0]
+                        cell_node.page_no = int(getattr(prov, "page_no", 0) or 0)
+                    elif hasattr(cell, "bbox"):
+                        prov = cell
+                        cell_node.page_no = int(getattr(cell, "page_no", 0) or 0)
+                    else:
+                        prov = None
 
-                if cell_node.font_name is None or cell_node.font_size is None:
+                    if prov is not None:
+                        if cell_node.page_no <= 0:
+                            cell_node.page_no = table_node.page_no or 1
+                        if self.fitz_doc is not None and cell_node.page_no > 0:
+                            pdf_page = self.fitz_doc[cell_node.page_no - 1]
+                            (
+                                cell_node.norm_top,
+                                cell_node.norm_left,
+                                cell_node.norm_bottom,
+                                cell_node.norm_right,
+                            ) = _normalize_docling_bbox(
+                                prov,
+                                float(pdf_page.rect.height),
+                                float(pdf_page.rect.width),
+                            )
+
+                    if cell_node.page_no <= 0:
+                        cell_node.page_no = table_node.page_no or 1
+
                     self._apply_style_from_cache(cell_node)
 
-                cell_node.parent_id = row_node.id
-                row_node.children.append(cell_node)
-                self.nodes_by_id[cell_node.id] = cell_node
-                self.ref_to_node[cell_ref] = cell_node
+                    cell_node.parent_id = row_node.id
+                    row_node.children.append(cell_node)
+                    self.nodes_by_id[cell_node.id] = cell_node
+                    self.ref_to_node[cell_ref] = cell_node
 
     def _attach_parent_child(self, all_nodes: list[BridgeNode], root: BridgeNode) -> None:
         for node in all_nodes:
@@ -1078,7 +1175,14 @@ class DoclingPyMuPDFMerger:
             page_no = child.page_no if child.page_no > 0 else 10**9
             top = child.norm_top if child.norm_top != float("inf") else 0.0
             left = child.norm_left if child.norm_left != float("inf") else 0.0
-            return (page_no, child.column_no, top, left)
+
+            is_table_context = child.label in ["TABLE", "TABLE_ROW", "TABLE_CELL"] or (
+                child.label in ["TABLE", "TABLE_ROW"]
+            )
+            if is_table_context:
+                return (page_no, top, child.column_no, left)
+            else:
+                return (page_no, child.column_no, top, left)
 
         node.children.sort(key=sort_key)
         for child in node.children:

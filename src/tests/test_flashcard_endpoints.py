@@ -702,6 +702,52 @@ class TestGenerateLessonFlashcards:
             create_mock.return_value[0]["request_id"], "failed"
         )
 
+    def test_lesson_scope_constructor_failure_marks_failed(self, app, mock_user):
+        """An exception while constructing the generator (right after the
+        request is recorded) must mark the request failed, not leave it stuck
+        ``in_progress`` forever (which would block reprocessing)."""
+        _override_auth(app, mock_user)
+        target_id = uuid.uuid4()
+
+        async def go():
+            create_patch, complete_patch, create_mock, complete_mock = (
+                self._patch_request_repo(target_id)
+            )
+            with (
+                create_patch,
+                complete_patch,
+                patch(
+                    "routers.v1.FlashCardGenerator",
+                    side_effect=RuntimeError("boom"),
+                ),
+                patch("routers.v1.CuratorAgent", return_value=object()),
+                patch(
+                    "database.repositories.flashcards.bulk_create_flashcards",
+                    new=AsyncMock(),
+                ) as mock_bulk,
+            ):
+                async with httpx.AsyncClient(
+                    transport=ASGITransport(app=app), base_url="http://test"
+                ) as client:
+                    resp = await client.post(
+                        "/api/v1/flashcards/generate",
+                        json={
+                            "scope": "lesson",
+                            "target_id": str(target_id),
+                            "card_scope": "user",
+                        },
+                        headers={"Authorization": "Bearer fake"},
+                    )
+            return resp, mock_bulk, create_mock, complete_mock
+
+        resp, mock_bulk, create_mock, complete_mock = _run(go())
+        assert resp.status_code == 201
+        assert resp.json() == []
+        mock_bulk.assert_not_awaited()
+        complete_mock.assert_awaited_once_with(
+            create_mock.return_value[0]["request_id"], "failed"
+        )
+
     def test_unit_scope_does_not_use_lesson_generator(self, app, mock_user):
         _override_auth(app, mock_user)
 
