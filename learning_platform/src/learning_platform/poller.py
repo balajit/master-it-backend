@@ -20,6 +20,7 @@ _LOG = logging.getLogger(__name__)
 
 POLL_INTERVAL_SECONDS: int = 10
 BOOK_POLL_INTERVAL_SECONDS: int = 30
+AGENT_POLL_INTERVAL_SECONDS: int = 60
 MAX_RETRIES: int = 3
 
 
@@ -428,4 +429,236 @@ class BookProcessPoller:
                 _LOG.info(
                     "Book assembly completed for document %s",
                     proc.document_id,
+                )
+
+
+class AgentProcessPoller:
+    """Picks up pending ``lp_agent_process`` entries and runs ``AgentPipeline``.
+
+    Extra behaviours over BookProcessPoller:
+
+    1. **LLM gateway probe** — before processing any rows, probes the configured
+       LLM endpoint via its models-list endpoint. If unavailable, waits using a
+       triangular backoff schedule (30 s → 180 s → 30 s → …) and skips
+       processing until the gateway recovers.
+
+    2. **Dedup** — if multiple ``lp_agent_process`` rows exist for the same
+       document_id, only the row with the highest id (latest enqueued) is
+       processed. Older rows are marked ``cancelled``.
+
+    3. **Partial failure** — if the orchestrator raises
+       ``AgentPipelinePartialFailureError``, the row is retried. On each retry
+       the orchestrator skips already-completed lessons; sub-agents skip lessons
+       for which they already have a completion marker.
+
+    State machine::
+
+        lp_agent_process (status=pending)
+                │
+                ▼
+            processing
+                │
+           ┌────┴────┐
+           ▼         ▼
+       completed  failed (< max)
+                      │
+                      └──→ pending (retry+1)
+    """
+
+    def __init__(
+        self,
+        session_factory: async_sessionmaker,
+        poll_interval: int = AGENT_POLL_INTERVAL_SECONDS,
+    ) -> None:
+        self._session_factory = session_factory
+        self._poll_interval = poll_interval
+        self._task: asyncio.Task[None] | None = None
+        self._stop_event = asyncio.Event()
+        from learning_platform.agents.llm.triangular_backoff import TriangularBackoff
+
+        self._backoff = TriangularBackoff()
+        self._gateway_was_available: bool = True  # assume up on first start
+
+    # ── Lifecycle ────────────────────────────────────────────────────────────
+
+    async def start(self) -> None:
+        _LOG.info(
+            "AgentProcessPoller started (interval=%ds)",
+            self._poll_interval,
+        )
+        self._task = asyncio.create_task(self._run())
+
+    async def stop(self) -> None:
+        _LOG.info("AgentProcessPoller stopping...")
+        self._stop_event.set()
+        if self._task:
+            self._task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._task
+            self._task = None
+
+    async def _run(self) -> None:
+        """Main polling loop with LLM gateway probe and triangular backoff."""
+        from learning_platform.agents.llm.adapter import LLMFactory
+        from learning_platform.config import get_settings
+
+        while not self._stop_event.is_set():
+            settings = get_settings()
+            available = await LLMFactory.probe_available(settings)
+
+            if not available:
+                wait = self._backoff.next()
+                _LOG.warning(
+                    "AgentProcessPoller: LLM gateway unavailable; "
+                    "next check in %ds (provider=%s base_url=%s)",
+                    wait,
+                    settings.llm_provider,
+                    settings.llm_base_url,
+                )
+                self._gateway_was_available = False
+                await asyncio.sleep(wait)
+                continue
+
+            # Gateway is available
+            if not self._gateway_was_available:
+                _LOG.info("AgentProcessPoller: LLM gateway recovered; resuming processing")
+                self._backoff.reset()
+            self._gateway_was_available = True
+
+            try:
+                await self._process_pending()
+            except Exception:
+                _LOG.exception("AgentProcessPoller iteration failed")
+
+            await asyncio.sleep(self._poll_interval)
+
+    # ── Process pending entries ─────────────────────────────────────────────
+
+    async def _process_pending(self) -> None:
+        """Pick up pending agent_process entries and run AgentPipeline."""
+        from learning_platform.infrastructure.persistence.repositories.agent_process import (
+            AgentProcessRepository,
+        )
+
+        async with self._session_factory() as session:
+            repo = AgentProcessRepository(session)
+            pending = await repo.find_pending()
+
+        for row in pending:
+            await self._try_process(row)
+
+    async def _try_process(self, row: object) -> None:
+        """Run AgentPipeline on a single ``AgentProcessRow``."""
+        from learning_platform.infrastructure.persistence.repositories.agent_process import (
+            AgentProcessRepository,
+        )
+        from learning_platform.pipeline.agent_pipeline import (
+            AgentPipeline,
+            AgentPipelinePartialFailureError,
+        )
+
+        proc = row  # type: ignore[var-annotated]
+
+        async with self._session_factory() as session:
+            repo = AgentProcessRepository(session)
+            proc = await repo.find_by_id(proc.id)  # type: ignore[attr-defined]
+            if proc is None or proc.status != "pending":
+                return
+
+            # ── Dedup: only run the latest row for this document ──────────
+            latest_id = await repo.find_latest_id_by_document_id(proc.document_id)
+            if latest_id is not None and proc.id < latest_id:
+                await repo.mark_cancelled(
+                    proc,
+                    f"Superseded by a newer agent_process row (id={latest_id}) "
+                    f"for document {proc.document_id}",
+                )
+                await session.commit()
+                _LOG.info(
+                    "AgentProcessPoller: cancelled superseded row id=%d "
+                    "for document %s (latest_id=%d)",
+                    proc.id,
+                    proc.document_id,
+                    latest_id,
+                )
+                return
+
+            await repo.mark_processing(proc)
+            await session.commit()
+
+        proc_id: int = proc.id  # type: ignore[attr-defined]
+        document_id_str: str = proc.document_id  # type: ignore[attr-defined]
+
+        try:
+            async with self._session_factory() as session:
+                agent_pipeline = AgentPipeline(session)
+                await agent_pipeline.run(
+                    UUID(document_id_str),
+                    agent_process_id=proc_id,
+                )
+                await session.commit()
+        except AgentPipelinePartialFailureError:
+            # Partial failure — some lessons failed; retry so only failed
+            # lessons + their missing agents rerun.
+            _LOG.warning(
+                "AgentProcessPoller: partial failure for document %s "
+                "(proc_id=%d); scheduling retry",
+                document_id_str,
+                proc_id,
+            )
+            async with self._session_factory() as session:
+                repo = AgentProcessRepository(session)
+                proc = await repo.find_by_id(proc_id)
+                if proc is None:
+                    return
+                if proc.retry_count + 1 >= proc.max_retries:
+                    await repo.mark_failed(proc, "Max retries exceeded after partial failures")
+                    _LOG.warning(
+                        "Agent pipeline exhausted retries for document %s",
+                        document_id_str,
+                    )
+                else:
+                    await repo.mark_retry(proc, "Partial failure; will retry failed lessons")
+                    _LOG.info(
+                        "Retry %d/%d for document %s",
+                        proc.retry_count + 1,
+                        proc.max_retries,
+                        document_id_str,
+                    )
+                await session.commit()
+            return
+        except Exception:
+            _LOG.exception("Agent pipeline failed for document %s", document_id_str)
+            async with self._session_factory() as session:
+                repo = AgentProcessRepository(session)
+                proc = await repo.find_by_id(proc_id)
+                if proc is None:
+                    return
+                if proc.retry_count + 1 >= proc.max_retries:
+                    await repo.mark_failed(proc, "Max retries exceeded")
+                    _LOG.warning(
+                        "Agent pipeline failed after %d retries for document %s",
+                        proc.max_retries,
+                        document_id_str,
+                    )
+                else:
+                    await repo.mark_retry(proc, "AgentPipeline error, will retry")
+                    _LOG.info(
+                        "Retry %d/%d for document %s",
+                        proc.retry_count + 1,
+                        proc.max_retries,
+                        document_id_str,
+                    )
+                await session.commit()
+            return
+
+        async with self._session_factory() as session:
+            repo = AgentProcessRepository(session)
+            proc = await repo.find_by_id(proc_id)
+            if proc is not None:
+                await repo.mark_completed(proc)
+                await session.commit()
+                _LOG.info(
+                    "Agent pipeline completed for document %s",
+                    document_id_str,
                 )

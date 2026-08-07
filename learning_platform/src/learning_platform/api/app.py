@@ -6,13 +6,14 @@ from dotenv import load_dotenv
 from fastapi import FastAPI
 
 from learning_platform.config import Settings, get_settings
-from learning_platform.poller import BookProcessPoller, FilePoller
+from learning_platform.poller import AgentProcessPoller, BookProcessPoller, FilePoller
 
 load_dotenv()
 
 _app_instance: FastAPI | None = None
 _poller: FilePoller | None = None
 _book_poller: BookProcessPoller | None = None
+_agent_poller: AgentProcessPoller | None = None
 
 
 async def start_poller() -> None:
@@ -64,6 +65,31 @@ async def stop_book_poller() -> None:
 def get_book_poller_instance() -> BookProcessPoller | None:
     """Return the book poller singleton, or ``None`` if not started."""
     return _book_poller
+
+
+async def start_agent_poller() -> None:
+    """Start the agent process poller if not already running."""
+    global _agent_poller
+    if _agent_poller is not None:
+        return
+    from learning_platform.api.deps import get_session_factory
+
+    factory = get_session_factory()
+    _agent_poller = AgentProcessPoller(session_factory=factory)
+    await _agent_poller.start()
+
+
+async def stop_agent_poller() -> None:
+    """Stop the agent process poller if running."""
+    global _agent_poller
+    if _agent_poller is not None:
+        await _agent_poller.stop()
+        _agent_poller = None
+
+
+def get_agent_poller_instance() -> AgentProcessPoller | None:
+    """Return the agent poller singleton, or ``None`` if not started."""
+    return _agent_poller
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

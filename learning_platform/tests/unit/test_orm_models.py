@@ -4,6 +4,20 @@ from __future__ import annotations
 
 import uuid
 
+from learning_platform.infrastructure.persistence.models.agent_lesson_completions import (
+    AgentLessonCompletionRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_lesson_progress import (
+    AgentLessonProgressRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_pipeline_outputs import (
+    AgentFlashcardRow,
+    KeywordRow,
+    PracticeQuestionRow,
+    QuizQuestionRow,
+    SummaryRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_process import AgentProcessRow
 from learning_platform.infrastructure.persistence.models.annotation import AnnotationRow
 from learning_platform.infrastructure.persistence.models.base import Base
 from learning_platform.infrastructure.persistence.models.book_process import BookProcessRow
@@ -40,6 +54,10 @@ class TestBase:
     def test_all_tables_registered(self) -> None:
         table_names = sorted(Base.metadata.tables.keys())
         expected = [
+            "lp_agent_flashcards",
+            "lp_agent_lesson_completions",
+            "lp_agent_lesson_progress",
+            "lp_agent_process",
             "lp_annotations",
             "lp_book_chapter",
             "lp_book_item",
@@ -54,20 +72,24 @@ class TestBase:
             "lp_documents",
             "lp_graph_edges",
             "lp_graph_nodes",
+            "lp_keywords",
             "lp_knowledge_graphs",
             "lp_learning_units",
             "lp_lessons",
             "lp_milestones",
             "lp_pipeline_logs",
+            "lp_practice_questions",
+            "lp_quiz_questions",
             "lp_reviewer_page_result",
             "lp_reviewer_run",
             "lp_roll_back_agent_action",
             "lp_study_plans",
+            "lp_summaries",
         ]
         assert table_names == expected
 
     def test_total_table_count(self) -> None:
-        assert len(Base.metadata.tables) == 23
+        assert len(Base.metadata.tables) == 31
 
 
 class TestCanonicalDocumentRow:

@@ -1,5 +1,19 @@
 """ORM model re-exports."""
 
+from learning_platform.infrastructure.persistence.models.agent_lesson_completions import (
+    AgentLessonCompletionRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_lesson_progress import (
+    AgentLessonProgressRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_pipeline_outputs import (
+    AgentFlashcardRow,
+    KeywordRow,
+    PracticeQuestionRow,
+    QuizQuestionRow,
+    SummaryRow,
+)
+from learning_platform.infrastructure.persistence.models.agent_process import AgentProcessRow
 from learning_platform.infrastructure.persistence.models.annotation import AnnotationRow
 from learning_platform.infrastructure.persistence.models.base import Base
 from learning_platform.infrastructure.persistence.models.book import (
@@ -38,6 +52,10 @@ from learning_platform.infrastructure.persistence.models.sequence import (
 )
 
 __all__ = [
+    "AgentFlashcardRow",
+    "AgentLessonCompletionRow",
+    "AgentLessonProgressRow",
+    "AgentProcessRow",
     "AnnotationRow",
     "Base",
     "BookChapterRow",
@@ -54,12 +72,16 @@ __all__ = [
     "GraphEdgeRow",
     "GraphNodeRow",
     "KnowledgeGraphRow",
+    "KeywordRow",
     "LearningUnitRow",
     "LessonRow",
     "MilestoneRow",
     "PipelineLogRow",
+    "PracticeQuestionRow",
+    "QuizQuestionRow",
     "ReviewerPageResultRow",
     "ReviewerRunRow",
     "RollBackAgentActionRow",
     "StudyPlanRow",
+    "SummaryRow",
 ]

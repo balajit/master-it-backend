@@ -18,8 +18,10 @@ from routers.users import router as users_router
 from routers.v1 import router as v1_router
 from learning_platform.api.app import (
     get_lp_app,
+    start_agent_poller,
     start_book_poller,
     start_poller,
+    stop_agent_poller,
     stop_book_poller,
     stop_poller,
 )
@@ -87,6 +89,9 @@ async def startup() -> None:
     logger.info("Starting book process poller...")
     await start_book_poller()
     logger.info("Book process poller started.")
+    logger.info("Starting agent process poller...")
+    await start_agent_poller()
+    logger.info("Agent process poller started.")
 
 
 @app.on_event("shutdown")
@@ -97,6 +102,9 @@ async def shutdown() -> None:
     logger.info("Stopping book process poller...")
     await stop_book_poller()
     logger.info("Book process poller stopped.")
+    logger.info("Stopping agent process poller...")
+    await stop_agent_poller()
+    logger.info("Agent process poller stopped.")
 
 
 @app.get("/health")

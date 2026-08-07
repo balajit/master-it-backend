@@ -24,6 +24,7 @@ from learning_platform.stages.parser2.docling_pymupdf_merger import DoclingPyMuP
 with DoclingPyMuPDFMerger(str(pdf_path)) as merger:
     bridge = merger.build_bridge_tree()
 
+
 def walk_bridge(node, depth=0):
     if node.page_no in (1, 2) and depth <= 3:
         print(
@@ -33,6 +34,7 @@ def walk_bridge(node, depth=0):
         )
     for child in node.children:
         walk_bridge(child, depth + 1)
+
 
 walk_bridge(bridge.root)
 
@@ -45,7 +47,10 @@ for item, level in items:
     page_no = 0
     if getattr(item, "prov", None):
         page_no = item.prov[0].page_no
-    print(f"  d{level} {type(item).__name__} label={item.label} ref={getattr(item, 'self_ref', None)!r} text={getattr(item, 'text', '')!r} page={page_no}")
+    print(
+        f"  d{level} {type(item).__name__} label={item.label} ref={getattr(item, 'self_ref', None)!r} text={getattr(item, 'text', '')!r} page={page_no}"
+    )
+
 
 def find_table_cell_nodes(node):
     for child in node.children:
@@ -53,6 +58,7 @@ def find_table_cell_nodes(node):
             for cell in child.children:
                 yield cell
         yield from find_table_cell_nodes(child)
+
 
 for cell in find_table_cell_nodes(bridge.root):
     doc_cell = getattr(cell, "docling_item", None)
@@ -67,22 +73,50 @@ for cell in find_table_cell_nodes(bridge.root):
                     print(f"  {attr} =", getattr(doc_cell, attr))
                 except Exception as exc:
                     print(f"  {attr} err:", exc)
-    if cell.metadata.get("table_row_index") == 0 and cell.metadata.get("table_col_index") == 0 and cell.page_no == 3:
+    if (
+        cell.metadata.get("table_row_index") == 0
+        and cell.metadata.get("table_col_index") == 0
+        and cell.page_no == 3
+    ):
         print("RAW prov page3:", prov)
 
 for cell in find_table_cell_nodes(bridge.root):
-    if cell.page_no == 1 and cell.metadata.get("table_col_index") == 0 and cell.metadata.get("table_row_index") == 0:
-        print("DEBUG header cell text", repr(cell.text), "bbox", cell.norm_left, cell.norm_top, cell.norm_right, cell.norm_bottom)
+    if (
+        cell.page_no == 1
+        and cell.metadata.get("table_col_index") == 0
+        and cell.metadata.get("table_row_index") == 0
+    ):
+        print(
+            "DEBUG header cell text",
+            repr(cell.text),
+            "bbox",
+            cell.norm_left,
+            cell.norm_top,
+            cell.norm_right,
+            cell.norm_bottom,
+        )
         cache = merger.page_style_caches.get(1)
         import fitz
-        rect = fitz.Rect(cell.norm_left * cache.page_w, cell.norm_top * cache.page_h, cell.norm_right * cache.page_w, cell.norm_bottom * cache.page_h)
+
+        rect = fitz.Rect(
+            cell.norm_left * cache.page_w,
+            cell.norm_top * cache.page_h,
+            cell.norm_right * cache.page_w,
+            cell.norm_bottom * cache.page_h,
+        )
         search = rect + (-3, -3, 3, 3)
         for span_rect, span in cache.spans:
             inter = search & span_rect
             if inter.is_empty:
                 continue
             print("   span", repr(span.get("text")), "font", span.get("font"), "rect", span_rect)
-        style = cache.query_style(norm_left=cell.norm_left, norm_top=cell.norm_top, norm_right=cell.norm_right, norm_bottom=cell.norm_bottom, node_text=cell.text)
+        style = cache.query_style(
+            norm_left=cell.norm_left,
+            norm_top=cell.norm_top,
+            norm_right=cell.norm_right,
+            norm_bottom=cell.norm_bottom,
+            node_text=cell.text,
+        )
         print("   QUERY RESULT", style["font_name"], style["is_bold"], style["fitz_text"])
 
 parsed = parser.parse(str(pdf_path))
@@ -114,7 +148,9 @@ for n in parsed_nodes:
 print("=== PARSER STAGE page2 all node kinds ===")
 for n in parsed_nodes:
     if n.page == 2:
-        print(f"{n.seq} {type(n.content).__name__} has_image={getattr(n.content, 'image_base64', '') != ''} bbox={n.bbox is not None}")
+        print(
+            f"{n.seq} {type(n.content).__name__} has_image={getattr(n.content, 'image_base64', '') != ''} bbox={n.bbox is not None}"
+        )
 
 normalizer = StructuralNormalizer()
 normalized = normalizer.normalize(parsed)

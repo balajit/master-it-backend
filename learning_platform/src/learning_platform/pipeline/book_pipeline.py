@@ -26,6 +26,9 @@ from learning_platform.infrastructure.persistence.repositories.document_image im
 from learning_platform.infrastructure.persistence.repositories.learning_unit import (
     LearningUnitRepository,
 )
+from learning_platform.infrastructure.persistence.repositories.agent_process import (
+    AgentProcessRepository,
+)
 from learning_platform.models.book import CanonicalBook
 from learning_platform.models.document import CanonicalDocument
 from learning_platform.models.learning_unit import LearningUnit
@@ -44,6 +47,7 @@ class BookPipeline:
         self._doc_repo = DocumentRepository(session)
         self._unit_repo = LearningUnitRepository(session)
         self._image_repo = DocumentImageRepository(session)
+        self._agent_process_repo = AgentProcessRepository(session)
 
     async def run(self, document_id: UUID) -> CanonicalBook:
         """Run the book assembly pipeline for a document.
@@ -85,4 +89,12 @@ class BookPipeline:
             document_id,
             len(book.chapters),
         )
+
+        # Enqueue Pipeline 3 (Agent Pipeline)
+        await self._agent_process_repo.create_entry(str(document_id))
+        _LOG.info(
+            "BookPipeline: enqueued agent_process job for document %s",
+            document_id,
+        )
+
         return book

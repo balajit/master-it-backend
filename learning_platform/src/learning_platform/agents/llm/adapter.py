@@ -53,6 +53,7 @@ class OpenAIProvider(LLMProvider):
             api_key=settings.openai_api_key,
             temperature=settings.llm_temperature,
             max_tokens=settings.llm_max_tokens,
+            timeout=120000,
         )
 
 
@@ -119,3 +120,15 @@ class LLMFactory:
             provider_cls: Provider class implementing LLMProvider.
         """
         _REGISTRY[name] = provider_cls
+
+    @staticmethod
+    async def probe_available(settings: Settings, timeout: float = 5.0) -> bool:
+        """Return True if the configured LLM gateway is reachable.
+
+        Delegates to LLMGatewayProbe which uses the models-list endpoint
+        of the provider's async client — provider-agnostic and works for
+        both cloud and local LLM endpoints.
+        """
+        from learning_platform.agents.llm.gateway_probe import LLMGatewayProbe
+
+        return await LLMGatewayProbe().is_available(settings, timeout=timeout)

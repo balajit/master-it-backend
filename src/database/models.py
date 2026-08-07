@@ -152,7 +152,7 @@ class StudentProgressModel(Base):
 
 
 class FlashcardModel(Base):
-    __tablename__ = "flashcards"
+    __tablename__ = "lp_flashcards"
 
     card_id: Mapped[str] = mapped_column(Uuid, primary_key=True)
     student_id: Mapped[int] = mapped_column(
@@ -223,8 +223,10 @@ class LessonModel(Base):
 
 
 class PracticeModel(Base):
-    __tablename__ = "practices"
-    __table_args__ = (Index("idx_practices_section_id", "section_id", "display_order"),)
+    __tablename__ = "lp_practices"
+    __table_args__ = (
+        Index("idx_lp_practices_section_id", "section_id", "display_order"),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     section_id: Mapped[int] = mapped_column(
@@ -242,8 +244,8 @@ class PracticeModel(Base):
 
 
 class QuizModel(Base):
-    __tablename__ = "quizzes"
-    __table_args__ = (Index("idx_quizzes_section_id", "section_id"),)
+    __tablename__ = "lp_quizzes"
+    __table_args__ = (Index("idx_lp_quizzes_section_id", "section_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     section_id: Mapped[int] = mapped_column(
@@ -303,13 +305,13 @@ class UserLessonProgressModel(Base):
 
 
 class UserPracticeProgressModel(Base):
-    __tablename__ = "user_practice_progress"
+    __tablename__ = "lp_user_practice_progress"
 
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), primary_key=True
     )
     practice_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("practices.id"), primary_key=True
+        Integer, ForeignKey("lp_practices.id"), primary_key=True
     )
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     best_score: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
@@ -317,13 +319,13 @@ class UserPracticeProgressModel(Base):
 
 
 class UserQuizProgressModel(Base):
-    __tablename__ = "user_quiz_progress"
+    __tablename__ = "lp_user_quiz_progress"
 
     user_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id"), primary_key=True
     )
     quiz_id: Mapped[int] = mapped_column(
-        Integer, ForeignKey("quizzes.id"), primary_key=True
+        Integer, ForeignKey("lp_quizzes.id"), primary_key=True
     )
     score: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     completed_at: Mapped[Optional[str]] = mapped_column(String, nullable=True)
@@ -356,13 +358,13 @@ class UserNoteModel(Base):
 
 
 class UserFlashcardModel(Base):
-    __tablename__ = "user_flashcards"
+    __tablename__ = "lp_user_flashcards"
     __table_args__ = (
-        Index("idx_user_flashcards_user_id", "user_id"),
-        Index("idx_user_flashcards_created_by", "created_by"),
-        Index("idx_user_flashcards_course_id", "course_id"),
-        Index("idx_user_flashcards_unit_id", "unit_id"),
-        Index("idx_user_flashcards_lesson_id", "lesson_id"),
+        Index("idx_lp_user_flashcards_user_id", "user_id"),
+        Index("idx_lp_user_flashcards_created_by", "created_by"),
+        Index("idx_lp_user_flashcards_course_id", "course_id"),
+        Index("idx_lp_user_flashcards_unit_id", "unit_id"),
+        Index("idx_lp_user_flashcards_lesson_id", "lesson_id"),
     )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
@@ -398,10 +400,10 @@ class UserFlashcardsRequestModel(Base):
     concurrent generate calls for the same lesson/unit share a single LLM run.
     """
 
-    __tablename__ = "user_flashcards_request"
+    __tablename__ = "lp_user_flashcards_request"
     __table_args__ = (
-        Index("ix_user_flashcards_request_scope_target", "scope", "target_id"),
-        Index("ix_user_flashcards_request_user_id", "user_id"),
+        Index("ix_lp_user_flashcards_request_scope_target", "scope", "target_id"),
+        Index("ix_lp_user_flashcards_request_user_id", "user_id"),
         Index(
             "uq_user_flashcards_request_active",
             "scope",

@@ -29,7 +29,7 @@ import asyncio
 import sys
 from typing import Any
 
-from learning_platform.agents.curator.agent import CuratorAgent
+from learning_platform.agents.curator.orchestrator import CuratorAgent
 from learning_platform.agents.llm.adapter import LLMFactory
 from learning_platform.agents.reviewer import ReviewerAgent
 from learning_platform.agents.reviewer_models import (
