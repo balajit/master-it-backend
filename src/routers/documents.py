@@ -25,7 +25,9 @@ import logging
 import os
 import portalocker
 import re
+import shutil
 import uuid
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -65,8 +67,11 @@ from services.lp_results import (
     load_pipeline_result_from_persistence,
     lp_doc_uuid_from_storage_path,
 )
+from services.pending_pdfs import PendingPDF, get_pending_pdf_store
+from services.url_pdf_client import convert_url_to_pdf_bytes
+from schemas import URLRequest, URLPDFConfirmRequest
 
-router: APIRouter = APIRouter(prefix="/api", tags=["documents"])
+router: APIRouter = APIRouter(prefix="/api", tags=["documents"], redirect_slashes=False)
 logger: logging.Logger = logging.getLogger(__name__)
 
 UPLOAD_PATH: str = os.getenv("UPLOAD_PATH", "uploads")
@@ -1111,3 +1116,194 @@ async def export_document_json(
             "study_plan.json",
         ],
     )
+
+
+# ── URL-to-PDF endpoints ──────────────────────────────────────────────────────
+
+
+_URL_PDF_TEMP_DIR: Path = Path(UPLOAD_PATH) / "url_pending"
+_ALLOWED_SCHEMES: frozenset[str] = frozenset({"http", "https"})
+_PENDING_TTL_MINUTES: int = 30
+
+
+def _validate_url_scheme(url: str) -> None:
+    """Raise HTTPException 400 if the URL scheme is not http or https."""
+    from urllib.parse import urlparse
+
+    parsed = urlparse(url)
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Unsupported URL scheme '{parsed.scheme}'. "
+                "Only http and https URLs are accepted."
+            ),
+        )
+
+
+@router.post(
+    "/courses/{course_id}/documents/convert-url",
+    status_code=200,
+    summary="Scrape a URL and return a preview PDF",
+    response_class=Response,
+    responses={
+        200: {
+            "content": {"application/pdf": {}},
+            "description": (
+                "PDF bytes. Includes X-Temp-Id, X-Filename, and X-Expires-At "
+                "response headers."
+            ),
+        },
+        400: {"description": "Invalid URL scheme or URL not reachable"},
+        404: {"description": "Course not found"},
+        408: {"description": "Page load timed out"},
+        422: {"description": "Playwright navigation error"},
+        503: {"description": "URL-to-PDF service unavailable"},
+    },
+)
+async def convert_url_to_pdf(
+    course_id: int,
+    request: URLRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> Response:
+    """Scrape a URL with Playwright/Chromium and return the rendered PDF for review.
+
+    The PDF is stored temporarily under ``uploads/url_pending/`` with a 30-minute
+    TTL. Retrieve the ``X-Temp-Id`` from the response headers and pass it to
+    ``POST /courses/{course_id}/documents/confirm-url-pdf`` to persist the document
+    and kick off the processing pipeline.
+    """
+    course = await get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    url_str = str(request.url)
+    _validate_url_scheme(url_str)
+
+    # Delegate scraping to the url-pdf microservice
+    pdf_bytes, filename = await convert_url_to_pdf_bytes(url_str)
+
+    # Write to temp directory
+    _URL_PDF_TEMP_DIR.mkdir(parents=True, exist_ok=True)
+    temp_id = uuid.uuid4().hex
+    temp_path = _URL_PDF_TEMP_DIR / f"{temp_id}.pdf"
+    temp_path.write_bytes(pdf_bytes)
+
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=_PENDING_TTL_MINUTES)
+
+    get_pending_pdf_store().put(
+        PendingPDF(
+            temp_id=temp_id,
+            path=temp_path,
+            filename=filename,
+            url=url_str,
+            size_bytes=len(pdf_bytes),
+            expires_at=expires_at,
+        )
+    )
+
+    logger.info(
+        "URL-to-PDF preview generated: course_id=%d temp_id=%s filename=%s size=%d url=%s",
+        course_id,
+        temp_id,
+        filename,
+        len(pdf_bytes),
+        url_str,
+    )
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "X-Temp-Id": temp_id,
+            "X-Filename": filename,
+            "X-Expires-At": expires_at.isoformat(),
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
+
+
+@router.post(
+    "/courses/{course_id}/documents/confirm-url-pdf",
+    status_code=201,
+    response_model=DocumentUploadResponse,
+    summary="Confirm and ingest a URL-converted PDF",
+)
+async def confirm_url_pdf(
+    course_id: int,
+    request: URLPDFConfirmRequest,
+    user: Dict[str, Any] = Depends(get_current_user),
+) -> DocumentUploadResponse:
+    """Confirm a previously generated URL PDF and feed it into the pipeline.
+
+    References the pending PDF from ``convert_url_to_pdf`` via ``temp_id``.
+    The PDF is moved from the temp directory to permanent course storage,
+    a ``DocumentModel`` record is created, and the document is registered
+    with the processing pipeline (same flow as a direct file upload).
+
+    Returns the same ``DocumentUploadResponse`` as a regular document upload.
+    """
+    course = await get_course(course_id)
+    if not course:
+        raise HTTPException(status_code=404, detail="Course not found")
+
+    store = get_pending_pdf_store()
+    pending = store.get(request.temp_id)
+
+    if pending is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No pending PDF found for temp_id '{request.temp_id}'. "
+            "It may have already been confirmed or never existed.",
+        )
+
+    now = datetime.now(timezone.utc)
+    if pending.expires_at <= now:
+        store.pop(request.temp_id)
+        raise HTTPException(
+            status_code=410,
+            detail=(
+                f"The pending PDF for temp_id '{request.temp_id}' has expired. "
+                "Please regenerate the PDF with convert-url."
+            ),
+        )
+
+    # Use caller-supplied filename override, or keep the URL-derived slug
+    final_filename = request.filename if request.filename else pending.filename
+    # Sanitise any override the caller provides
+    final_filename = re.sub(r"[^a-zA-Z0-9._-]", "_", final_filename)
+    if not final_filename.endswith(".pdf"):
+        final_filename += ".pdf"
+
+    # Move temp file to permanent course storage
+    course_dir = Path(UPLOAD_PATH) / str(course_id)
+    course_dir.mkdir(parents=True, exist_ok=True)
+    dest_path = course_dir / final_filename
+    shutil.move(str(pending.path), str(dest_path))
+
+    # Remove from pending store (file is now in permanent storage)
+    store.pop(request.temp_id)
+
+    # Create DB records and register with pipeline (same as _save_uploaded_document)
+    doc_id = uuid.uuid4().hex
+    storage_path = str(dest_path)
+
+    doc: Dict[str, Any] = await create_document(
+        doc_id=doc_id,
+        filename=final_filename,
+        storage_path=storage_path,
+        content_type="application/pdf",
+        size_bytes=dest_path.stat().st_size,
+    )
+    await attach_document_to_course(course_id, doc_id)
+    register_document(f"{course_id}/{final_filename}")
+
+    logger.info(
+        "URL PDF confirmed and registered: course_id=%d doc_id=%s filename=%s url=%s",
+        course_id,
+        doc_id,
+        final_filename,
+        pending.url,
+    )
+
+    return DocumentUploadResponse(**doc)

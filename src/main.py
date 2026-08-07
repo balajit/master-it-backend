@@ -1,5 +1,7 @@
+import asyncio
 import logging
 import os
+from typing import Optional
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Request
@@ -25,6 +27,7 @@ from learning_platform.api.app import (
     stop_book_poller,
     stop_poller,
 )
+from services.pending_pdfs import cleanup_pending_pdfs_task
 
 app = FastAPI(title="Master It API")
 
@@ -68,6 +71,8 @@ app.add_middleware(
 OPENAPI_PROTECTED: bool = os.getenv("OPENAPI_PROTECTED", "false").lower() == "true"
 UPLOAD_PATH: str = os.getenv("UPLOAD_PATH", "uploads")
 os.makedirs(UPLOAD_PATH, exist_ok=True)
+# Temp directory for URL-to-PDF pending files
+os.makedirs(os.path.join(UPLOAD_PATH, "url_pending"), exist_ok=True)
 
 app.include_router(users_router)
 app.include_router(courses_router)
@@ -77,9 +82,13 @@ app.include_router(mapping_router)
 app.include_router(v1_router)
 app.include_router(triage_router)
 
+# Background task handle for graceful shutdown
+_cleanup_task: Optional[asyncio.Task] = None
+
 
 @app.on_event("startup")
 async def startup() -> None:
+    global _cleanup_task
     logger.info("Initializing database...")
     await init_db()
     logger.info("Database initialized.")
@@ -92,10 +101,14 @@ async def startup() -> None:
     logger.info("Starting agent process poller...")
     await start_agent_poller()
     logger.info("Agent process poller started.")
+    logger.info("Starting pending PDF cleanup task (interval=5min)...")
+    _cleanup_task = asyncio.create_task(cleanup_pending_pdfs_task(interval_seconds=300))
+    logger.info("Pending PDF cleanup task started.")
 
 
 @app.on_event("shutdown")
 async def shutdown() -> None:
+    global _cleanup_task
     logger.info("Stopping file poller...")
     await stop_poller()
     logger.info("File poller stopped.")
@@ -105,6 +118,13 @@ async def shutdown() -> None:
     logger.info("Stopping agent process poller...")
     await stop_agent_poller()
     logger.info("Agent process poller stopped.")
+    if _cleanup_task is not None:
+        _cleanup_task.cancel()
+        try:
+            await _cleanup_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Pending PDF cleanup task stopped.")
 
 
 @app.get("/health")

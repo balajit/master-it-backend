@@ -1,0 +1,27 @@
+[project]
+name = "url-pdf-service"
+version = "0.1.0"
+description = "Stateless URL-to-PDF microservice using Playwright + Chromium"
+requires-python = ">=3.13"
+dependencies = [
+    "fastapi[standard]>=0.139.2",
+    "httpx>=0.28.1",
+    "playwright>=1.62.0",
+    "pydantic>=2.13.4",
+    "uvicorn[standard]>=0.34.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "httpx>=0.28.1",
+    "ruff>=0.15.22",
+]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100

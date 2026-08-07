@@ -39,7 +39,25 @@ services:
     command: server /data --console-address ":9001"
     restart: unless-stopped
 
+  url-pdf-service:
+    build:
+      context: ./url-pdf-service
+      dockerfile: Dockerfile
+    image: master-it/url-pdf-service:latest
+    container_name: url_pdf_service
+    ports:
+      - "8001:8001"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
 volumes:
   pgdata_prod:
   pgdata_test:
-  minio_data: 
+  minio_data:
